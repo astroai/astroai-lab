@@ -54,7 +54,13 @@ Machine-readable output: add **`--json`** to list/status/doctor commands.
 Paths auto-detect from Skaha session variables (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`).
 Optional preferences: **`~/.canfar/lab/config.yaml`**.
 
-See [docs/guide.md](docs/guide.md), [docs/cli.md](docs/cli.md), and [docs/config.md](docs/config.md).
+| Doc | Scope |
+|-----|--------|
+| [docs/USAGE.md](docs/USAGE.md) | **canfar-lab** — commands, storage, CADC/canfar integration, agents |
+| [docs/guide.md](docs/guide.md) | Short session loop |
+| [docs/cli.md](docs/cli.md) | Full CLI reference |
+
+**AstroAI session images** (webterm, notebook, …): [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md).
 
 ## Relationship to `canfar`
 

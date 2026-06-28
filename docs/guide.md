@@ -32,6 +32,8 @@ Env saves default to **`~/.canfar/lab/saves/`** on persistent home.
 
 Run **`canfar-lab guide`** for a printable cheat sheet.
 
+See **[USAGE.md](USAGE.md)** for examples, CADC/canfar integration, and agents.
+
 ## Daily commands
 
 ```bash
