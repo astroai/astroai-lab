@@ -41,12 +41,34 @@ def _ensure_bin_dir() -> None:
     BIN_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _verify_cmd(cmd: str) -> None:
+def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
+    _require("curl")
+    merged = {**os.environ, **(env or {})}
+    script = subprocess.run(
+        ["curl", "-fsSL", url],
+        capture_output=True,
+        check=True,
+        env=merged,
+    ).stdout
+    subprocess.run(["bash"], input=script, check=True, env=merged)
+
+
+def _link_into_local_bin(src: Path, name: str) -> None:
+    if not src.is_file():
+        return
+    dst = BIN_DIR / name
+    if dst.exists() or dst.is_symlink():
+        dst.unlink()
+    dst.symlink_to(src)
+
+
+def _verify_cmd(cmd: str, *, extra_paths: list[Path] | None = None) -> None:
     if which(cmd) is not None:
         return
-    local = BIN_DIR / cmd
-    if local.is_file() and os.access(local, os.X_OK):
-        return
+    candidates = [BIN_DIR / cmd, *(extra_paths or [])]
+    for path in candidates:
+        if path.is_file() and os.access(path, os.X_OK):
+            return
     raise LabError(f"{cmd} not found on PATH after install — open a new shell")
 
 
@@ -98,22 +120,19 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("node")
         _verify_cmd("npm")
     elif name == "agent":
-        _require("curl")
-        subprocess.run(["curl", "-fsS", "https://cursor.com/install"], check=True)
+        _curl_pipe_bash("https://cursor.com/install")
         _verify_cmd("agent")
     elif name == "claude":
-        _require("curl")
-        subprocess.run(["curl", "-fsSL", "https://claude.ai/install.sh"], check=True)
+        _curl_pipe_bash("https://claude.ai/install.sh")
         _verify_cmd("claude")
     elif name == "agy":
-        _require("curl")
-        subprocess.run(["curl", "-fsSL", "https://antigravity.google/cli/install.sh"], check=True)
+        _curl_pipe_bash("https://antigravity.google/cli/install.sh")
         _verify_cmd("agy")
     elif name == "opencode":
-        _require("curl")
-        env = {**os.environ, "XDG_BIN_DIR": str(BIN_DIR)}
-        subprocess.run(["curl", "-fsSL", "https://opencode.ai/install"], check=True, env=env)
-        _verify_cmd("opencode")
+        env = {"XDG_BIN_DIR": str(BIN_DIR)}
+        _curl_pipe_bash("https://opencode.ai/install", env=env)
+        _link_into_local_bin(Path.home() / ".opencode" / "bin" / "opencode", "opencode")
+        _verify_cmd("opencode", extra_paths=[Path.home() / ".opencode" / "bin" / "opencode"])
     elif name == "codex":
         _require("gh")
         run_capture(["gh", "auth", "status"])
@@ -130,28 +149,20 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             src.rename(BIN_DIR / "codex")
         _verify_cmd("codex")
     elif name == "copilot":
-        _require("curl")
-        env = {**os.environ, "PREFIX": str(Path.home() / ".local")}
-        subprocess.run(["curl", "-fsSL", "https://gh.io/copilot-install"], check=True, env=env)
+        env = {"PREFIX": str(Path.home() / ".local")}
+        _curl_pipe_bash("https://gh.io/copilot-install", env=env)
         _verify_cmd("copilot")
     elif name == "goose":
-        _require("curl")
-        env = {**os.environ, "GOOSE_BIN_DIR": str(BIN_DIR), "CONFIGURE": "false"}
-        subprocess.run(
-            [
-                "curl",
-                "-fsSL",
-                "https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh",
-            ],
-            check=True,
+        env = {"GOOSE_BIN_DIR": str(BIN_DIR), "CONFIGURE": "false"}
+        _curl_pipe_bash(
+            "https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh",
             env=env,
         )
         _verify_cmd("goose")
     elif name == "kilo":
-        _require("curl")
-        env = {**os.environ, "XDG_BIN_DIR": str(BIN_DIR)}
-        subprocess.run(["curl", "-fsSL", "https://kilo.ai/cli/install"], check=True, env=env)
-        if which("kilo") is None:
+        env = {"XDG_BIN_DIR": str(BIN_DIR)}
+        _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
+        if which("kilo") is None and not (BIN_DIR / "kilo").is_file():
             _require("npm")
             run(["npm", "install", "-g", "--prefix", str(Path.home() / ".local"), "@kilocode/cli"])
         _verify_cmd("kilo")
@@ -173,9 +184,9 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         run(["uv", "tool", "install", "swival"])
         _verify_cmd("swival")
     elif name == "ast-grep":
-        asset = f"ast-grep-{arch}-unknown-linux-gnu.zip"
         if arch not in ("x86_64", "aarch64"):
             raise LabError(f"Unsupported architecture: {arch}")
+        asset = f"app-{arch}-unknown-linux-gnu.zip"
         _gh_release_bin("ast-grep/ast-grep", asset, "sg")
         (BIN_DIR / "ast-grep").unlink(missing_ok=True)
         (BIN_DIR / "ast-grep").symlink_to(BIN_DIR / "sg")
