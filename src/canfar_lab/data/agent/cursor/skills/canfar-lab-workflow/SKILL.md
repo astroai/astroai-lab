@@ -30,9 +30,18 @@ canfar-lab --yes push            # before session ends!
 
 | Path | What |
 |------|------|
-| `${TMP_SRC_DIR}` | Code + `.pixi`/`.venv` — **gone when session ends** |
-| `${TMP_SCRATCH_DIR}` | Big data + download caches |
-| `/arc` (`$HOME`) | Agent config, saves, `~/.local/bin` |
+| `${TMP_SRC_DIR}` | Code + project `.pixi`/`.venv` — **ephemeral** |
+| `${TMP_SCRATCH_DIR}` | Data, download caches, runtime installs (`CANFAR_LAB_BIN_DIR`, uv/pixi roots) |
+| `/arc/projects/<team>/.local` | Shared team tools + env saves (persistent) |
+| `/arc` (`$HOME`) | **Small only** — agent MCP config, gh auth, lockfile saves |
+
+**Avoid** pip/uv/pixi/conda/npm installs under `$HOME` — use project envs in `${TMP_SRC_DIR}` or team paths on `/arc/projects`.
+
+Optional: `${TMP_SRC_DIR}/.canfar-lab/pythonpath` or `CANFAR_LAB_PYTHONPATH` for extra import paths.
+
+```bash
+canfar-lab doctor   # shows user_bin, npm_prefix, runtime_root, caches
+```
 
 ## Search & run (standard tools — no custom commands)
 

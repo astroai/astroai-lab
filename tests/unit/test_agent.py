@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -85,4 +84,3 @@ def test_merge_mcp_servers(tmp_path: Path) -> None:
     src.write_text('{"mcpServers": {"a": {"url": "x"}}}')
     merge_mcp_servers(src, dst, force=True, dry_run=False)
     assert dst.is_file()
-

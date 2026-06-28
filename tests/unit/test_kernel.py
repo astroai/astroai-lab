@@ -12,7 +12,7 @@ from canfar_lab.errors import LabError
 
 def _pixi_with_env(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "pixi.toml").write_text("[project]\nname=\"p\"\n")
+    (path / "pixi.toml").write_text('[project]\nname="p"\n')
     py = path / ".pixi" / "envs" / "default" / "bin"
     py.mkdir(parents=True)
     (py / "python").write_text("#!/bin/sh")
@@ -37,7 +37,7 @@ def test_register_kernel_no_jupyter() -> None:
 def test_register_kernel_no_env(tmp_path: Path) -> None:
     project = tmp_path / "mylab"
     project.mkdir()
-    (project / "pixi.toml").write_text("[project]\nname=\"p\"\n")
+    (project / "pixi.toml").write_text('[project]\nname="p"\n')
     with patch("canfar_lab.core.kernel.which", return_value=Path("/usr/bin/jupyter")):
         with pytest.raises(LabError, match="not installed"):
             register_kernel(project)

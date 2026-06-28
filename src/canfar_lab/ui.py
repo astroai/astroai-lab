@@ -19,6 +19,9 @@ class DoctorReport:
     save_dir: str
     config_dir: str
     home: str
+    user_bin: str
+    npm_prefix: str
+    runtime_root: str
     arc_projects: str | None
     pixi_cache_dir: str | None
     uv_cache_dir: str | None
@@ -73,6 +76,9 @@ def doctor_human(report: DoctorReport) -> None:
     table.add_row("save_dir", report.save_dir)
     table.add_row("config_dir", report.config_dir)
     table.add_row("home", report.home)
+    table.add_row("user_bin", report.user_bin)
+    table.add_row("npm_prefix", report.npm_prefix)
+    table.add_row("runtime_root", report.runtime_root)
     if report.arc_projects:
         table.add_row("arc_projects", report.arc_projects)
     if report.pixi_cache_dir:

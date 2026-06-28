@@ -65,10 +65,22 @@ See [docs/guide.md](docs/guide.md), [docs/cli.md](docs/cli.md), and [docs/config
 
 ## Development
 
+Run the full check suite locally before pushing:
+
+```bash
+./scripts/ci.sh
+```
+
+That runs ruff (lint + format), then pytest with coverage. GitHub Actions only runs pytest as a lightweight gate.
+
+Manual steps:
+
 ```bash
 uv sync --all-extras
 uv run canfar-lab guide
 uv run pytest -q
+uv run ruff check .
+uv run ruff format --check .
 ```
 
 Shell completion: `canfar-lab --install-completion bash`

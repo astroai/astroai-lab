@@ -4,8 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from canfar_lab import config_dir
-from canfar_lab.config.settings import get_settings
+from canfar_lab.core.session_common import find_arc_project_root, scratch_cache_root
+from canfar_lab.shell.session_env import resolve_session_env
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,9 @@ class SessionPaths:
     save_dir: Path
     config_dir: Path
     home: Path
+    user_bin: Path
+    npm_prefix: Path
+    runtime_root: Path
     arc_projects: Path | None
     pixi_cache_dir: Path | None
     uv_cache_dir: Path | None
@@ -28,30 +31,26 @@ def _first_writable(*candidates: Path) -> Path | None:
     return None
 
 
-def scratch_cache_root(work: Path, scratch: Path | None) -> Path:
-    user = os.environ.get("USER") or "user"
-    if scratch is not None:
-        return scratch / f".cache-{user}"
-    return work / f".cache-{user}"
-
-
 def _env_cache_path(var: str, default: Path) -> Path | None:
     raw = os.environ.get(var)
     return Path(raw) if raw else default
 
 
 def resolve_paths() -> SessionPaths:
-    settings = get_settings()
-    work = settings.resolve_work_dir()
-    scratch = settings.resolve_scratch_dir()
+    env = resolve_session_env(ensure=False)
+    work = env.tmp_src_dir
+    scratch = env.tmp_scratch_dir
     cache_root = scratch_cache_root(work, scratch)
 
     return SessionPaths(
         work_dir=work,
         scratch_dir=scratch,
-        save_dir=settings.resolve_save_dir(),
-        config_dir=config_dir(),
+        save_dir=env.canfar_lab_save_dir,
+        config_dir=env.canfar_lab_config_dir,
         home=Path.home(),
+        user_bin=env.canfar_lab_bin_dir,
+        npm_prefix=env.canfar_lab_npm_prefix,
+        runtime_root=env.canfar_lab_runtime_root,
         arc_projects=Path("/arc/projects") if Path("/arc/projects").is_dir() else None,
         pixi_cache_dir=_first_writable(
             _env_cache_path("PIXI_CACHE_DIR", cache_root / "pixi") or cache_root / "pixi",
@@ -82,16 +81,30 @@ def quota_used_pct(path: Path) -> int | None:
     return int((used / total) * 100)
 
 
-def find_arc_project_root(start: Path | None = None) -> Path | None:
-    path = (start or Path.cwd()).resolve()
-    if not Path("/arc/projects").is_dir():
-        return None
-    while path != path.parent:
-        if path.parent == Path("/arc/projects"):
-            return path
-        path = path.parent
-    return None
-
-
 def workspace_root(work_dir: Path) -> Path:
     return work_dir / ".canfar-lab" / "workspaces"
+
+
+def user_bin_dir() -> Path:
+    return resolve_session_env(ensure=False).canfar_lab_bin_dir
+
+
+def npm_prefix_dir() -> Path:
+    return resolve_session_env(ensure=False).canfar_lab_npm_prefix
+
+
+def runtime_root(work_dir: Path, scratch: Path | None) -> Path:
+    return resolve_session_env(ensure=False).canfar_lab_runtime_root
+
+
+__all__ = [
+    "SessionPaths",
+    "find_arc_project_root",
+    "npm_prefix_dir",
+    "quota_used_pct",
+    "resolve_paths",
+    "runtime_root",
+    "scratch_cache_root",
+    "user_bin_dir",
+    "workspace_root",
+]

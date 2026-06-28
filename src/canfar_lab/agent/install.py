@@ -8,10 +8,9 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+from canfar_lab.core.paths import npm_prefix_dir, user_bin_dir
 from canfar_lab.errors import LabError
 from canfar_lab.utils.subprocess import run, run_capture, which
-
-BIN_DIR = Path.home() / ".local" / "bin"
 
 TOOLS = {
     "node": "Node.js + npm (pixi global)",
@@ -33,12 +32,20 @@ TOOLS = {
 }
 
 
+def _bin_dir() -> Path:
+    return user_bin_dir()
+
+
+def _npm_prefix() -> Path:
+    return npm_prefix_dir()
+
+
 def list_tools() -> dict[str, str]:
     return dict(TOOLS)
 
 
 def _ensure_bin_dir() -> None:
-    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    _bin_dir().mkdir(parents=True, exist_ok=True)
 
 
 def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
@@ -56,7 +63,7 @@ def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
 def _link_into_local_bin(src: Path, name: str) -> None:
     if not src.is_file():
         return
-    dst = BIN_DIR / name
+    dst = _bin_dir() / name
     if dst.exists() or dst.is_symlink():
         dst.unlink()
     dst.symlink_to(src)
@@ -65,7 +72,7 @@ def _link_into_local_bin(src: Path, name: str) -> None:
 def _verify_cmd(cmd: str, *, extra_paths: list[Path] | None = None) -> None:
     if which(cmd) is not None:
         return
-    candidates = [BIN_DIR / cmd, *(extra_paths or [])]
+    candidates = [_bin_dir() / cmd, *(extra_paths or [])]
     for path in candidates:
         if path.is_file() and os.access(path, os.X_OK):
             return
@@ -96,7 +103,7 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
     found = next(tmp.rglob(binary), None)
     if found is None:
         raise LabError(f"Binary {binary} not found in {asset}")
-    shutil.copy2(found, BIN_DIR / binary)
+    shutil.copy2(found, _bin_dir() / binary)
     archive.unlink(missing_ok=True)
 
 
@@ -110,13 +117,14 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
 
     if name == "node":
         _require("pixi")
-        pixi_bin = Path(os.environ.get("PIXI_HOME", Path.home() / ".pixi")) / "bin"
+        pixi_bin = Path(os.environ.get("PIXI_HOME", str(_bin_dir().parent / ".pixi"))) / "bin"
+        bin_dir = _bin_dir()
         run(["pixi", "global", "install", "nodejs"])
         for cmd in ("node", "npm", "npx"):
             src = pixi_bin / cmd
             if src.is_file():
-                (BIN_DIR / cmd).unlink(missing_ok=True)
-                (BIN_DIR / cmd).symlink_to(src)
+                (bin_dir / cmd).unlink(missing_ok=True)
+                (bin_dir / cmd).symlink_to(src)
         _verify_cmd("node")
         _verify_cmd("npm")
     elif name == "agent":
@@ -129,7 +137,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _curl_pipe_bash("https://antigravity.google/cli/install.sh")
         _verify_cmd("agy")
     elif name == "opencode":
-        env = {"XDG_BIN_DIR": str(BIN_DIR)}
+        env = {"XDG_BIN_DIR": str(_bin_dir())}
         _curl_pipe_bash("https://opencode.ai/install", env=env)
         _link_into_local_bin(Path.home() / ".opencode" / "bin" / "opencode", "opencode")
         _verify_cmd("opencode", extra_paths=[Path.home() / ".opencode" / "bin" / "opencode"])
@@ -142,33 +150,33 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         tmp = Path(os.environ.get("TMPDIR", "/tmp"))
         run(["gh", "release", "download", "-R", "openai/codex", "-p", asset, "-D", str(tmp)])
         with tarfile.open(tmp / asset, "r:gz") as tf:
-            tf.extractall(BIN_DIR)
+            tf.extractall(_bin_dir())
         binary = asset.removesuffix(".tar.gz")
-        src = BIN_DIR / binary
+        src = _bin_dir() / binary
         if src.is_file():
-            src.rename(BIN_DIR / "codex")
+            src.rename(_bin_dir() / "codex")
         _verify_cmd("codex")
     elif name == "copilot":
-        env = {"PREFIX": str(Path.home() / ".local")}
+        env = {"PREFIX": str(_npm_prefix())}
         _curl_pipe_bash("https://gh.io/copilot-install", env=env)
         _verify_cmd("copilot")
     elif name == "goose":
-        env = {"GOOSE_BIN_DIR": str(BIN_DIR), "CONFIGURE": "false"}
+        env = {"GOOSE_BIN_DIR": str(_bin_dir()), "CONFIGURE": "false"}
         _curl_pipe_bash(
             "https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh",
             env=env,
         )
         _verify_cmd("goose")
     elif name == "kilo":
-        env = {"XDG_BIN_DIR": str(BIN_DIR)}
+        env = {"XDG_BIN_DIR": str(_bin_dir())}
         _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
-        if which("kilo") is None and not (BIN_DIR / "kilo").is_file():
+        if which("kilo") is None and not (_bin_dir() / "kilo").is_file():
             _require("npm")
-            run(["npm", "install", "-g", "--prefix", str(Path.home() / ".local"), "@kilocode/cli"])
+            run(["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli"])
         _verify_cmd("kilo")
     elif name == "cline":
         _require("npm")
-        run(["npm", "install", "-g", "--prefix", str(Path.home() / ".local"), "cline"])
+        run(["npm", "install", "-g", "--prefix", str(_npm_prefix()), "cline"])
         _verify_cmd("cline")
     elif name in ("freebuff", "pi", "codewhale"):
         _require("npm")
@@ -177,7 +185,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             "pi": "@earendil-works/pi-coding-agent",
             "codewhale": "codewhale",
         }[name]
-        run(["npm", "install", "-g", "--prefix", str(Path.home() / ".local"), pkg])
+        run(["npm", "install", "-g", "--prefix", str(_npm_prefix()), pkg])
         _verify_cmd(name if name != "pi" else "pi")
     elif name == "swival":
         _require("uv")
@@ -188,8 +196,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             raise LabError(f"Unsupported architecture: {arch}")
         asset = f"app-{arch}-unknown-linux-gnu.zip"
         _gh_release_bin("ast-grep/ast-grep", asset, "sg")
-        (BIN_DIR / "ast-grep").unlink(missing_ok=True)
-        (BIN_DIR / "ast-grep").symlink_to(BIN_DIR / "sg")
+        (_bin_dir() / "ast-grep").unlink(missing_ok=True)
+        (_bin_dir() / "ast-grep").symlink_to(_bin_dir() / "sg")
         _verify_cmd("sg")
     elif name == "hyperfine":
         if which("hyperfine"):

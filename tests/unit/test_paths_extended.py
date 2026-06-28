@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from canfar_lab.core.git import git_push
-from canfar_lab.core.paths import find_arc_project_root, quota_used_pct, scratch_cache_root
+from canfar_lab.core.paths import (
+    find_arc_project_root,
+    quota_used_pct,
+    scratch_cache_root,
+    user_bin_dir,
+)
 from canfar_lab.errors import LabError
 
 
@@ -30,6 +35,15 @@ def test_quota_used_pct(tmp_path: Path) -> None:
 
 def test_quota_used_pct_missing() -> None:
     assert quota_used_pct(Path("/no/such/path")) is None
+
+
+def test_user_bin_dir_prefers_scratch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / ".local" / "bin").mkdir(parents=True)
+    monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
+    monkeypatch.delenv("CANFAR_LAB_BIN_DIR", raising=False)
+    assert user_bin_dir() == scratch / ".local" / "bin"
 
 
 def test_find_arc_project_root_no_mount(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

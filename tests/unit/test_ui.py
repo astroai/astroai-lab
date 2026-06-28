@@ -15,6 +15,9 @@ def test_doctor_human(capsys) -> None:
         save_dir="/home/.canfar/lab/saves",
         config_dir="/home/.canfar/lab",
         home="/home",
+        user_bin="/scratch/.local/bin",
+        npm_prefix="/scratch/.local",
+        runtime_root="/scratch/.runtime-user",
         arc_projects="/arc/projects",
         pixi_cache_dir="/scratch/.cache/pixi",
         uv_cache_dir="/scratch/.cache/uv",
@@ -32,9 +35,7 @@ def test_env_list_table_empty(capsys) -> None:
 
 
 def test_env_list_table_with_rows(capsys) -> None:
-    ui.env_list_table(
-        [{"name": "mylab", "kind": "pixi", "saved_at": "t", "path": "/save/mylab"}]
-    )
+    ui.env_list_table([{"name": "mylab", "kind": "pixi", "saved_at": "t", "path": "/save/mylab"}])
     assert "mylab" in _combined(capsys)
 
 

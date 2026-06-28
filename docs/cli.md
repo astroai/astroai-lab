@@ -150,7 +150,13 @@ canfar-lab project init mygroup --members alice,bob
 | `CANFAR_LAB_WORK_DIR` | Work directory override |
 | `CANFAR_LAB_SCRATCH_DIR` | Scratch directory override |
 | `CANFAR_LAB_SAVE_DIR` | Env saves directory override |
+| `CANFAR_LAB_PYTHONPATH` | Extra `PYTHONPATH` entries (colon-separated) |
 | `TMP_SRC_DIR` | Session work dir (Skaha) |
 | `TMP_SCRATCH_DIR` | Session scratch (Skaha) |
+| `CANFAR_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`) |
+| `CANFAR_LAB_NPM_PREFIX` | npm global prefix (default: scratch `.local`) |
+| `CANFAR_LAB_CONFIG_DIR` | Workbench config (`~/.canfar/lab`) |
+
+Session paths are applied in login shells via `canfar-lab env export` (bundled in `/etc/canfar-lab/profile.sh` on CANFAR images).
 
 See [config.md](config.md) for optional YAML preferences.

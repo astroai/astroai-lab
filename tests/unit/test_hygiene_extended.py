@@ -23,9 +23,7 @@ def test_collect_home_ml_and_xdg(tmp_path: Path) -> None:
     home = tmp_path
     (home / ".cache" / "torch").mkdir(parents=True)
     (home / ".local" / "share" / "Trash").mkdir(parents=True)
-    targets = collect_home_targets(
-        home, stale_pkg=False, ml=True, hf=False, xdg_junk=True
-    )
+    targets = collect_home_targets(home, stale_pkg=False, ml=True, hf=False, xdg_junk=True)
     labels = {t.label for t in targets}
     assert ".cache/torch" in labels
 

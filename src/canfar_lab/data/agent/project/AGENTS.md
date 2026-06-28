@@ -16,7 +16,7 @@ Refresh: `canfar-lab agent update`
 ## This repo
 
 ```bash
-pixi install    # or uv sync
+pixi install    # or uv sync — env lives under TMP_SRC_DIR, not $HOME
 pixi run …      # or uv run …
 canfar-lab --yes push   # before session ends — code on TMP_SRC_DIR is ephemeral
 ```

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Annotated
 
@@ -19,8 +20,45 @@ from canfar_lab.core.project import (
     save_rows,
 )
 from canfar_lab.errors import LabError
+from canfar_lab.shell import hooks_sh_path, profile_sh_path
+from canfar_lab.shell.session_env import export_shell
 
 env_app = typer.Typer(help="Save and resume environments (alias: save/resume/saves).")
+
+
+@env_app.command("export")
+def env_export(
+    ensure: Annotated[
+        bool,
+        typer.Option("--ensure/--no-ensure", help="Create cache and runtime directories."),
+    ] = True,
+) -> None:
+    """Print bash export statements for the current CANFAR lab session.
+
+    Examples:
+        eval "$(canfar-lab env export)"
+    """
+    typer.echo(export_shell(ensure=ensure))
+
+
+@env_app.command("install-shell")
+def env_install_shell(
+    dest: Annotated[
+        Path,
+        typer.Argument(help="Destination directory (e.g. /etc/canfar-lab)."),
+    ] = Path("/etc/canfar-lab"),
+) -> None:
+    """Install bundled profile.sh and hooks.sh for login shells.
+
+    Examples:
+        canfar-lab env install-shell /etc/canfar-lab
+    """
+    dest.mkdir(parents=True, exist_ok=True)
+    for src in (profile_sh_path(), hooks_sh_path()):
+        target = dest / src.name
+        shutil.copy2(src, target)
+        target.chmod(0o644)
+    ui.print_ok(f"Installed shell files -> {dest}")
 
 
 @env_app.command("save")

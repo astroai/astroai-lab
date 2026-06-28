@@ -176,7 +176,9 @@ def apply_cline(preset: str, *, dry_run: bool) -> str | None:
         return "cline not installed — run: canfar-lab agent install cline"
     key = _openrouter_key()
     if not key:
-        return f"{OPENROUTER_KEY_ENV} not set — run: canfar-lab agent models free after exporting key"
+        return (
+            f"{OPENROUTER_KEY_ENV} not set — run: canfar-lab agent models free after exporting key"
+        )
     model = PRESETS[preset]["openrouter"]
     if dry_run:
         return f"dry-run: cline auth -p openrouter -m {model}"
@@ -213,7 +215,7 @@ def ensure_openrouter_in_agent_env(home: Path, *, dry_run: bool) -> None:
     hook = home / ".config" / "canfar" / "lab" / "agent-env.sh"
     marker = "# canfar-lab openrouter"
     line = (
-        f'{marker}\n'
+        f"{marker}\n"
         '[[ -f "${HOME}/.config/canfar/lab/openrouter.env" ]] '
         '&& source "${HOME}/.config/canfar/lab/openrouter.env"\n'
     )
@@ -230,8 +232,7 @@ def ensure_openrouter_in_agent_env(home: Path, *, dry_run: bool) -> None:
             "# CANFAR lab agent setup — GitHub token for gh + GitHub MCP\n"
             "if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then\n"
             '  export GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"\n'
-            "fi\n\n"
-            + line,
+            "fi\n\n" + line,
             encoding="utf-8",
         )
 

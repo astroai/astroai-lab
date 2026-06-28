@@ -11,7 +11,7 @@ from canfar_lab.errors import LabError
 
 def _pixi(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "pixi.toml").write_text("[project]\nname=\"p\"\n")
+    (path / "pixi.toml").write_text('[project]\nname="p"\n')
 
 
 def test_save_workspace(tmp_path: Path) -> None:

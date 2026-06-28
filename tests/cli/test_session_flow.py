@@ -37,7 +37,7 @@ def lab_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _pixi_project(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "pixi.toml").write_text("[project]\nname = \"demo\"\n")
+    (path / "pixi.toml").write_text('[project]\nname = "demo"\n')
     (path / "pixi.lock").write_text("lock-content")
 
 

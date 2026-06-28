@@ -6,10 +6,11 @@ from typing import Annotated
 import typer
 
 from canfar_lab import ui
+from canfar_lab.agent import free_models as agent_free_models
 from canfar_lab.agent import install as agent_install
 from canfar_lab.agent import setup as agent_setup_mod
-from canfar_lab.agent import free_models as agent_free_models
 from canfar_lab.cli.context import get_opts
+from canfar_lab.core.paths import user_bin_dir
 from canfar_lab.errors import LabError
 
 agent_app = typer.Typer(help="AI agent setup and tool installation.")
@@ -121,7 +122,7 @@ def agent_install_cmd(
     tool: Annotated[str | None, typer.Argument(help="Tool name (see --list).")] = None,
     list_tools: Annotated[bool, typer.Option("--list", "-l", help="List tools.")] = False,
 ) -> None:
-    """Install AI coding tools to ~/.local/bin.
+    """Install AI coding tools to $CANFAR_LAB_BIN_DIR (scratch or team project, not $HOME).
 
     Examples:
         canfar-lab agent install claude
@@ -143,7 +144,7 @@ def agent_install_cmd(
     if opts.dry_run:
         ui.print_ok(f"dry-run: would install {tool}")
     else:
-        ui.print_ok(f"Installed {tool} → ~/.local/bin")
+        ui.print_ok(f"Installed {tool} → {user_bin_dir()}")
         if tool in ("kilo", "goose", "cline", "opencode", "codex"):
             ui.print_hint("  canfar-lab agent models free")
 
@@ -175,7 +176,10 @@ def models_list_cmd(ctx: typer.Context) -> None:
 def models_free_cmd(
     ctx: typer.Context,
     preset: Annotated[str, typer.Option("--preset", "-p", help="Preset name.")] = "coding",
-    force: Annotated[bool, typer.Option("--force", "-f", help="Overwrite existing configs.")] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", "-f", help="Overwrite existing configs."),
+    ] = False,
 ) -> None:
     """Apply free-tier model configs for goose, kilo, opencode, codex, cline.
 

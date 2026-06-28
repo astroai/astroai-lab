@@ -22,13 +22,13 @@ from canfar_lab.models.manifest import EnvManifest, ProjectKind
 
 def _pixi(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "pixi.toml").write_text("[project]\nname = \"p\"\n")
+    (path / "pixi.toml").write_text('[project]\nname = "p"\n')
     (path / "pixi.lock").write_text("lock")
 
 
 def _uv(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "pyproject.toml").write_text("[project]\nname = \"p\"\n")
+    (path / "pyproject.toml").write_text('[project]\nname = "p"\n')
     (path / "uv.lock").write_text("lock")
 
 

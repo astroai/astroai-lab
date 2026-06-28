@@ -35,7 +35,7 @@ def lab_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _pixi(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "pixi.toml").write_text("[project]\nname=\"p\"\n")
+    (path / "pixi.toml").write_text('[project]\nname="p"\n')
     (path / "pixi.lock").write_text("lock")
 
 
@@ -70,7 +70,7 @@ def test_clone_with_from_env(
     save_dir.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     get_settings.cache_clear()
-    (save_dir / "pixi.toml").write_text("[project]\nname=\"b\"\n")
+    (save_dir / "pixi.toml").write_text('[project]\nname="b"\n')
     manifest = {
         "name": "ml-base",
         "kind": "pixi",
@@ -117,7 +117,7 @@ def test_init_success(lab_env: Path) -> None:
 def test_resume_success(lab_env: Path, tmp_path: Path) -> None:
     save_dir = tmp_path / "saves" / "mylab"
     save_dir.mkdir(parents=True)
-    (save_dir / "pixi.toml").write_text("[project]\nname=\"p\"\n")
+    (save_dir / "pixi.toml").write_text('[project]\nname="p"\n')
     manifest = {
         "name": "mylab",
         "kind": "pixi",
@@ -147,7 +147,7 @@ def test_env_save_and_list(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> No
 def test_env_resume(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     saves = Path.home() / ".canfar" / "lab" / "saves" / "mylab"
     saves.mkdir(parents=True, exist_ok=True)
-    (saves / "pixi.toml").write_text("[project]\nname=\"p\"\n")
+    (saves / "pixi.toml").write_text('[project]\nname="p"\n')
     manifest = {
         "name": "mylab",
         "kind": "pixi",
@@ -198,7 +198,7 @@ def test_clean_cache_all_safe(lab_env: Path, monkeypatch: pytest.MonkeyPatch) ->
 def test_kernel_register_cli(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = lab_env / "nb"
     project.mkdir()
-    (project / "pixi.toml").write_text("[project]\nname=\"p\"\n")
+    (project / "pixi.toml").write_text('[project]\nname="p"\n')
     py = project / ".pixi" / "envs" / "default" / "bin"
     py.mkdir(parents=True)
     (py / "python").write_text("#!/bin/sh")

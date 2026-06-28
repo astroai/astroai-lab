@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
+from canfar_lab.agent.bundle_path import bundle_root
 from canfar_lab.agent.bundles import (
     ensure_agent_dirs,
     install_goose_config,
@@ -15,7 +15,6 @@ from canfar_lab.agent.bundles import (
     run_bundle,
     write_stamp,
 )
-from canfar_lab.agent.bundle_path import bundle_root
 from canfar_lab.cli.main import app
 
 runner = CliRunner()
