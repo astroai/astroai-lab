@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from canfar_lab import config_dir, saves_dir
-from canfar_lab.config import LabSettings, get_settings
-from canfar_lab.paths import resolve_paths
+from canfar_lab.config.settings import LabSettings, get_settings
+from canfar_lab.core.paths import resolve_paths
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +39,7 @@ def test_work_dir_from_canfar_lab_env(lab_home: Path, monkeypatch: pytest.Monkey
     assert settings.resolve_work_dir() == work
 
 
-def test_work_dir_falls_back_to_tmp_src_dir(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_work_dir_falls_back_to_tmp_src(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     srcdir = lab_home / "srcdir"
     srcdir.mkdir()
     monkeypatch.setenv("TMP_SRC_DIR", str(srcdir))

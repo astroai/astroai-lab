@@ -3,34 +3,35 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from canfar_lab import saves_dir
+from canfar_lab import config_dir, saves_dir
+
+
+class PushSettings(BaseModel):
+    auto_save: bool = True
+    require_clean_git: bool = False
 
 
 class LabSettings(BaseSettings):
-    """Session workbench settings (CANFAR_LAB_* env vars)."""
+    """Session workbench settings (CANFAR_LAB_* env vars + optional config.yaml)."""
 
     model_config = SettingsConfigDict(
         env_prefix="CANFAR_LAB_",
+        env_nested_delimiter="__",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    work_dir: Path | None = Field(
-        default=None,
-        description="Ephemeral code directory (git repos, pixi/uv projects).",
-    )
-    scratch_dir: Path | None = Field(
-        default=None,
-        description="Ephemeral scratch for datasets and download caches.",
-    )
-    save_dir: Path | None = Field(
-        default=None,
-        description="Persistent directory for saved lockfile environments.",
-    )
+    work_dir: Path | None = Field(default=None)
+    scratch_dir: Path | None = Field(default=None)
+    save_dir: Path | None = Field(default=None)
+    default_pm: Literal["pixi", "uv"] = "pixi"
+    clone_from_env: str | None = None
+    push: PushSettings = Field(default_factory=PushSettings)
 
     def resolve_work_dir(self) -> Path:
         for raw in (
@@ -67,11 +68,29 @@ class LabSettings(BaseSettings):
         return saves_dir()
 
 
+def config_file_path() -> Path:
+    return config_dir() / "config.yaml"
+
+
 def _env_path(name: str) -> Path | None:
     val = os.environ.get(name, "").strip()
     return Path(val) if val else None
 
 
+def _yaml_settings_source() -> dict:
+    path = config_file_path()
+    if not path.is_file():
+        return {}
+    try:
+        import yaml
+    except ImportError:
+        return {}
+    with path.open(encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
+    return data if isinstance(data, dict) else {}
+
+
 @lru_cache
 def get_settings() -> LabSettings:
-    return LabSettings()
+    yaml_data = _yaml_settings_source()
+    return LabSettings(**yaml_data)

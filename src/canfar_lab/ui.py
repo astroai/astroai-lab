@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from canfar_lab.utils.console import console
@@ -47,6 +50,20 @@ def print_warn(message: str) -> None:
     console.print(f"[yellow]Warning:[/yellow] {message}")
 
 
+@contextmanager
+def progress_task(description: str, *, quiet: bool = False) -> Iterator[None]:
+    if quiet:
+        yield
+        return
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        progress.add_task(description, total=None)
+        yield
+
+
 def doctor_human(report: DoctorReport) -> None:
     table = Table(title="canfar-lab doctor", show_header=True, header_style="bold")
     table.add_column("Key", style="dim")
@@ -79,7 +96,7 @@ def doctor_human(report: DoctorReport) -> None:
 def env_list_table(rows: list[dict[str, str]]) -> None:
     if not rows:
         print_hint("No saved environments.")
-        print_hint("  canfar-lab env save mylab")
+        print_hint("  canfar-lab save mylab")
         return
     table = Table(title="Saved environments")
     table.add_column("Name")
@@ -89,3 +106,32 @@ def env_list_table(rows: list[dict[str, str]]) -> None:
     for row in rows:
         table.add_row(row["name"], row["kind"], row["saved_at"], row["path"])
     console.print(table)
+
+
+def status_human(quotas: list, home_rows: list, project_hint: str, processes: list[str]) -> None:
+    console.print("[bold]canfar-lab status[/bold]\n")
+    if quotas:
+        qt = Table(title="Quotas (/arc)")
+        qt.add_column("Location")
+        qt.add_column("Used")
+        qt.add_column("Total")
+        qt.add_column("%")
+        for q in quotas:
+            style = "red" if q.pct >= 95 else "yellow" if q.pct >= 80 else ""
+            pct_cell = f"[{style}]{q.pct}%[/{style}]" if style else f"{q.pct}%"
+            qt.add_row(q.label, q.used, q.total, pct_cell)
+        console.print(qt)
+    if home_rows:
+        ht = Table(title="Home breakdown")
+        ht.add_column("Dir")
+        ht.add_column("Size")
+        ht.add_column("Notes")
+        for d, s, n in home_rows:
+            ht.add_row(d, s, n)
+        console.print(ht)
+    if project_hint:
+        console.print(f"\n[dim]{project_hint}[/dim]")
+    if processes:
+        console.print("\n[bold]Top CPU processes[/bold]")
+        for line in processes:
+            console.print(f"  {line}")

@@ -5,13 +5,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from canfar_lab import config_dir
-from canfar_lab.config import get_settings
+from canfar_lab.config.settings import get_settings
 
 
 @dataclass(frozen=True)
 class SessionPaths:
-    """Resolved session storage and cache paths."""
-
     work_dir: Path
     scratch_dir: Path | None
     save_dir: Path
@@ -37,6 +35,11 @@ def scratch_cache_root(work: Path, scratch: Path | None) -> Path:
     return work / f".cache-{user}"
 
 
+def _env_cache_path(var: str, default: Path) -> Path | None:
+    raw = os.environ.get(var)
+    return Path(raw) if raw else default
+
+
 def resolve_paths() -> SessionPaths:
     settings = get_settings()
     work = settings.resolve_work_dir()
@@ -51,15 +54,15 @@ def resolve_paths() -> SessionPaths:
         home=Path.home(),
         arc_projects=Path("/arc/projects") if Path("/arc/projects").is_dir() else None,
         pixi_cache_dir=_first_writable(
-            Path(os.environ["PIXI_CACHE_DIR"]) if os.environ.get("PIXI_CACHE_DIR") else cache_root / "pixi",
+            _env_cache_path("PIXI_CACHE_DIR", cache_root / "pixi") or cache_root / "pixi",
             cache_root / "pixi",
         ),
         uv_cache_dir=_first_writable(
-            Path(os.environ["UV_CACHE_DIR"]) if os.environ.get("UV_CACHE_DIR") else cache_root / "uv",
+            _env_cache_path("UV_CACHE_DIR", cache_root / "uv") or cache_root / "uv",
             cache_root / "uv",
         ),
         pip_cache_dir=_first_writable(
-            Path(os.environ["PIP_CACHE_DIR"]) if os.environ.get("PIP_CACHE_DIR") else cache_root / "pip",
+            _env_cache_path("PIP_CACHE_DIR", cache_root / "pip") or cache_root / "pip",
             cache_root / "pip",
         ),
     )
@@ -77,3 +80,18 @@ def quota_used_pct(path: Path) -> int | None:
         return None
     used = (stat.f_blocks - stat.f_bfree) * stat.f_frsize
     return int((used / total) * 100)
+
+
+def find_arc_project_root(start: Path | None = None) -> Path | None:
+    path = (start or Path.cwd()).resolve()
+    if not Path("/arc/projects").is_dir():
+        return None
+    while path != path.parent:
+        if path.parent == Path("/arc/projects"):
+            return path
+        path = path.parent
+    return None
+
+
+def workspace_root(work_dir: Path) -> Path:
+    return work_dir / ".canfar-lab" / "workspaces"

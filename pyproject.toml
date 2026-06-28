@@ -26,6 +26,7 @@ dependencies = [
     "humanize>=4.12.3",
     "pydantic>=2.9.2",
     "pydantic-settings>=2.9.1",
+    "pyyaml>=6.0.2",
     "rich>=13.9.4",
     "typer>=0.16.0",
 ]
@@ -43,7 +44,7 @@ Repository = "https://github.com/sfabbro/canfar-lab"
 Issues = "https://github.com/sfabbro/canfar-lab/issues"
 
 [project.scripts]
-canfar-lab = "canfar_lab.cli.main:main"
+canfar-lab = "canfar_lab.cli.main:main_entry"
 
 [build-system]
 requires = ["hatchling"]
@@ -52,9 +53,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/canfar_lab"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/canfar_lab/data" = "canfar_lab/data"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--cov=canfar_lab --cov-report=term-missing --cov-fail-under=75"
+
+[tool.coverage.run]
+source = ["src/canfar_lab"]
 
 [tool.ruff]
 line-length = 100
