@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from canfar_lab.agent.bundle_path import bundle_root
+from canfar_lab.agent.free_models import apply_free_models, apply_kilo, free_models_guide
 from canfar_lab.errors import LabError
 
 
@@ -251,6 +252,21 @@ def run_bundle(
             force=force,
             dry_run=dry_run,
         )
+    elif name == "kilo":
+        apply_kilo(home, "coding", force=force, dry_run=dry_run)
+    elif name == "cline":
+        install_file(
+            root / "free-models" / "cline-free.md",
+            home / ".config" / "canfar" / "lab" / "cline-free.md",
+            force=force,
+            dry_run=dry_run,
+        )
+    elif name == "free-models":
+        apply_free_models(home=home, force=force, dry_run=dry_run, skip_cline=True)
+        if not dry_run:
+            guide = home / ".config" / "canfar" / "lab" / "free-models-guide.txt"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text(free_models_guide() + "\n", encoding="utf-8")
     elif name == "codex":
         install_file(
             root / "codex" / "config.toml",
@@ -330,6 +346,7 @@ def ensure_agent_dirs(home: Path, *, dry_run: bool) -> None:
         home / ".cursor" / "skills",
         home / ".config" / "goose",
         home / ".config" / "opencode",
+        home / ".config" / "kilo",
         home / ".codex",
         home / ".copilot",
         home / ".claude",

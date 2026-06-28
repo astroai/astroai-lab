@@ -1,18 +1,19 @@
 ---
 name: canfar-lab-workflow
 description: >-
-  CANFAR CANFAR lab quick reference — setup, pixi/uv, storage, canfar-lab-* commands.
+  CANFAR lab quick reference — setup, pixi/uv, storage, canfar-lab commands.
   Use for new users or session workflow questions on CANFAR lab.
 ---
 # CANFAR lab in 3 commands
 
 ```bash
 canfar-lab agent setup              # once per user — MCP + skills (persists on /arc)
-canfar-lab agent install agent            # or: claude, goose, opencode, codex
-gh auth login                    # GitHub for gh + GitHub MCP
+canfar-lab agent install kilo       # or: goose, cline, opencode, codex, agent
+canfar-lab agent models free        # OpenRouter + Kilo free-tier model presets
+gh auth login                       # GitHub for gh + GitHub MCP
 ```
 
-Refresh after image upgrade: `canfar-lab agent setup update`
+Refresh after image upgrade: `canfar-lab agent update`
 
 ## Daily workflow
 
@@ -22,7 +23,7 @@ canfar-lab clone --from-env ml-base owner/repo   # warm caches from saved stack
 cd "${TMP_SRC_DIR}/mylab"
 pixi install                     # or uv sync
 pixi run python analysis.py
-git push                         # before session ends!
+canfar-lab --yes push            # before session ends!
 ```
 
 ## Storage (memorize this)
@@ -48,7 +49,7 @@ uv run python script.py
 ```bash
 canfar-lab guide
 canfar-lab status                   # quotas, home/project space
-canfar-lab-debug                    # paths, caches, uv python dir
+canfar-lab doctor                   # paths, caches, uv python dir
 canfar-lab clean home --all-safe    # when /arc quota is tight
-less /opt/canfar-lab/USAGE.md
+less /opt/astroai/USAGE.md
 ```

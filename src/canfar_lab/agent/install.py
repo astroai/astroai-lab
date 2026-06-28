@@ -22,6 +22,8 @@ TOOLS = {
     "codex": "Codex CLI",
     "copilot": "GitHub Copilot CLI",
     "goose": "Goose",
+    "kilo": "Kilo CLI (@kilocode/cli)",
+    "cline": "Cline CLI",
     "freebuff": "Freebuff",
     "pi": "Pi Coding Agent",
     "codewhale": "CodeWhale",
@@ -141,6 +143,18 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             env=env,
         )
         _verify_cmd("goose")
+    elif name == "kilo":
+        _require("curl")
+        env = {**os.environ, "XDG_BIN_DIR": str(BIN_DIR)}
+        subprocess.run(["curl", "-fsSL", "https://kilo.ai/cli/install"], check=True, env=env)
+        if which("kilo") is None:
+            _require("npm")
+            run(["npm", "install", "-g", "--prefix", str(Path.home() / ".local"), "@kilocode/cli"])
+        _verify_cmd("kilo")
+    elif name == "cline":
+        _require("npm")
+        run(["npm", "install", "-g", "--prefix", str(Path.home() / ".local"), "cline"])
+        _verify_cmd("cline")
     elif name in ("freebuff", "pi", "codewhale"):
         _require("npm")
         pkg = {

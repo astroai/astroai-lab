@@ -4,6 +4,19 @@ In-session workbench for the [CANFAR Science Platform](https://www.opencadc.org/
 
 Use **`canfar`** to authenticate and manage sessions. Use **`canfar-lab`** inside a running session for the daily workflow: init/clone, save/resume environments, push before closing.
 
+## AI coding agents
+
+```bash
+canfar-lab agent setup              # once per user — MCP + skills (persists on /arc)
+canfar-lab agent install kilo       # or goose, cline, opencode, codex, agent
+canfar-lab agent models free        # OpenRouter + Kilo free-tier model presets
+gh auth login                       # GitHub for gh + GitHub MCP
+```
+
+Refresh after image upgrade: `canfar-lab agent update`
+
+See [docs/cli.md](docs/cli.md) for `canfar-lab agent models --preset long` and per-agent setup.
+
 ## Session loop
 
 ```bash

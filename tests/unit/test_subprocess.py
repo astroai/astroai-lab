@@ -10,7 +10,7 @@ from canfar_lab.utils.subprocess import run, run_capture, run_cmd, which
 
 
 def test_which_found() -> None:
-    assert which("python") is not None
+    assert which("python3") is not None
 
 
 def test_which_missing() -> None:

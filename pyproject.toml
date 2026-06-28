@@ -53,9 +53,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/canfar_lab"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/canfar_lab/data" = "canfar_lab/data"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

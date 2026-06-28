@@ -12,6 +12,15 @@
     "goose": {
       "description": "Goose MCP extensions (~/.config/goose/config.yaml)"
     },
+    "kilo": {
+      "description": "Kilo CLI starter config (~/.config/kilo/kilo.jsonc)"
+    },
+    "cline": {
+      "description": "Cline CLI notes (~/.config/canfar/lab/cline-free.md)"
+    },
+    "free-models": {
+      "description": "OpenRouter + Kilo free-tier model presets for all agents"
+    },
     "codex": {
       "description": "Codex CLI MCP (~/.codex/config.toml)"
     },
@@ -26,7 +35,7 @@
     },
     "all": {
       "description": "Default install — all agent backends + GitHub skills",
-      "includes": ["cursor", "claude", "opencode", "goose", "codex", "copilot", "cli"]
+      "includes": ["cursor", "claude", "opencode", "goose", "codex", "copilot", "cli", "kilo", "free-models"]
     }
   },
   "mcp_notes": {
