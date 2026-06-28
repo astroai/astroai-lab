@@ -118,6 +118,10 @@ def install_goose_config(root: Path, home: Path, *, force: bool, dry_run: bool) 
     dst.write_text(f"# CANFAR lab — run: goose configure\n{src.read_text()}", encoding="utf-8")
 
 
+def _upstream_cache_root(home: Path, repo: str) -> Path:
+    return home / ".cache" / "canfar-lab" / "upstream-skills" / repo.replace("/", "_")
+
+
 def install_upstream_skill(
     root: Path,
     home: Path,
@@ -133,7 +137,7 @@ def install_upstream_skill(
         return False
     if dry_run:
         return True
-    cache_root = root / ".upstream-cache" / repo.replace("/", "_")
+    cache_root = _upstream_cache_root(home, repo)
     src = cache_root / path
     if not (cache_root / ".git").is_dir():
         cache_root.parent.mkdir(parents=True, exist_ok=True)
@@ -352,6 +356,7 @@ def ensure_agent_dirs(home: Path, *, dry_run: bool) -> None:
         home / ".claude",
         home / ".config" / "canfar" / "lab",
         home / ".canfar" / "lab",
+        home / ".cache" / "canfar-lab",
     ]
     if dry_run:
         return
