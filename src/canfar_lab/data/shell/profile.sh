@@ -10,13 +10,20 @@ fi
 CANFAR_LAB_PROFILE_LOADED=1
 
 if command -v canfar-lab >/dev/null 2>&1; then
+    _canfar_lab_cli="canfar-lab"
+elif [[ -x /opt/astroai/venv/cadc/bin/canfar-lab ]]; then
+    _canfar_lab_cli="/opt/astroai/venv/cadc/bin/canfar-lab"
+fi
+
+if [[ -n "${_canfar_lab_cli:-}" ]]; then
     # shellcheck disable=SC1090
-    eval "$(canfar-lab env export)" || {
+    eval "$("${_canfar_lab_cli}" env export)" || {
         echo "canfar-lab env export failed — session paths may be incomplete" >&2
     }
 else
     echo "canfar-lab: command not found — session paths may be incomplete" >&2
 fi
+unset _canfar_lab_cli
 
 _CANFAR_LAB_SHELL_DIR="${CANFAR_LAB_SHELL_DIR:-/etc/canfar-lab}"
 if [[ -f "${_CANFAR_LAB_SHELL_DIR}/hooks.sh" ]]; then

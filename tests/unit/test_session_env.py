@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+import pwd
 from pathlib import Path
 
 import pytest
 
 from canfar_lab.core.session_common import scratch_cache_root
 from canfar_lab.shell.session_env import export_shell, resolve_session_env
+
+
+def test_user_tag_numeric_uid_when_passwd_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    from canfar_lab.core import session_common
+
+    monkeypatch.delenv("USER", raising=False)
+    monkeypatch.delenv("LOGNAME", raising=False)
+
+    def _missing(_uid: int) -> pwd.struct_passwd:
+        raise KeyError(_uid)
+
+    monkeypatch.setattr(session_common.pwd, "getpwuid", _missing)
+    assert session_common.user_tag() == str(os.getuid())
 
 
 def test_resolve_session_env_prefers_scratch_bin(

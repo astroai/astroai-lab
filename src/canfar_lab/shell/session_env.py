@@ -9,16 +9,12 @@ from pathlib import Path
 
 from canfar_lab import config_dir, saves_dir
 from canfar_lab.config.settings import get_settings
-from canfar_lab.core.session_common import find_arc_project_root, scratch_cache_root
+from canfar_lab.core.session_common import find_arc_project_root, scratch_cache_root, user_tag
 
 
 def _env_path(name: str) -> Path | None:
     val = os.environ.get(name, "").strip()
     return Path(val) if val else None
-
-
-def _user_tag() -> str:
-    return os.environ.get("USER") or "user"
 
 
 def _path_under_roots(path: Path, *roots: Path) -> bool:
@@ -124,7 +120,7 @@ def runtime_root(work: Path, scratch: Path | None) -> Path:
     custom = os.environ.get("CANFAR_LAB_RUNTIME_ROOT", "").strip()
     if custom:
         return Path(custom)
-    user = _user_tag()
+    user = user_tag()
     if scratch is not None:
         return scratch / f".runtime-{user}"
     return work / f".runtime-{user}"
@@ -261,7 +257,7 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
     if scratch is not None:
         hf_default = cache_root / "huggingface"
         torch_default = cache_root / "torch"
-        tmp_default = scratch / f".tmp-{_user_tag()}"
+        tmp_default = scratch / f".tmp-{user_tag()}"
         hf = _session_cache_path("HF_HOME", hf_default, work, scratch)
         torch = _session_cache_path("TORCH_HOME", torch_default, work, scratch)
         tmp = _session_cache_path("TMPDIR", tmp_default, work, scratch)
@@ -269,7 +265,7 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
     else:
         hf = Path(os.environ.get("HF_HOME", str(xdg_cache / "huggingface")))
         torch = Path(os.environ.get("TORCH_HOME", str(xdg_cache / "torch")))
-        tmp = Path(os.environ.get("TMPDIR", str(work / f".tmp-{_user_tag()}")))
+        tmp = Path(os.environ.get("TMPDIR", str(work / f".tmp-{user_tag()}")))
         pixi_home = Path(os.environ.get("PIXI_HOME", str(xdg_data / "pixi")))
 
     env = SessionEnv(

@@ -72,6 +72,11 @@ def _link_into_local_bin(src: Path, name: str) -> None:
     if not src.is_file():
         return
     dst = _bin_dir() / name
+    try:
+        if src.resolve() == dst.resolve():
+            return
+    except OSError:
+        pass
     if dst.exists() or dst.is_symlink():
         dst.unlink()
     dst.symlink_to(src)
@@ -80,7 +85,12 @@ def _link_into_local_bin(src: Path, name: str) -> None:
 def _verify_cmd(cmd: str, *, extra_paths: list[Path] | None = None) -> None:
     if which(cmd) is not None:
         return
-    candidates = [_bin_dir() / cmd, *(extra_paths or [])]
+    session = resolve_session_env(ensure=False)
+    candidates = [
+        session.canfar_lab_bin_dir / cmd,
+        session.canfar_lab_npm_prefix / "bin" / cmd,
+        *(extra_paths or []),
+    ]
     for path in candidates:
         if path.is_file() and os.access(path, os.X_OK):
             return
@@ -120,6 +130,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         raise LabError(f"Unknown tool: {name}", hint="canfar-lab agent install --list")
     if dry_run:
         return
+    resolve_session_env(ensure=True)
     _ensure_bin_dir()
     arch = platform.machine()
 
@@ -175,9 +186,11 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             src.rename(_bin_dir() / "codex")
         _verify_cmd("codex")
     elif name == "copilot":
-        env = {"PREFIX": str(_npm_prefix())}
+        env = {"PREFIX": str(_npm_prefix()), "CI": "1"}
         _curl_pipe_bash("https://gh.io/copilot-install", env=env)
-        _verify_cmd("copilot")
+        copilot_bin = _npm_prefix() / "bin" / "copilot"
+        _link_into_local_bin(copilot_bin, "copilot")
+        _verify_cmd("copilot", extra_paths=[copilot_bin])
     elif name == "goose":
         env = {"GOOSE_BIN_DIR": str(_bin_dir()), "CONFIGURE": "false"}
         _curl_pipe_bash(
