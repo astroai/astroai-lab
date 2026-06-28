@@ -42,8 +42,12 @@ def _ensure_bin_dir() -> None:
 
 
 def _verify_cmd(cmd: str) -> None:
-    if which(cmd) is None:
-        raise LabError(f"{cmd} not found on PATH after install — open a new shell")
+    if which(cmd) is not None:
+        return
+    local = BIN_DIR / cmd
+    if local.is_file() and os.access(local, os.X_OK):
+        return
+    raise LabError(f"{cmd} not found on PATH after install — open a new shell")
 
 
 def _require(cmd: str) -> None:
