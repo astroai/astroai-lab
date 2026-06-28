@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from canfar_lab.core.session_common import scratch_cache_root
 from canfar_lab.shell.session_env import export_shell, resolve_session_env
 
 
@@ -17,10 +18,18 @@ def test_resolve_session_env_prefers_scratch_bin(
     monkeypatch.setenv("TMP_SRC_DIR", str(work))
     monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
     monkeypatch.delenv("CANFAR_LAB_BIN_DIR", raising=False)
+    for var in (
+        "UV_CACHE_DIR",
+        "PIP_CACHE_DIR",
+        "NPM_CONFIG_CACHE",
+        "PIXI_CACHE_DIR",
+        "MAMBA_PKGS_DIRS",
+    ):
+        monkeypatch.delenv(var, raising=False)
 
     env = resolve_session_env(ensure=True)
     assert env.canfar_lab_bin_dir == scratch / ".local" / "bin"
-    assert str(scratch) in str(env.uv_cache_dir)
+    assert env.uv_cache_dir == scratch_cache_root(work, scratch) / "uv"
 
 
 def test_export_shell_includes_canfar_lab_vars(

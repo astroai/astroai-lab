@@ -189,7 +189,7 @@ def test_clean_cache_all_safe(lab_env: Path, monkeypatch: pytest.MonkeyPatch) ->
     cache.mkdir(parents=True)
     (cache / "w").write_text("x")
     monkeypatch.setenv("PIP_CACHE_DIR", str(cache))
-    with patch("canfar_lab.core.hygiene.prune_uv_cache"):
+    with patch("canfar_lab.cli.clean.prune_uv_cache"):
         with patch("canfar_lab.core.hygiene.apply_clean", return_value=100):
             result = runner.invoke(app, ["--yes", "clean", "cache", "--all-safe"])
     assert result.exit_code == 0
