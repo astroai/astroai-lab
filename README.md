@@ -60,7 +60,7 @@ Optional preferences: **`~/.canfar/lab/config.yaml`**.
 | [docs/guide.md](docs/guide.md) | Short session loop |
 | [docs/cli.md](docs/cli.md) | Full CLI reference |
 
-**AstroAI session images** (webterm, notebook, …): [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md).
+**AstroAI session images** (webterm, notebook, …): [containers USAGE](https://github.com/astroai/containers/blob/main/docs/USAGE.md).
 
 ## Relationship to `canfar`
 

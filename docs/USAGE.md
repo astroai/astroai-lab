@@ -14,7 +14,7 @@ images.
 | [config.md](config.md) | Optional `~/.canfar/lab/config.yaml` |
 
 **Session images** (webterm, notebook, vscode, marimo): see
-[AstroAI containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md)
+[AstroAI containers USAGE](https://github.com/astroai/containers/blob/main/docs/USAGE.md)
 (in-session: `less /opt/astroai/USAGE.md`).
 
 Platform docs: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)
@@ -91,6 +91,25 @@ Resume next time:
 canfar-lab resume mylab
 cd mylab && pixi run python analysis.py
 ```
+
+### Cold start → save → resume loop
+
+Simulates a new session with the same `/arc/home` but empty work dir:
+
+```bash
+canfar-lab init mylab && cd mylab
+pixi add numpy astropy
+canfar-lab env save mylab          # manifest → ~/.canfar/lab/saves/mylab
+
+# Next session (empty TMP_SRC_DIR, same HOME on /arc)
+cd "${TMP_SRC_DIR}"
+canfar-lab env resume mylab        # restores into ${TMP_SRC_DIR}/mylab
+cd mylab && pixi run python analysis.py
+```
+
+Integration tests: `pytest tests/integration/test_cold_start_save_resume.py --no-cov`. In AstroAI images: `./scripts/test-canfar-lab-loop.sh` (via `make test-ray`).
+
+Distributed Ray on CANFAR: [AstroAI RAY.md](https://github.com/astroai/containers/blob/main/docs/RAY.md).
 
 ---
 
@@ -234,4 +253,4 @@ canfar-lab status --json
 ## See also
 
 - [CANFAR platform docs](https://opencadc.github.io/canfar/)
-- [AstroAI session guide](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md) — images, GPU, CVMFS, portal
+- [AstroAI session guide](https://github.com/astroai/containers/blob/main/docs/USAGE.md) — images, GPU, CVMFS, portal
