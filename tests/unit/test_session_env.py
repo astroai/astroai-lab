@@ -24,12 +24,32 @@ def test_resolve_session_env_prefers_scratch_bin(
         "NPM_CONFIG_CACHE",
         "PIXI_CACHE_DIR",
         "MAMBA_PKGS_DIRS",
+        "PIXI_HOME",
+        "UV_PYTHON_INSTALL_DIR",
     ):
         monkeypatch.delenv(var, raising=False)
 
     env = resolve_session_env(ensure=True)
     assert env.canfar_lab_bin_dir == scratch / ".local" / "bin"
     assert env.uv_cache_dir == scratch_cache_root(work, scratch) / "uv"
+
+
+def test_scratch_overrides_image_build_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    work = tmp_path / "srcdir"
+    work.mkdir()
+    monkeypatch.setenv("TMP_SRC_DIR", str(work))
+    monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
+    monkeypatch.setenv("PIXI_CACHE_DIR", "/usr/local/share/pixi/cache")
+    monkeypatch.setenv("UV_PYTHON_INSTALL_DIR", "/usr/local/share/uv/python")
+    monkeypatch.setenv("PIXI_HOME", "/usr/local/share/pixi")
+
+    env = resolve_session_env(ensure=False)
+    cache_root = scratch_cache_root(work, scratch)
+    assert env.pixi_cache_dir == cache_root / "pixi"
+    assert env.uv_python_install_dir == env.canfar_lab_runtime_root / "uv" / "python"
+    assert env.pixi_home == env.canfar_lab_runtime_root / "pixi"
 
 
 def test_export_shell_includes_canfar_lab_vars(

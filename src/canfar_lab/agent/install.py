@@ -10,6 +10,7 @@ from pathlib import Path
 
 from canfar_lab.core.paths import npm_prefix_dir, user_bin_dir
 from canfar_lab.errors import LabError
+from canfar_lab.shell.session_env import resolve_session_env
 from canfar_lab.utils.subprocess import run, run_capture, which
 
 TOOLS = {
@@ -48,9 +49,16 @@ def _ensure_bin_dir() -> None:
     _bin_dir().mkdir(parents=True, exist_ok=True)
 
 
+def _session_environ(extra: dict[str, str] | None = None) -> dict[str, str]:
+    merged = {**os.environ, **resolve_session_env(ensure=False).exports()}
+    if extra:
+        merged.update(extra)
+    return merged
+
+
 def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
     _require("curl")
-    merged = {**os.environ, **(env or {})}
+    merged = _session_environ(env)
     script = subprocess.run(
         ["curl", "-fsSL", url],
         capture_output=True,
@@ -117,9 +125,10 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
 
     if name == "node":
         _require("pixi")
-        pixi_bin = Path(os.environ.get("PIXI_HOME", str(_bin_dir().parent / ".pixi"))) / "bin"
+        session = resolve_session_env(ensure=False)
+        pixi_bin = session.pixi_home / "bin"
         bin_dir = _bin_dir()
-        run(["pixi", "global", "install", "nodejs"])
+        run(["pixi", "global", "install", "nodejs"], env=_session_environ())
         for cmd in ("node", "npm", "npx"):
             src = pixi_bin / cmd
             if src.is_file():
@@ -129,26 +138,35 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("npm")
     elif name == "agent":
         _curl_pipe_bash("https://cursor.com/install")
+        _link_into_local_bin(Path.home() / ".local" / "bin" / "agent", "agent")
         _verify_cmd("agent")
     elif name == "claude":
         _curl_pipe_bash("https://claude.ai/install.sh")
+        _link_into_local_bin(Path.home() / ".local" / "bin" / "claude", "claude")
         _verify_cmd("claude")
     elif name == "agy":
         _curl_pipe_bash("https://antigravity.google/cli/install.sh")
+        _link_into_local_bin(Path.home() / ".local" / "bin" / "agy", "agy")
         _verify_cmd("agy")
     elif name == "opencode":
         env = {"XDG_BIN_DIR": str(_bin_dir())}
         _curl_pipe_bash("https://opencode.ai/install", env=env)
-        _link_into_local_bin(Path.home() / ".opencode" / "bin" / "opencode", "opencode")
-        _verify_cmd("opencode", extra_paths=[Path.home() / ".opencode" / "bin" / "opencode"])
+        opencode_src = _bin_dir() / "opencode"
+        if not opencode_src.is_file():
+            opencode_src = Path.home() / ".opencode" / "bin" / "opencode"
+        _link_into_local_bin(opencode_src, "opencode")
+        _verify_cmd("opencode", extra_paths=[opencode_src])
     elif name == "codex":
         _require("gh")
         run_capture(["gh", "auth", "status"])
         asset = f"codex-{arch}-unknown-linux-musl.tar.gz"
         if arch not in ("x86_64", "aarch64"):
             raise LabError(f"Unsupported architecture: {arch}")
-        tmp = Path(os.environ.get("TMPDIR", "/tmp"))
-        run(["gh", "release", "download", "-R", "openai/codex", "-p", asset, "-D", str(tmp)])
+        tmp = Path(_session_environ().get("TMPDIR", "/tmp"))
+        run(
+            ["gh", "release", "download", "-R", "openai/codex", "-p", asset, "-D", str(tmp)],
+            env=_session_environ(),
+        )
         with tarfile.open(tmp / asset, "r:gz") as tf:
             tf.extractall(_bin_dir())
         binary = asset.removesuffix(".tar.gz")
@@ -172,11 +190,17 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
         if which("kilo") is None and not (_bin_dir() / "kilo").is_file():
             _require("npm")
-            run(["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli"])
+            run(
+                ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli"],
+                env=_session_environ(),
+            )
         _verify_cmd("kilo")
     elif name == "cline":
         _require("npm")
-        run(["npm", "install", "-g", "--prefix", str(_npm_prefix()), "cline"])
+        run(
+            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "cline"],
+            env=_session_environ(),
+        )
         _verify_cmd("cline")
     elif name in ("freebuff", "pi", "codewhale"):
         _require("npm")
@@ -185,11 +209,14 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             "pi": "@earendil-works/pi-coding-agent",
             "codewhale": "codewhale",
         }[name]
-        run(["npm", "install", "-g", "--prefix", str(_npm_prefix()), pkg])
+        run(
+            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), pkg],
+            env=_session_environ(),
+        )
         _verify_cmd(name if name != "pi" else "pi")
     elif name == "swival":
         _require("uv")
-        run(["uv", "tool", "install", "swival"])
+        run(["uv", "tool", "install", "swival"], env=_session_environ())
         _verify_cmd("swival")
     elif name == "ast-grep":
         if arch not in ("x86_64", "aarch64"):

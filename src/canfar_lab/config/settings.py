@@ -38,6 +38,7 @@ class LabSettings(BaseSettings):
             self.work_dir,
             _env_path("CANFAR_LAB_WORK_DIR"),
             _env_path("TMP_SRC_DIR"),
+            _env_path("CANFAR_LAB_DEFAULT_SRC_DIR"),
         ):
             if raw is not None and raw.is_dir() and os.access(raw, os.W_OK):
                 return raw
@@ -51,6 +52,7 @@ class LabSettings(BaseSettings):
             self.scratch_dir,
             _env_path("CANFAR_LAB_SCRATCH_DIR"),
             _env_path("TMP_SCRATCH_DIR"),
+            _env_path("CANFAR_LAB_DEFAULT_SCRATCH_DIR"),
         ):
             if raw is not None and raw.is_dir() and os.access(raw, os.W_OK):
                 return raw

@@ -24,27 +24,18 @@ class SessionPaths:
     pip_cache_dir: Path | None
 
 
-def _first_writable(*candidates: Path) -> Path | None:
-    for path in candidates:
-        if path.is_dir() and os.access(path, os.W_OK):
-            return path
+def _first_writable(path: Path) -> Path | None:
+    if path.is_dir() and os.access(path, os.W_OK):
+        return path
     return None
-
-
-def _env_cache_path(var: str, default: Path) -> Path | None:
-    raw = os.environ.get(var)
-    return Path(raw) if raw else default
 
 
 def resolve_paths() -> SessionPaths:
     env = resolve_session_env(ensure=False)
-    work = env.tmp_src_dir
-    scratch = env.tmp_scratch_dir
-    cache_root = scratch_cache_root(work, scratch)
 
     return SessionPaths(
-        work_dir=work,
-        scratch_dir=scratch,
+        work_dir=env.tmp_src_dir,
+        scratch_dir=env.tmp_scratch_dir,
         save_dir=env.canfar_lab_save_dir,
         config_dir=env.canfar_lab_config_dir,
         home=Path.home(),
@@ -52,18 +43,9 @@ def resolve_paths() -> SessionPaths:
         npm_prefix=env.canfar_lab_npm_prefix,
         runtime_root=env.canfar_lab_runtime_root,
         arc_projects=Path("/arc/projects") if Path("/arc/projects").is_dir() else None,
-        pixi_cache_dir=_first_writable(
-            _env_cache_path("PIXI_CACHE_DIR", cache_root / "pixi") or cache_root / "pixi",
-            cache_root / "pixi",
-        ),
-        uv_cache_dir=_first_writable(
-            _env_cache_path("UV_CACHE_DIR", cache_root / "uv") or cache_root / "uv",
-            cache_root / "uv",
-        ),
-        pip_cache_dir=_first_writable(
-            _env_cache_path("PIP_CACHE_DIR", cache_root / "pip") or cache_root / "pip",
-            cache_root / "pip",
-        ),
+        pixi_cache_dir=_first_writable(env.pixi_cache_dir),
+        uv_cache_dir=_first_writable(env.uv_cache_dir),
+        pip_cache_dir=_first_writable(env.pip_cache_dir),
     )
 
 

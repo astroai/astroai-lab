@@ -21,23 +21,46 @@ def _user_tag() -> str:
     return os.environ.get("USER") or "user"
 
 
-def _default_src_dir() -> Path:
-    for key in ("CANFAR_LAB_DEFAULT_SRC_DIR", "TMP_SRC_DIR"):
-        p = _env_path(key)
-        if p is not None:
-            return p
-    return Path("/srcdir")
+def _path_under_roots(path: Path, *roots: Path) -> bool:
+    for root in roots:
+        if not root.is_dir():
+            continue
+        try:
+            if path.is_relative_to(root):
+                return True
+        except OSError:
+            continue
+    return False
 
 
-def _default_scratch_dir() -> Path | None:
-    for key in ("CANFAR_LAB_DEFAULT_SCRATCH_DIR", "TMP_SCRATCH_DIR"):
-        p = _env_path(key)
-        if p is not None and p.is_dir() and os.access(p, os.W_OK):
-            return p
-    scratch = Path("/scratch")
-    if scratch.is_dir() and os.access(scratch, os.W_OK):
-        return scratch
-    return None
+def _session_cache_path(var: str, default: Path, work: Path, scratch: Path | None) -> Path:
+    """Scratch-backed caches win over image build-time ENV when scratch is mounted."""
+    if scratch is None:
+        raw = os.environ.get(var, "").strip()
+        return Path(raw) if raw else default
+    raw = os.environ.get(var, "").strip()
+    if raw:
+        path = Path(raw)
+        if _path_under_roots(path, scratch, work):
+            return path
+    return default
+
+
+def _session_runtime_path(var: str, default: Path, scratch: Path | None) -> Path:
+    """Runtime roots (uv/pixi/mamba) stay off /usr/local when scratch is mounted."""
+    if scratch is None:
+        raw = os.environ.get(var, "").strip()
+        return Path(raw) if raw else default
+    raw = os.environ.get(var, "").strip()
+    if raw:
+        path = Path(raw)
+        runtime_root = os.environ.get("CANFAR_LAB_RUNTIME_ROOT", "").strip()
+        roots = [scratch]
+        if runtime_root:
+            roots.append(Path(runtime_root))
+        if _path_under_roots(path, *roots):
+            return path
+    return default
 
 
 def resolve_work_dir() -> Path:
@@ -47,10 +70,7 @@ def resolve_work_dir() -> Path:
 
 def resolve_scratch_dir() -> Path | None:
     settings = get_settings()
-    scratch = settings.resolve_scratch_dir()
-    if scratch is not None:
-        return scratch
-    return _default_scratch_dir()
+    return settings.resolve_scratch_dir()
 
 
 def user_bin_dir(work: Path, scratch: Path | None) -> Path:
@@ -138,7 +158,6 @@ class SessionEnv:
     pythonpath_extra: str
 
     def exports(self) -> dict[str, str]:
-        _user_tag()
         out: dict[str, str] = {
             "TMP_SRC_DIR": str(self.tmp_src_dir),
             "CANFAR_LAB_BIN_DIR": str(self.canfar_lab_bin_dir),
@@ -240,10 +259,13 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
     xdg_data = Path(os.environ.get("XDG_DATA_HOME", str(home / ".local" / "share")))
 
     if scratch is not None:
-        hf = Path(os.environ.get("HF_HOME", str(cache_root / "huggingface")))
-        torch = Path(os.environ.get("TORCH_HOME", str(cache_root / "torch")))
-        tmp = Path(os.environ.get("TMPDIR", str(scratch / f".tmp-{_user_tag()}")))
-        pixi_home = Path(os.environ.get("PIXI_HOME", str(runtime / "pixi")))
+        hf_default = cache_root / "huggingface"
+        torch_default = cache_root / "torch"
+        tmp_default = scratch / f".tmp-{_user_tag()}"
+        hf = _session_cache_path("HF_HOME", hf_default, work, scratch)
+        torch = _session_cache_path("TORCH_HOME", torch_default, work, scratch)
+        tmp = _session_cache_path("TMPDIR", tmp_default, work, scratch)
+        pixi_home = _session_runtime_path("PIXI_HOME", runtime / "pixi", scratch)
     else:
         hf = Path(os.environ.get("HF_HOME", str(xdg_cache / "huggingface")))
         torch = Path(os.environ.get("TORCH_HOME", str(xdg_cache / "torch")))
@@ -259,17 +281,21 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
         canfar_lab_runtime_root=runtime,
         canfar_lab_save_dir=Path(os.environ.get("CANFAR_LAB_SAVE_DIR", str(saves_dir()))),
         canfar_lab_config_dir=config_dir(),
-        uv_cache_dir=Path(os.environ.get("UV_CACHE_DIR", str(cache_root / "uv"))),
-        pip_cache_dir=Path(os.environ.get("PIP_CACHE_DIR", str(cache_root / "pip"))),
-        npm_config_cache=Path(os.environ.get("NPM_CONFIG_CACHE", str(cache_root / "npm"))),
-        pixi_cache_dir=Path(os.environ.get("PIXI_CACHE_DIR", str(cache_root / "pixi"))),
-        mamba_pkgs_dirs=Path(os.environ.get("MAMBA_PKGS_DIRS", str(cache_root / "conda" / "pkgs"))),
-        uv_python_install_dir=Path(
-            os.environ.get("UV_PYTHON_INSTALL_DIR", str(runtime / "uv" / "python"))
+        uv_cache_dir=_session_cache_path("UV_CACHE_DIR", cache_root / "uv", work, scratch),
+        pip_cache_dir=_session_cache_path("PIP_CACHE_DIR", cache_root / "pip", work, scratch),
+        npm_config_cache=_session_cache_path("NPM_CONFIG_CACHE", cache_root / "npm", work, scratch),
+        pixi_cache_dir=_session_cache_path("PIXI_CACHE_DIR", cache_root / "pixi", work, scratch),
+        mamba_pkgs_dirs=_session_cache_path(
+            "MAMBA_PKGS_DIRS", cache_root / "conda" / "pkgs", work, scratch
         ),
-        uv_tool_dir=Path(os.environ.get("UV_TOOL_DIR", str(runtime / "uv" / "tools"))),
+        uv_python_install_dir=_session_runtime_path(
+            "UV_PYTHON_INSTALL_DIR", runtime / "uv" / "python", scratch
+        ),
+        uv_tool_dir=_session_runtime_path("UV_TOOL_DIR", runtime / "uv" / "tools", scratch),
         pixi_home=pixi_home,
-        mamba_root_prefix=Path(os.environ.get("MAMBA_ROOT_PREFIX", str(runtime / "micromamba"))),
+        mamba_root_prefix=_session_runtime_path(
+            "MAMBA_ROOT_PREFIX", runtime / "micromamba", scratch
+        ),
         hf_home=hf,
         torch_home=torch,
         tmpdir=tmp,
