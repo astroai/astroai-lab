@@ -118,13 +118,42 @@ def test_data_stage_missing_source(lab_env: Path) -> None:
 
 
 def test_status_command(lab_env: Path) -> None:
-    with patch("canfar_lab.cli.status.df_line", return_value=None):
-        with patch("canfar_lab.cli.status.list_arc_projects", return_value=[]):
+    with patch("canfar_lab.cli.status.collect_status_quotas", return_value=[]):
+        with patch("canfar_lab.cli.status.arc_project_statuses", return_value=(None, [])):
             with patch("canfar_lab.cli.status.home_breakdown", return_value=[]):
                 with patch("canfar_lab.cli.status.top_cpu_processes", return_value=[]):
                     for argv in (["status"], ["status", "--json"], ["--json", "status"]):
                         result = runner.invoke(app, argv)
                         assert result.exit_code == 0, result.output
+
+
+def test_status_json_includes_arc_projects(lab_env: Path) -> None:
+    from canfar_lab.core.storage import ArcProjectInfo, QuotaLine
+
+    active = ArcProjectInfo(
+        name="mygroup",
+        path=Path("/arc/projects/mygroup"),
+        quota=QuotaLine(
+            label="mygroup",
+            path="/arc/projects/mygroup",
+            used="1G",
+            total="10G",
+            free="9G",
+            pct=10,
+            current=True,
+        ),
+        is_cwd=True,
+    )
+    with patch("canfar_lab.cli.status.collect_status_quotas", return_value=[active.quota]):
+        with patch("canfar_lab.cli.status.arc_project_statuses", return_value=(active, [active])):
+            with patch("canfar_lab.cli.status.home_breakdown", return_value=[]):
+                with patch("canfar_lab.cli.status.top_cpu_processes", return_value=[]):
+                    result = runner.invoke(app, ["status", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["arc_project"]["name"] == "mygroup"
+    assert data["arc_project"]["quota"]["free"] == "9G"
+    assert len(data["arc_projects"]) == 1
 
 
 def test_banner_json(lab_env: Path) -> None:

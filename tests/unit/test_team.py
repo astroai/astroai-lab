@@ -53,9 +53,16 @@ def test_project_quota_line(tmp_path: Path) -> None:
     from canfar_lab.core.storage import QuotaLine
 
     with patch("canfar_lab.core.team.df_line") as mock_df:
-        mock_df.return_value = QuotaLine(label="mygroup", used="100M", total="1G", pct=10)
+        mock_df.return_value = QuotaLine(
+            label="mygroup",
+            path=str(tmp_path),
+            used="100M",
+            total="1G",
+            free="900M",
+            pct=10,
+        )
         quota = project_quota_line(tmp_path, "mygroup")
-    assert quota == "100M / 1G (10%)"
+    assert quota == "100M / 1G (10%) — 900M free"
 
 
 def test_project_quota_line_none(tmp_path: Path) -> None:

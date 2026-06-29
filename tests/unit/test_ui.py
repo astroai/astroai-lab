@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from canfar_lab import ui
 
 
@@ -40,11 +42,37 @@ def test_env_list_table_with_rows(capsys) -> None:
 
 
 def test_status_human(capsys) -> None:
-    from canfar_lab.core.storage import QuotaLine
+    from canfar_lab.core.storage import ArcProjectInfo, QuotaLine
 
-    quotas = [QuotaLine(label="home", used="1G", total="10G", pct=90)]
-    ui.status_human(quotas, [(".cache", "1M", "caches")], "hint", ["proc1"])
-    assert "status" in _combined(capsys).lower()
+    quotas = [
+        QuotaLine(
+            label="home",
+            path="/home",
+            used="1G",
+            total="10G",
+            free="9G",
+            pct=90,
+        )
+    ]
+    active = ArcProjectInfo(
+        name="mygroup",
+        path=Path("/arc/projects/mygroup"),
+        quota=QuotaLine(
+            label="mygroup",
+            path="/arc/projects/mygroup",
+            used="2G",
+            total="100G",
+            free="98G",
+            pct=2,
+            current=True,
+        ),
+        is_cwd=True,
+    )
+    ui.status_human(quotas, [(".cache", "1M", "caches")], active, [active], ["proc1"])
+    combined = _combined(capsys)
+    assert "status" in combined.lower()
+    assert "mygroup" in combined
+    assert "free" in combined.lower()
 
 
 def test_print_helpers(capsys) -> None:

@@ -8,6 +8,7 @@ from pathlib import Path
 import humanize
 
 from canfar_lab.core.paths import quota_used_pct
+from canfar_lab.core.session_common import find_arc_project_root
 from canfar_lab.errors import LabError
 from canfar_lab.utils.subprocess import run
 
@@ -15,12 +16,15 @@ from canfar_lab.utils.subprocess import run
 @dataclass
 class QuotaLine:
     label: str
+    path: str
     used: str
     total: str
+    free: str
     pct: int
+    current: bool = False
 
 
-def df_line(path: Path, label: str) -> QuotaLine | None:
+def df_line(path: Path, label: str, *, current: bool = False) -> QuotaLine | None:
     if not path.is_dir():
         return None
     try:
@@ -30,9 +34,12 @@ def df_line(path: Path, label: str) -> QuotaLine | None:
     pct = quota_used_pct(path) or int((usage.used / usage.total) * 100) if usage.total else 0
     return QuotaLine(
         label=label,
+        path=str(path),
         used=humanize.naturalsize(usage.used, binary=True),
         total=humanize.naturalsize(usage.total, binary=True),
+        free=humanize.naturalsize(usage.free, binary=True),
         pct=pct,
+        current=current,
     )
 
 
@@ -121,3 +128,60 @@ def list_arc_projects() -> list[Path]:
     if not root.is_dir():
         return []
     return sorted(p for p in root.iterdir() if p.is_dir() and os.access(p, os.R_OK))
+
+
+@dataclass
+class ArcProjectInfo:
+    name: str
+    path: Path
+    quota: QuotaLine | None
+    is_cwd: bool
+
+
+def arc_project_statuses(start: Path | None = None) -> tuple[ArcProjectInfo | None, list[ArcProjectInfo]]:
+    """Team projects under /arc/projects the user can read, with quota lines."""
+    cwd_root = find_arc_project_root(start)
+    active: ArcProjectInfo | None = None
+    rows: list[ArcProjectInfo] = []
+    for proj in list_arc_projects():
+        info = ArcProjectInfo(
+            name=proj.name,
+            path=proj,
+            quota=df_line(proj, proj.name, current=(cwd_root == proj)),
+            is_cwd=cwd_root == proj,
+        )
+        rows.append(info)
+        if info.is_cwd:
+            active = info
+    rows.sort(key=lambda row: (not row.is_cwd, row.name.lower()))
+    return active, rows
+
+
+def collect_status_quotas(
+    *,
+    home: Path,
+    scratch: Path | None,
+) -> list[QuotaLine]:
+    quotas: list[QuotaLine] = []
+    if q := df_line(home, "home"):
+        quotas.append(q)
+    _, projects = arc_project_statuses()
+    for proj in projects:
+        if proj.quota is not None:
+            quotas.append(proj.quota)
+        elif proj.is_cwd:
+            quotas.append(
+                QuotaLine(
+                    label=proj.name,
+                    path=str(proj.path),
+                    used="?",
+                    total="?",
+                    free="?",
+                    pct=0,
+                    current=True,
+                )
+            )
+    if scratch is not None:
+        if q := df_line(scratch, "scratch"):
+            quotas.append(q)
+    return quotas

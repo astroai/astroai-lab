@@ -4,6 +4,7 @@ import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -151,7 +152,8 @@ def env_list_table(rows: list[dict[str, str]]) -> None:
 def status_human(
     quotas: list,
     home_rows: list,
-    project_hint: str,
+    active_project,
+    arc_projects: list,
     processes: list[str],
     canfar_auth: str | None = None,
     canfar_sessions: list[str] | None = None,
@@ -159,16 +161,38 @@ def status_human(
     console.print("[bold]canfar-lab status[/bold]\n")
     if canfar_auth:
         console.print(f"[bold]CANFAR Authentication:[/bold] {canfar_auth}\n")
+    if active_project is not None:
+        q = active_project.quota
+        if q is not None:
+            console.print(
+                f"[bold]Team project (cwd):[/bold] {active_project.path} "
+                f"— {q.free} free of {q.total} ({q.pct}% used)"
+            )
+        else:
+            console.print(f"[bold]Team project (cwd):[/bold] {active_project.path}")
+        console.print("")
+    elif arc_projects:
+        names = ", ".join(p.name for p in arc_projects[:6])
+        extra = f" (+{len(arc_projects) - 6} more)" if len(arc_projects) > 6 else ""
+        console.print(
+            f"[dim]cwd not under /arc/projects — readable team projects: {names}{extra}[/dim]\n"
+        )
+    elif Path("/arc/projects").is_dir():
+        console.print("[dim]No readable team projects under /arc/projects[/dim]\n")
     if quotas:
-        qt = Table(title="Quotas (/arc)")
+        qt = Table(title="Storage quotas")
         qt.add_column("Location")
         qt.add_column("Used")
+        qt.add_column("Free")
         qt.add_column("Total")
         qt.add_column("%")
         for q in quotas:
             style = "red" if q.pct >= 95 else "yellow" if q.pct >= 80 else ""
             pct_cell = f"[{style}]{q.pct}%[/{style}]" if style else f"{q.pct}%"
-            qt.add_row(q.label, q.used, q.total, pct_cell)
+            label = q.label
+            if getattr(q, "current", False):
+                label = f"{label} [cyan](cwd)[/cyan]"
+            qt.add_row(label, q.used, q.free, q.total, pct_cell)
         console.print(qt)
     if home_rows:
         ht = Table(title="Home breakdown")
@@ -178,8 +202,6 @@ def status_human(
         for d, s, n in home_rows:
             ht.add_row(d, s, n)
         console.print(ht)
-    if project_hint:
-        console.print(f"\n[dim]{project_hint}[/dim]")
     if processes:
         console.print("\n[bold]Top CPU processes[/bold]")
         for line in processes:

@@ -52,4 +52,4 @@ def project_quota_line(proj: Path, label: str) -> str | None:
     q = df_line(proj, label)
     if q is None:
         return None
-    return f"{q.used} / {q.total} ({q.pct}%)"
+    return f"{q.used} / {q.total} ({q.pct}%) — {q.free} free"

@@ -67,7 +67,7 @@ uv run python script.py
 
 ```bash
 canfar-lab guide
-canfar-lab status --json          # quotas, canfar auth/ps, processes
+canfar-lab status --json          # quotas, team project (cwd), canfar auth/ps, processes
 canfar-lab doctor --json          # paths, caches, tools on PATH
 canfar-lab clean home --all-safe --dry-run
 less /opt/astroai/USAGE.md

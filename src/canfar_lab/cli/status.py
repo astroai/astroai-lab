@@ -5,8 +5,13 @@ import typer
 
 from canfar_lab import ui
 from canfar_lab.cli.context import merge_opts
-from canfar_lab.core.paths import find_arc_project_root, resolve_paths
-from canfar_lab.core.storage import df_line, home_breakdown, list_arc_projects, top_cpu_processes
+from canfar_lab.core.paths import resolve_paths
+from canfar_lab.core.storage import (
+    arc_project_statuses,
+    collect_status_quotas,
+    home_breakdown,
+    top_cpu_processes,
+)
 
 
 def register(app: typer.Typer) -> None:
@@ -17,7 +22,7 @@ def register(app: typer.Typer) -> None:
             bool, typer.Option("--json", help="Machine-readable output.")
         ] = False,
     ) -> None:
-        """Show quotas, home space, and top processes.
+        """Show quotas, home space, team project membership, and top processes.
 
         Examples:
             canfar-lab status
@@ -26,15 +31,9 @@ def register(app: typer.Typer) -> None:
         """
         opts = merge_opts(ctx, json_output=json_output)
         paths = resolve_paths()
-        quotas = []
-        if q := df_line(paths.home, "home"):
-            quotas.append(q)
-        for proj in list_arc_projects()[:8]:
-            if q := df_line(proj, proj.name):
-                quotas.append(q)
+        active_project, arc_projects = arc_project_statuses()
+        quotas = collect_status_quotas(home=paths.home, scratch=paths.scratch_dir)
         home_rows = home_breakdown(paths.home)
-        proj = find_arc_project_root()
-        proj_hint = f"Project cwd: {proj}" if proj else "Not under /arc/projects"
         procs = top_cpu_processes()
 
         canfar_auth = None
@@ -56,7 +55,29 @@ def register(app: typer.Typer) -> None:
                 {
                     "quotas": [q.__dict__ for q in quotas],
                     "home": home_rows,
-                    "project_root": str(proj) if proj else None,
+                    "arc_project": (
+                        {
+                            "name": active_project.name,
+                            "path": str(active_project.path),
+                            "is_cwd": active_project.is_cwd,
+                            "quota": (
+                                active_project.quota.__dict__
+                                if active_project.quota
+                                else None
+                            ),
+                        }
+                        if active_project
+                        else None
+                    ),
+                    "arc_projects": [
+                        {
+                            "name": p.name,
+                            "path": str(p.path),
+                            "is_cwd": p.is_cwd,
+                            "quota": p.quota.__dict__ if p.quota else None,
+                        }
+                        for p in arc_projects
+                    ],
                     "processes": procs,
                     "canfar_auth": canfar_auth,
                     "canfar_sessions": canfar_sessions,
@@ -66,7 +87,8 @@ def register(app: typer.Typer) -> None:
             ui.status_human(
                 quotas,
                 home_rows,
-                proj_hint,
+                active_project,
+                arc_projects,
                 procs,
                 canfar_auth=canfar_auth,
                 canfar_sessions=canfar_sessions,
