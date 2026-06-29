@@ -13,7 +13,7 @@ canfar-lab agent models free        # OpenRouter + Kilo free-tier model presets
 gh auth login                       # GitHub for gh + GitHub MCP
 ```
 
-Refresh after image upgrade: `canfar-lab agent update`
+Refresh agent bundles after an image upgrade: `canfar-lab agent update`
 
 ## Daily workflow
 
@@ -23,8 +23,11 @@ canfar-lab clone --from-env ml-base owner/repo   # warm caches from saved stack
 cd "${TMP_SRC_DIR}/mylab"
 pixi install                     # or uv sync
 pixi run python analysis.py
-canfar-lab --yes push            # before session ends!
+canfar-lab push --yes            # before session ends (or: canfar-lab --yes push)
 ```
+
+Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subcommand:
+`canfar-lab status --json`, `canfar-lab clean home --dry-run`, `canfar-lab saves --json`.
 
 ## Storage (memorize this)
 
@@ -32,16 +35,23 @@ canfar-lab --yes push            # before session ends!
 |------|------|
 | `${TMP_SRC_DIR}` | Code + project `.pixi`/`.venv` — **ephemeral** |
 | `${TMP_SCRATCH_DIR}` | Data, download caches, runtime installs (`CANFAR_LAB_BIN_DIR`, uv/pixi roots) |
+| `/opt/astroai/venv/cadc` | Platform CLIs: `canfar`, `cadcget`, `canfar-lab` — **writable this session** |
 | `/arc/projects/<team>/.local` | Shared team tools + env saves (persistent) |
-| `/arc` (`$HOME`) | **Small only** — agent MCP config, gh auth, lockfile saves |
+| `/arc` (`$HOME`) | **Small only** — agent MCP config, gh auth, lockfile saves (`~/.canfar/lab`) |
 
-**Avoid** pip/uv/pixi/conda/npm installs under `$HOME` — use project envs in `${TMP_SRC_DIR}` or team paths on `/arc/projects`.
-
-Optional: `${TMP_SRC_DIR}/.canfar-lab/pythonpath` or `CANFAR_LAB_PYTHONPATH` for extra import paths.
+**Project deps:** use pixi/uv lockfiles under `${TMP_SRC_DIR}` — that is where versions belong.
+**Platform CLIs:** image installs are unpinned; bump in-session with `upgrade-cadc-tools.sh` (lost when the session ends).
 
 ```bash
-canfar-lab doctor   # shows user_bin, npm_prefix, runtime_root, caches
+upgrade-cadc-tools.sh list
+upgrade-cadc-tools.sh 'canfar-lab @ git+https://github.com/sfabbro/canfar-lab.git@main'
+canfar-lab data stage /arc/path --dry-run
+canfar-lab doctor --json
 ```
+
+Avoid pip/uv/pixi/conda/npm **project** installs under `$HOME` — use project envs in `${TMP_SRC_DIR}` or team paths on `/arc/projects`.
+
+Optional: `${TMP_SRC_DIR}/.canfar-lab/pythonpath` or `CANFAR_LAB_PYTHONPATH` for extra import paths.
 
 ## Search & run (standard tools — no custom commands)
 
@@ -57,8 +67,8 @@ uv run python script.py
 
 ```bash
 canfar-lab guide
-canfar-lab status                   # quotas, home/project space
-canfar-lab doctor                   # paths, caches, uv python dir
-canfar-lab clean home --all-safe    # when /arc quota is tight
+canfar-lab status --json          # quotas, canfar auth/ps, processes
+canfar-lab doctor --json          # paths, caches, tools on PATH
+canfar-lab clean home --all-safe --dry-run
 less /opt/astroai/USAGE.md
 ```

@@ -42,6 +42,7 @@
     "context7": "Remote docs — low token cost for library/API lookups",
     "memory": "Persists on /arc via MEMORY_FILE_PATH",
     "github": "Set GITHUB_TOKEN (gh auth login exports it in agent env hook)",
-    "fetch": "uvx mcp-server-fetch — no Node required"
+    "fetch": "uvx mcp-server-fetch — no Node required",
+    "platform_clis": "canfar/cadcget/canfar-lab in /opt/astroai/venv/cadc — upgrade-cadc-tools.sh; project deps use pixi/uv lockfiles under TMP_SRC_DIR"
   }
 }

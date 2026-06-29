@@ -58,7 +58,14 @@ def agent_setup_cmd(
 
 @agent_app.command("update")
 def agent_update_cmd(ctx: typer.Context) -> None:
-    """Refresh agent config and GitHub skills."""
+    """Refresh agent MCP, rules, skills, and GitHub skill clones.
+
+    Run after an AstroAI image upgrade so ~/.cursor skills match current
+    canfar-lab workflow (paths, upgrade-cadc-tools, CLI flags).
+
+    Examples:
+        canfar-lab agent update
+    """
     opts = get_opts(ctx)
     try:
         agent_setup_mod.agent_setup(mode="update", force=True, dry_run=opts.dry_run)

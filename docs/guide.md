@@ -43,9 +43,23 @@ canfar-lab clone owner/repo      # gh clone + install
 canfar-lab save [name]           # lockfile manifest → /arc
 canfar-lab resume NAME           # restore saved env
 canfar-lab saves                 # list saved envs (--json)
-canfar-lab push                  # git push + env save
-canfar-lab status                # quotas and space
-canfar-lab doctor --json         # full diagnostic
+canfar-lab push --yes              # git push + env save
+canfar-lab status --json           # quotas, canfar auth/ps
+canfar-lab doctor --json           # paths, caches, tools
+canfar-lab agent setup             # MCP + skills (once per user on /arc)
+canfar-lab agent update            # refresh skills/rules after image upgrade
+```
+
+## Platform vs project Python
+
+| Layer | Where | Versions |
+|-------|-------|----------|
+| Platform CLIs | `/opt/astroai/venv/cadc` | Unpinned at image build; `upgrade-cadc-tools.sh` this session |
+| Your project | `TMP_SRC_DIR` pixi/uv env | **Lockfiles** (`pixi.lock`, `uv.lock`) — pin here |
+
+```bash
+upgrade-cadc-tools.sh list
+upgrade-cadc-tools.sh --upgrade canfar-lab
 ```
 
 ## Data and hygiene

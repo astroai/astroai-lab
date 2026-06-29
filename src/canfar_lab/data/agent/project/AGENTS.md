@@ -11,14 +11,17 @@ canfar-lab agent models free    # OpenRouter :free + Kilo auto/free configs
 gh auth login
 ```
 
-Refresh: `canfar-lab agent update`
+Refresh bundles after an image upgrade: `canfar-lab agent update`
 
 ## This repo
 
 ```bash
 pixi install    # or uv sync — env lives under TMP_SRC_DIR, not $HOME
 pixi run …      # or uv run …
-canfar-lab --yes push   # before session ends — code on TMP_SRC_DIR is ephemeral
+canfar-lab push --yes   # before session ends — code on TMP_SRC_DIR is ephemeral
 ```
 
-Search: `rg`, `fd`, `sg` (ast-grep skill). Help: `canfar-lab guide`, `canfar-lab status`.
+Pin Python deps in **pixi.toml / uv.lock** here — not in the image platform venv.
+Platform CLIs (`canfar`, `cadcget`, `canfar-lab`) live in `/opt/astroai/venv/cadc`; upgrade this session with `upgrade-cadc-tools.sh` if needed.
+
+Search: `rg`, `fd`, `sg` (ast-grep skill). Help: `canfar-lab guide`, `canfar-lab status --json`.

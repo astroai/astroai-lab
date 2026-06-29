@@ -6,9 +6,12 @@ alwaysApply: true
 # CANFAR lab session layout
 
 - **Code + env:** `${TMP_SRC_DIR:-/srcdir}` — ephemeral; push or `canfar-lab push` before the session ends.
-- **Data + download caches:** `${TMP_SCRATCH_DIR:-/scratch}` when mounted — stage large datasets here (`canfar-lab-data-stage`).
-- **Persistent home:** `/arc` — `~/.local/bin`, `~/.config`, `~/.cursor`, saves under `~/.canfar-lab`.
-- **Deps:** project-local via `pixi install` or `uv sync`, not system image packages.
-- **Status:** `canfar-lab status` for GPU, disk, git, session age.
+- **Data + download caches:** `${TMP_SCRATCH_DIR:-/scratch}` when mounted — stage with `canfar-lab data stage`.
+- **Platform Python CLIs:** `/opt/astroai/venv/cadc` (`canfar`, `cadcget`, `canfar-lab`) — user-writable this session via `upgrade-cadc-tools.sh`.
+- **Persistent home:** `/arc` — agent MCP under `~/.cursor`, saves under `~/.canfar/lab`, gh auth.
+- **Project deps:** pixi/uv lockfiles under `${TMP_SRC_DIR}` — prefer `pixi install` / `uv sync`, not ad-hoc image venv edits for app code.
+- **Status:** `canfar-lab status --json` for quotas, `canfar ps`, processes; `canfar-lab doctor --json` for paths and tools.
+
+CLI flags: `--json`, `--yes`, `--dry-run` may appear before or on subcommands (e.g. `canfar-lab clean home --dry-run`).
 
 Prefer pre-installed CLIs (`rg`, `fd`, `gh`, `bat`, `jq`, `shellcheck`) over MCP when they answer the question with fewer tokens.

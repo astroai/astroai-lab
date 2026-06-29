@@ -28,9 +28,16 @@ GUIDE_TEXT = """
   canfar-lab save [name]           lockfile manifest → /arc
   canfar-lab resume NAME           restore saved env
   canfar-lab saves                 list saved envs
-  canfar-lab push                  end-of-session archive
-  canfar-lab status                quotas and space
-  canfar-lab doctor --json         full diagnostic
+  canfar-lab push                  end-of-session archive (canfar-lab push --yes)
+  canfar-lab status --json         quotas, canfar auth/ps, processes
+  canfar-lab doctor --json         paths, caches, tools
+
+[bold]Platform tools[/bold]
+  /opt/astroai/venv/cadc           canfar, cadcget, canfar-lab (writable this session)
+  upgrade-cadc-tools.sh            bump platform CLIs without a new image
+
+[bold]Flags[/bold]
+  --json --yes --dry-run           before or on subcommands (e.g. clean home --dry-run)
 
 [bold]Data[/bold]
   canfar-lab data stage SRC [DST]  /arc → scratch (fast I/O)
