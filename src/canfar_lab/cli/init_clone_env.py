@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Annotated
 
@@ -12,7 +13,6 @@ from canfar_lab.core.git import git_init_and_commit, git_push, git_status
 from canfar_lab.core.paths import resolve_paths
 from canfar_lab.core.project import detect_project, format_dir_size, require_project, save_env
 from canfar_lab.errors import LabError
-from canfar_lab.utils.subprocess import which
 
 
 def _init_impl(
@@ -42,10 +42,10 @@ def _init_impl(
         ui.print_error(str(exc))
         raise typer.Exit(1) from exc
     ui.print_ok(f"Project ready: {target}")
-    ui.print_hint(f"  cd {target}")
-    ui.print_hint("  pixi add python numpy" if kind.value == "pixi" else "  uv add numpy")
-    if not no_gh and which("gh") and not no_git:
-        ui.print_hint(f"  gh repo create {name} --private --source=. --push")
+    ui.print_hint(f"  `cd {target}`")
+    ui.print_hint("  `pixi add python numpy`" if kind.value == "pixi" else "  `uv add numpy`")
+    if not no_gh and shutil.which("gh") and not no_git:
+        ui.print_hint(f"  `gh repo create {name} --private --source=. --push`")
 
 
 def register(app: typer.Typer) -> None:
@@ -104,8 +104,8 @@ def register(app: typer.Typer) -> None:
         if from_path and not from_env:
             ui.print_error("--from requires --from-env <name>")
             raise typer.Exit(1)
-        if which("gh") is None:
-            ui.print_error("gh required.\n  gh auth login")
+        if shutil.which("gh") is None:
+            ui.print_error("gh required.\n  `gh auth login`")
             raise typer.Exit(1)
         paths = resolve_paths()
         dest = target or paths.work_dir / repo.rsplit("/", 1)[-1]
@@ -128,7 +128,7 @@ def register(app: typer.Typer) -> None:
         except LabError as exc:
             ui.print_error(str(exc))
             raise typer.Exit(1) from exc
-        ui.print_ok(f"Ready: cd {dest}")
+        ui.print_ok(f"Ready: `cd {dest}`")
 
     @app.command()
     def save(
@@ -181,7 +181,7 @@ def register(app: typer.Typer) -> None:
             ui.print_error(str(exc))
             raise typer.Exit(1) from exc
         ui.print_ok(f"Restored in {dest}")
-        ui.print_hint(f"  cd {dest}")
+        ui.print_hint(f"  `cd {dest}`")
 
     @app.command()
     def saves(ctx: typer.Context) -> None:
@@ -223,7 +223,7 @@ def register(app: typer.Typer) -> None:
         if git.in_repo:
             if git.uncommitted:
                 ui.print_warn("Uncommitted changes detected.")
-                ui.print_hint("  git add -A && git commit -m 'session work'")
+                ui.print_hint("  `git add -A && git commit -m 'session work'`")
                 if settings.push.require_clean_git and not opts.yes:
                     raise typer.Exit(1)
             try:

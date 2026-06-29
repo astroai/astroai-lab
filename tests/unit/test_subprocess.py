@@ -6,15 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from canfar_lab.errors import LabError
-from canfar_lab.utils.subprocess import run, run_capture, run_cmd, which
-
-
-def test_which_found() -> None:
-    assert which("python3") is not None
-
-
-def test_which_missing() -> None:
-    assert which("definitely-not-a-real-command-xyz") is None
+from canfar_lab.utils.subprocess import run, run_capture, run_cmd
 
 
 def test_run_cmd_not_found() -> None:

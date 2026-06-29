@@ -114,19 +114,12 @@ def save_env(name: str, save_dir: Path, source: Path, *, full: bool = False) -> 
                 hint="Run pixi install or uv sync first.",
             )
         packed = save_dir / "env.tar.zst"
-        proc = subprocess.run(
-            ["tar", "-C", str(source), "-cf", "-", env_dir],
-            capture_output=True,
-            check=True,
-        )
-        with packed.open("wb") as out:
-            zstd = subprocess.Popen(["zstd", "-T0", "-"], stdin=subprocess.PIPE, stdout=out)
-            assert zstd.stdin is not None
-            zstd.stdin.write(proc.stdout)
-            zstd.stdin.close()
-            zstd.wait()
-            if zstd.returncode != 0:
-                raise LabError("Failed to compress environment pack")
+        from canfar_lab.core.workspace import tar_zst
+
+        try:
+            tar_zst(source / env_dir, packed, arcname=env_dir)
+        except Exception as exc:
+            raise LabError("Failed to compress environment pack") from exc
 
     return save_dir
 
@@ -245,10 +238,12 @@ def restore_env(save_dir: Path, target: Path) -> None:
 
 
 def format_dir_size(path: Path) -> str:
-    if not path.exists():
+    from canfar_lab.core.storage import dir_size
+
+    size = dir_size(path)
+    if size == 0:
         return "0 B"
-    total = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
-    return humanize.naturalsize(total, binary=True)
+    return humanize.naturalsize(size, binary=True)
 
 
 def init_project(target: Path, *, use_uv: bool = False) -> ProjectKind:

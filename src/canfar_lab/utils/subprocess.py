@@ -7,10 +7,6 @@ from pathlib import Path
 from canfar_lab.errors import LabError
 
 
-def which(name: str) -> Path | None:
-    found = shutil.which(name)
-    return Path(found) if found else None
-
 
 def run_cmd(
     cmd: list[str],

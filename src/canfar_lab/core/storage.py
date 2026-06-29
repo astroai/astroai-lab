@@ -9,7 +9,7 @@ import humanize
 
 from canfar_lab.core.paths import quota_used_pct
 from canfar_lab.errors import LabError
-from canfar_lab.utils.subprocess import run, which
+from canfar_lab.utils.subprocess import run
 
 
 @dataclass
@@ -72,7 +72,7 @@ def top_cpu_processes(limit: int = 5) -> list[str]:
 
 
 def rsync_copy(source: Path, target: Path, *, dry_run: bool = False) -> None:
-    if which("rsync") is None:
+    if shutil.which("rsync") is None:
         raise LabError("rsync is required.", hint="Install rsync on the session image.")
     flags = ["rsync", "-avh"]
     if dry_run:

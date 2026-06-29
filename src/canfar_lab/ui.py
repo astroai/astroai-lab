@@ -27,30 +27,62 @@ class DoctorReport:
     uv_cache_dir: str | None
     home_quota_pct: int | None
     tools: dict[str, bool]
+    canfar_auth: str | None = None
 
 
 def print_json(data: Any) -> None:
     print(json.dumps(data, indent=2))
 
 
+def _format_text(text: str) -> str:
+    if not isinstance(text, str):
+        return text
+    import re
+    lines = []
+    for line in text.splitlines():
+        # Match lines starting with optional whitespace, followed by a command
+        # e.g., "  canfar-lab init mylab" or "  cd target"
+        match = re.match(
+            r"^(\s*)(canfar-lab|canfar|git|pixi|uv|gh|cd|kilo|goose|cline|eval|setfacl|rsync)\b([^#\n]*)(.*)$",
+            line,
+        )
+        if match:
+            indent, cmd, rest, comment = match.groups()
+            line_str = f"{indent}[bold #00d7ff]{cmd}{rest}[/bold #00d7ff]"
+            if comment:
+                line_str += f"[dim]{comment}[/dim]"
+            lines.append(line_str)
+        else:
+            # Inline replacements for backtick block like `command`
+            line = re.sub(r"`([^`]+)`", r"[bold #ffaf00]\1[/bold #ffaf00]", line)
+            lines.append(line)
+    return "\n".join(lines)
+
+
 def print_error(message: str) -> None:
-    console.print(f"[red]Error:[/red] {message}")
+    formatted = _format_text(message)
+    if "\n  " in formatted:
+        msg, hint = formatted.split("\n  ", 1)
+        console.print(f"[bold red]Error:[/bold red] {msg}")
+        console.print(f"[dim]  {hint}[/dim]")
+    else:
+        console.print(f"[bold red]Error:[/bold red] {formatted}")
 
 
 def print_ok(message: str) -> None:
-    console.print(f"[green]✓[/green] {message}")
+    console.print(f"[bold green]✓[/bold green] {_format_text(message)}")
 
 
 def print_hint(message: str) -> None:
-    console.print(f"[dim]{message}[/dim]")
+    console.print(f"[dim]{_format_text(message)}[/dim]")
 
 
 def print_info(message: str) -> None:
-    console.print(f"[cyan]{message}[/cyan]")
+    console.print(f"[bold #00d7ff]{_format_text(message)}[/bold #00d7ff]")
 
 
 def print_warn(message: str) -> None:
-    console.print(f"[yellow]Warning:[/yellow] {message}")
+    console.print(f"[bold yellow]Warning:[/bold yellow] {_format_text(message)}")
 
 
 @contextmanager
@@ -89,6 +121,8 @@ def doctor_human(report: DoctorReport) -> None:
         pct = report.home_quota_pct
         style = "red" if pct >= 95 else "yellow" if pct >= 80 else ""
         table.add_row("home_quota", f"[{style}]{pct}%[/{style}]" if style else f"{pct}%")
+    if report.canfar_auth:
+        table.add_row("canfar_auth", report.canfar_auth)
     console.print(table)
 
     tools_table = Table(title="Tools", show_header=True)
@@ -114,8 +148,17 @@ def env_list_table(rows: list[dict[str, str]]) -> None:
     console.print(table)
 
 
-def status_human(quotas: list, home_rows: list, project_hint: str, processes: list[str]) -> None:
+def status_human(
+    quotas: list,
+    home_rows: list,
+    project_hint: str,
+    processes: list[str],
+    canfar_auth: str | None = None,
+    canfar_sessions: list[str] | None = None,
+) -> None:
     console.print("[bold]canfar-lab status[/bold]\n")
+    if canfar_auth:
+        console.print(f"[bold]CANFAR Authentication:[/bold] {canfar_auth}\n")
     if quotas:
         qt = Table(title="Quotas (/arc)")
         qt.add_column("Location")
@@ -140,4 +183,8 @@ def status_human(quotas: list, home_rows: list, project_hint: str, processes: li
     if processes:
         console.print("\n[bold]Top CPU processes[/bold]")
         for line in processes:
+            console.print(f"  {line}")
+    if canfar_sessions:
+        console.print("\n[bold]CANFAR Active Sessions (canfar ps)[/bold]")
+        for line in canfar_sessions:
             console.print(f"  {line}")

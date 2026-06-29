@@ -36,14 +36,14 @@ def show_banner(*, json_output: bool = False) -> None:
     ui.print_hint(f"  scratch: {paths.scratch_dir or '(not mounted)'}")
     ui.print_hint(f"  saves:   {len(saves)} in {paths.save_dir}")
     if home_pct is not None and home_pct >= 80:
-        ui.print_warn(f"  home quota: {home_pct}% — canfar-lab clean home --all-safe")
+        ui.print_warn(f"  home quota: {home_pct}% — `canfar-lab clean home --all-safe` to free space")
     if git.in_repo and git.uncommitted:
-        ui.print_warn("  uncommitted changes — git add -A && git commit -m 'session work'")
+        ui.print_warn("  uncommitted changes — `git add -A && git commit -m 'session work'`")
     if project_kind:
         ui.print_hint(f"  project: {project_kind.value} in {cwd.name}")
-        ui.print_hint("  next: canfar-lab save  ·  canfar-lab push before closing")
+        ui.print_hint("  next: `canfar-lab save`  ·  `canfar-lab push` before closing")
     elif str(cwd).startswith(str(paths.work_dir)):
-        ui.print_hint("  next: canfar-lab init mylab  ·  canfar-lab clone owner/repo")
+        ui.print_hint("  next: `canfar-lab init mylab`  ·  `canfar-lab clone owner/repo`")
     else:
-        ui.print_hint("  next: cd into your project or canfar-lab guide")
-    ui.print_hint("  help: canfar-lab guide")
+        ui.print_hint("  next: `cd` into your project or `canfar-lab guide`")
+    ui.print_hint("  help: `canfar-lab guide`")

@@ -48,17 +48,23 @@ def test_status_human(capsys) -> None:
 
 
 def test_print_helpers(capsys) -> None:
-    ui.print_error("bad")
-    ui.print_ok("good")
-    ui.print_hint("hint")
-    ui.print_info("info")
-    ui.print_warn("warn")
+    ui.print_error("bad\n  hint `cmd`")
+    ui.print_ok("good `cmd`")
+    ui.print_hint("hint `cmd`")
+    ui.print_info("info `cmd`")
+    ui.print_warn("warn `cmd`")
     ui.print_json({"a": 1})
     combined = _combined(capsys)
     assert "bad" in combined
+    assert "cmd" in combined
     assert '"a"' in combined
 
 
 def test_progress_task_quiet() -> None:
     with ui.progress_task("test", quiet=True):
         pass
+
+
+def test_format_text() -> None:
+    assert "[bold #ffaf00]mycmd[/bold #ffaf00]" in ui._format_text("`mycmd`")
+    assert "[bold #00d7ff]git status[/bold #00d7ff]" in ui._format_text("  git status")

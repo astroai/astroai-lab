@@ -12,12 +12,13 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Any
 
 from canfar_lab.agent.bundle_path import bundle_root
 from canfar_lab.errors import LabError
-from canfar_lab.utils.subprocess import which
+
 
 OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
 OPENROUTER_DOCS = "https://openrouter.ai/docs/guides/routing/provider-selection#free-model-routing"
@@ -172,7 +173,7 @@ def apply_codex(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
 
 
 def apply_cline(preset: str, *, dry_run: bool) -> str | None:
-    if which("cline") is None:
+    if shutil.which("cline") is None:
         return "cline not installed — run: canfar-lab agent install cline"
     key = _openrouter_key()
     if not key:
@@ -270,7 +271,7 @@ def apply_free_models(
         cline_note = apply_cline(preset, dry_run=dry_run)
         if cline_note and cline_note.startswith("dry-run:"):
             actions.append(cline_note)
-        elif cline_note is None and which("cline"):
+        elif cline_note is None and shutil.which("cline"):
             actions.append(f"cline → openrouter/{info['openrouter']}")
         elif cline_note:
             actions.append(f"cline: {cline_note}")

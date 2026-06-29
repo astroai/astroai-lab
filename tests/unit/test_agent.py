@@ -5,8 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from canfar_lab.agent.bundles import install_file, list_bundles, verify_setup
-from canfar_lab.agent.setup import agent_setup
+from canfar_lab.agent.bundles import agent_setup, install_file, list_bundles, verify_setup
 from canfar_lab.cli.main import app
 
 runner = CliRunner()

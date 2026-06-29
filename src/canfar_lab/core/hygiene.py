@@ -7,7 +7,7 @@ from pathlib import Path
 
 import humanize
 
-from canfar_lab.utils.subprocess import run, which
+from canfar_lab.utils.subprocess import run
 
 
 @dataclass
@@ -158,7 +158,7 @@ def collect_cache_targets(
 
 
 def prune_uv_cache(*, dry_run: bool) -> None:
-    if which("uv") is None:
+    if shutil.which("uv") is None:
         return
     if dry_run:
         return

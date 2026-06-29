@@ -65,14 +65,14 @@ def test_collect_cache_targets_from_env(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 def test_prune_uv_cache_dry_run() -> None:
-    with patch("canfar_lab.core.hygiene.which", return_value=Path("/usr/bin/uv")):
+    with patch("canfar_lab.core.hygiene.shutil.which", return_value="/usr/bin/uv"):
         with patch("canfar_lab.core.hygiene.run") as mock_run:
             prune_uv_cache(dry_run=True)
     mock_run.assert_not_called()
 
 
 def test_prune_uv_cache_runs() -> None:
-    with patch("canfar_lab.core.hygiene.which", return_value=Path("/usr/bin/uv")):
+    with patch("canfar_lab.core.hygiene.shutil.which", return_value="/usr/bin/uv"):
         with patch("canfar_lab.core.hygiene.run") as mock_run:
             prune_uv_cache(dry_run=False)
     mock_run.assert_called_once_with(["uv", "cache", "prune"])

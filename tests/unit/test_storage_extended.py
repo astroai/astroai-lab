@@ -95,6 +95,6 @@ def test_sync_data_with_yes(tmp_path: Path) -> None:
 def test_rsync_missing_tool(tmp_path: Path) -> None:
     from canfar_lab.core.storage import rsync_copy
 
-    with patch("canfar_lab.core.storage.which", return_value=None):
+    with patch("canfar_lab.core.storage.shutil.which", return_value=None):
         with pytest.raises(LabError, match="rsync"):
             rsync_copy(tmp_path, tmp_path / "out")

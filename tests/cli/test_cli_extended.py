@@ -40,20 +40,20 @@ def _pixi(path: Path) -> None:
 
 
 def test_clone_requires_gh(lab_env: Path) -> None:
-    with patch("canfar_lab.cli.init_clone_env.which", return_value=None):
+    with patch("canfar_lab.cli.init_clone_env.shutil.which", return_value=None):
         result = runner.invoke(app, ["clone", "org/repo"])
     assert result.exit_code == 1
     assert "gh" in result.output.lower()
 
 
 def test_clone_from_without_env(lab_env: Path) -> None:
-    with patch("canfar_lab.cli.init_clone_env.which", return_value=Path("/usr/bin/gh")):
+    with patch("canfar_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"):
         result = runner.invoke(app, ["clone", "--from", "/tmp/save", "org/repo"])
     assert result.exit_code == 1
 
 
 def test_clone_success(lab_env: Path) -> None:
-    with patch("canfar_lab.cli.init_clone_env.which", return_value=Path("/usr/bin/gh")):
+    with patch("canfar_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"):
         with patch("canfar_lab.utils.subprocess.run") as mock_run:
             with patch("canfar_lab.core.project.detect_project", return_value=None):
                 result = runner.invoke(app, ["clone", "org/repo"])
@@ -84,7 +84,7 @@ def test_clone_with_from_env(
 
     from canfar_lab.models.manifest import ProjectKind
 
-    with patch("canfar_lab.cli.init_clone_env.which", return_value=Path("/usr/bin/gh")):
+    with patch("canfar_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"):
         with patch("canfar_lab.utils.subprocess.run"):
             with patch("canfar_lab.core.project.warm_cache"):
                 with patch("canfar_lab.core.project.detect_project", return_value=ProjectKind.PIXI):
@@ -203,7 +203,7 @@ def test_kernel_register_cli(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> 
     py.mkdir(parents=True)
     (py / "python").write_text("#!/bin/sh")
     monkeypatch.chdir(project)
-    with patch("canfar_lab.core.kernel.which", return_value=Path("/usr/bin/jupyter")):
+    with patch("canfar_lab.core.kernel.shutil.which", return_value="/usr/bin/jupyter"):
         with patch("canfar_lab.core.kernel.run"):
             result = runner.invoke(app, ["kernel", "register"])
     assert result.exit_code == 0

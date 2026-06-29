@@ -8,13 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from canfar_lab import config_dir, saves_dir
-from canfar_lab.config.settings import get_settings
+from canfar_lab.config.settings import _env_path, get_settings
 from canfar_lab.core.session_common import find_arc_project_root, scratch_cache_root, user_tag
-
-
-def _env_path(name: str) -> Path | None:
-    val = os.environ.get(name, "").strip()
-    return Path(val) if val else None
 
 
 def _path_under_roots(path: Path, *roots: Path) -> bool:

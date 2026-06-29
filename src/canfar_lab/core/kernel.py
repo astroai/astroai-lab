@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 
 from canfar_lab.core.project import require_project
 from canfar_lab.errors import LabError
-from canfar_lab.utils.subprocess import run, run_capture, which
+from canfar_lab.utils.subprocess import run, run_capture
 
 
 def _kernels_dir() -> Path:
@@ -21,7 +22,7 @@ def _python_for_project(project: Path) -> Path:
 
 
 def register_kernel(project: Path, *, name: str | None = None) -> str:
-    if which("jupyter") is None:
+    if shutil.which("jupyter") is None:
         raise LabError("jupyter not found.", hint="Use a notebook session image.")
     require_project(project)
     py = _python_for_project(project)
@@ -48,7 +49,7 @@ def register_kernel(project: Path, *, name: str | None = None) -> str:
 
 
 def list_kernels() -> list[dict[str, str]]:
-    if which("jupyter") is None:
+    if shutil.which("jupyter") is None:
         return []
     try:
         out = run_capture(["jupyter", "kernelspec", "list", "--json"])
@@ -60,6 +61,6 @@ def list_kernels() -> list[dict[str, str]]:
 
 
 def unregister_kernel(name: str) -> None:
-    if which("jupyter") is None:
+    if shutil.which("jupyter") is None:
         raise LabError("jupyter not found.")
     run(["jupyter", "kernelspec", "remove", "-y", name])

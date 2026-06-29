@@ -21,7 +21,7 @@ def _pixi_with_env(path: Path) -> None:
 def test_register_kernel(tmp_path: Path) -> None:
     project = tmp_path / "mylab"
     _pixi_with_env(project)
-    with patch("canfar_lab.core.kernel.which", return_value=Path("/usr/bin/jupyter")):
+    with patch("canfar_lab.core.kernel.shutil.which", return_value="/usr/bin/jupyter"):
         with patch("canfar_lab.core.kernel.run") as mock_run:
             name = register_kernel(project, name="mylab")
     assert name == "mylab"
@@ -29,7 +29,7 @@ def test_register_kernel(tmp_path: Path) -> None:
 
 
 def test_register_kernel_no_jupyter() -> None:
-    with patch("canfar_lab.core.kernel.which", return_value=None):
+    with patch("canfar_lab.core.kernel.shutil.which", return_value=None):
         with pytest.raises(LabError, match="jupyter not found"):
             register_kernel(Path("/tmp"))
 
@@ -38,26 +38,26 @@ def test_register_kernel_no_env(tmp_path: Path) -> None:
     project = tmp_path / "mylab"
     project.mkdir()
     (project / "pixi.toml").write_text('[project]\nname="p"\n')
-    with patch("canfar_lab.core.kernel.which", return_value=Path("/usr/bin/jupyter")):
+    with patch("canfar_lab.core.kernel.shutil.which", return_value="/usr/bin/jupyter"):
         with pytest.raises(LabError, match="not installed"):
             register_kernel(project)
 
 
 def test_list_kernels() -> None:
     payload = json.dumps({"kernelspecs": {"mylab": {"resource_dir": "/k/mylab"}}})
-    with patch("canfar_lab.core.kernel.which", return_value=Path("/usr/bin/jupyter")):
+    with patch("canfar_lab.core.kernel.shutil.which", return_value="/usr/bin/jupyter"):
         with patch("canfar_lab.core.kernel.run_capture", return_value=payload):
             rows = list_kernels()
     assert rows[0]["name"] == "mylab"
 
 
 def test_list_kernels_no_jupyter() -> None:
-    with patch("canfar_lab.core.kernel.which", return_value=None):
+    with patch("canfar_lab.core.kernel.shutil.which", return_value=None):
         assert list_kernels() == []
 
 
 def test_unregister_kernel() -> None:
-    with patch("canfar_lab.core.kernel.which", return_value=Path("/usr/bin/jupyter")):
+    with patch("canfar_lab.core.kernel.shutil.which", return_value="/usr/bin/jupyter"):
         with patch("canfar_lab.core.kernel.run") as mock_run:
             unregister_kernel("mylab")
     mock_run.assert_called_once()

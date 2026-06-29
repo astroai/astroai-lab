@@ -48,7 +48,7 @@ def test_save_workspace_with_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     with patch("canfar_lab.core.workspace.subprocess.run", return_value=mock_tar):
         with patch("canfar_lab.core.workspace.subprocess.Popen", return_value=mock_zstd):
-            with patch("canfar_lab.core.workspace._tar_zst") as mock_cache_tar:
+            with patch("canfar_lab.core.workspace.tar_zst") as mock_cache_tar:
                 bundle = save_workspace(project, work, "mylab", with_cache=True)
     mock_cache_tar.assert_called_once()
     assert bundle.is_dir()

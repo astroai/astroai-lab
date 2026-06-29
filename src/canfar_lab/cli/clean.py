@@ -87,7 +87,7 @@ def clean_cache(
     if opts.dry_run:
         ui.print_ok(f"dry-run: would free {format_bytes(sum(t.bytes for t in targets))}")
         if uv_cache:
-            ui.print_hint("  uv cache prune would also run")
+            ui.print_hint("  `uv cache prune` would also run")
         return
     if uv_cache:
         prune_uv_cache(dry_run=False)

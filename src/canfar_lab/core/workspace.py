@@ -55,7 +55,7 @@ def save_workspace(
             if raw and Path(raw).is_dir():
                 label = var.lower().replace("_dir", "").replace("_", "-")
                 cache_archive = bundle / f"cache-{label}.tar.zst"
-                _tar_zst(Path(raw), cache_archive, arcname=Path(raw).name)
+                tar_zst(Path(raw), cache_archive, arcname=Path(raw).name)
 
     return bundle
 
@@ -88,7 +88,7 @@ def restore_workspace(
     return dest
 
 
-def _tar_zst(source: Path, dest: Path, *, arcname: str) -> None:
+def tar_zst(source: Path, dest: Path, *, arcname: str) -> None:
     proc = subprocess.run(
         ["tar", "-C", str(source.parent), "-cf", "-", arcname],
         capture_output=True,

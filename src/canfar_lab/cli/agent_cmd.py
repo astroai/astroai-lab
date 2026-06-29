@@ -8,7 +8,7 @@ import typer
 from canfar_lab import ui
 from canfar_lab.agent import free_models as agent_free_models
 from canfar_lab.agent import install as agent_install
-from canfar_lab.agent import setup as agent_setup_mod
+from canfar_lab.agent import bundles as agent_setup_mod
 from canfar_lab.cli.context import get_opts
 from canfar_lab.core.paths import user_bin_dir
 from canfar_lab.errors import LabError
@@ -19,7 +19,7 @@ agent_app = typer.Typer(help="AI agent setup and tool installation.")
 @agent_app.callback(invoke_without_command=True)
 def agent_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        ui.print_hint("Use: canfar-lab agent setup | canfar-lab agent install --list")
+        ui.print_hint("Use: `canfar-lab agent setup` | `canfar-lab agent install --list`")
 
 
 @agent_app.command("setup")
@@ -202,6 +202,6 @@ def models_free_cmd(
     for line in actions:
         ui.print_ok(f"{prefix}: {line}")
     if not opts.dry_run:
-        ui.print_hint("  Kilo sign-in: kilo auth  (or /connect in TUI)")
+        ui.print_hint("  Kilo sign-in: `kilo auth`  (or `/connect` in TUI)")
         ui.print_hint("  OpenRouter key: https://openrouter.ai/keys")
-        ui.print_hint("  Full guide: canfar-lab agent models")
+        ui.print_hint("  Full guide: `canfar-lab agent models`")

@@ -11,7 +11,7 @@ from pathlib import Path
 from canfar_lab.core.paths import npm_prefix_dir, user_bin_dir
 from canfar_lab.errors import LabError
 from canfar_lab.shell.session_env import resolve_session_env
-from canfar_lab.utils.subprocess import run, run_capture, which
+from canfar_lab.utils.subprocess import run, run_capture
 
 TOOLS = {
     "node": "Node.js + npm (pixi global)",
@@ -83,7 +83,7 @@ def _link_into_local_bin(src: Path, name: str) -> None:
 
 
 def _verify_cmd(cmd: str, *, extra_paths: list[Path] | None = None) -> None:
-    if which(cmd) is not None:
+    if shutil.which(cmd) is not None:
         return
     session = resolve_session_env(ensure=False)
     candidates = [
@@ -98,7 +98,7 @@ def _verify_cmd(cmd: str, *, extra_paths: list[Path] | None = None) -> None:
 
 
 def _require(cmd: str) -> None:
-    if which(cmd) is None:
+    if shutil.which(cmd) is None:
         raise LabError(f"{cmd} is required.", hint=f"Install {cmd} or check PATH")
 
 
@@ -201,7 +201,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
     elif name == "kilo":
         env = {"XDG_BIN_DIR": str(_bin_dir())}
         _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
-        if which("kilo") is None and not (_bin_dir() / "kilo").is_file():
+        if shutil.which("kilo") is None and not (_bin_dir() / "kilo").is_file():
             _require("npm")
             run(
                 ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli"],
@@ -240,7 +240,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         (_bin_dir() / "ast-grep").symlink_to(_bin_dir() / "sg")
         _verify_cmd("sg")
     elif name == "hyperfine":
-        if which("hyperfine"):
+        if shutil.which("hyperfine"):
             return
         tag = "v1.19.0"
         try:

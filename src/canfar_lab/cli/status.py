@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import shutil
 import typer
 
 from canfar_lab import ui
@@ -29,6 +28,21 @@ def register(app: typer.Typer) -> None:
         proj = find_arc_project_root()
         proj_hint = f"Project cwd: {proj}" if proj else "Not under /arc/projects"
         procs = top_cpu_processes()
+
+        canfar_auth = None
+        canfar_sessions = None
+        if shutil.which("canfar") is not None:
+            try:
+                from canfar_lab.utils.subprocess import run_capture
+                canfar_auth = run_capture(["canfar", "auth", "show"])
+            except Exception:
+                canfar_auth = "Not authenticated"
+            try:
+                from canfar_lab.utils.subprocess import run_capture
+                canfar_sessions = run_capture(["canfar", "ps"]).splitlines()
+            except Exception:
+                pass
+
         if opts.json:
             ui.print_json(
                 {
@@ -36,7 +50,16 @@ def register(app: typer.Typer) -> None:
                     "home": home_rows,
                     "project_root": str(proj) if proj else None,
                     "processes": procs,
+                    "canfar_auth": canfar_auth,
+                    "canfar_sessions": canfar_sessions,
                 }
             )
         else:
-            ui.status_human(quotas, home_rows, proj_hint, procs)
+            ui.status_human(
+                quotas,
+                home_rows,
+                proj_hint,
+                procs,
+                canfar_auth=canfar_auth,
+                canfar_sessions=canfar_sessions,
+            )

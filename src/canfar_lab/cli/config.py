@@ -15,7 +15,7 @@ config_app = typer.Typer(
 @config_app.callback(invoke_without_command=True)
 def config_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        ui.print_hint("Use: canfar-lab config show | canfar-lab config path")
+        ui.print_hint("Use: `canfar-lab config show` | `canfar-lab config path`")
 
 
 @config_app.command("show")
