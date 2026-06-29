@@ -227,6 +227,7 @@ canfar-lab clone --from-env ml-base owner/project-a
 
 ```bash
 canfar-lab --yes push
+# or: canfar-lab push --yes
 ```
 
 **Scriptable diagnostics:**

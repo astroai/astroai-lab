@@ -1,22 +1,30 @@
 import shutil
+from typing import Annotated
+
 import typer
 
 from canfar_lab import ui
-from canfar_lab.cli.context import get_opts
+from canfar_lab.cli.context import merge_opts
 from canfar_lab.core.paths import find_arc_project_root, resolve_paths
 from canfar_lab.core.storage import df_line, home_breakdown, list_arc_projects, top_cpu_processes
 
 
 def register(app: typer.Typer) -> None:
     @app.command()
-    def status(ctx: typer.Context) -> None:
+    def status(
+        ctx: typer.Context,
+        json_output: Annotated[
+            bool, typer.Option("--json", help="Machine-readable output.")
+        ] = False,
+    ) -> None:
         """Show quotas, home space, and top processes.
 
         Examples:
             canfar-lab status
+            canfar-lab status --json
             canfar-lab --json status
         """
-        opts = get_opts(ctx)
+        opts = merge_opts(ctx, json_output=json_output)
         paths = resolve_paths()
         quotas = []
         if q := df_line(paths.home, "home"):

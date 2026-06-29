@@ -9,7 +9,7 @@ from typing import Annotated
 import typer
 
 from canfar_lab import ui
-from canfar_lab.cli.context import get_opts
+from canfar_lab.cli.context import get_opts, merge_opts
 from canfar_lab.core.paths import resolve_paths
 from canfar_lab.core.project import (
     format_dir_size,
@@ -112,13 +112,20 @@ def env_resume(
 
 
 @env_app.command("list")
-def env_list(ctx: typer.Context) -> None:
+def env_list(
+    ctx: typer.Context,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Machine-readable output.")
+    ] = False,
+) -> None:
     """List saved environments.
 
     Examples:
+        canfar-lab env list
         canfar-lab env list --json
+        canfar-lab --json env list
     """
-    opts = get_opts(ctx)
+    opts = merge_opts(ctx, json_output=json_output)
     paths = resolve_paths()
     rows = save_rows(paths.save_dir)
     if opts.json:

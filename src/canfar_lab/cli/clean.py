@@ -5,7 +5,7 @@ from typing import Annotated
 import typer
 
 from canfar_lab import ui
-from canfar_lab.cli.context import get_opts
+from canfar_lab.cli.context import merge_opts
 from canfar_lab.core.hygiene import (
     apply_clean,
     collect_cache_targets,
@@ -28,6 +28,12 @@ def clean_home(
     ml: Annotated[bool, typer.Option("--ml")] = False,
     hf: Annotated[bool, typer.Option("--hf", help="Hugging Face models (expensive).")] = False,
     xdg_junk: Annotated[bool, typer.Option("--xdg-junk")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Non-interactive; skip confirmations.")
+    ] = False,
 ) -> None:
     """Clear re-downloadable junk under $HOME on /arc.
 
@@ -35,7 +41,7 @@ def clean_home(
         canfar-lab clean home --dry-run --all-safe
         canfar-lab clean home --all-safe --yes
     """
-    opts = get_opts(ctx)
+    opts = merge_opts(ctx, dry_run=dry_run, yes=yes)
     if all_safe:
         stale_pkg = ml = xdg_junk = True
     if not any([stale_pkg, ml, hf, xdg_junk]):
@@ -66,6 +72,9 @@ def clean_cache(
     pixi: Annotated[bool, typer.Option("--pixi")] = False,
     conda: Annotated[bool, typer.Option("--conda")] = False,
     hf: Annotated[bool, typer.Option("--hf")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
 ) -> None:
     """Clear scratch download caches.
 
@@ -73,7 +82,7 @@ def clean_cache(
         canfar-lab clean cache --all-safe
         canfar-lab clean cache --dry-run --pixi --uv
     """
-    opts = get_opts(ctx)
+    opts = merge_opts(ctx, dry_run=dry_run)
     if all_safe:
         pip = uv_cache = npm = pixi = conda = True
     if not any([pip, uv_cache, npm, pixi, conda, hf]):

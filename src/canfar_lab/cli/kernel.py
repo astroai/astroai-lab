@@ -6,6 +6,7 @@ from typing import Annotated
 import typer
 
 from canfar_lab import ui
+from canfar_lab.cli.context import merge_opts
 from canfar_lab.core.kernel import list_kernels, register_kernel, unregister_kernel
 from canfar_lab.errors import LabError
 
@@ -33,15 +34,20 @@ def kernel_register(
 
 
 @kernel_app.command("list")
-def kernel_list(ctx: typer.Context) -> None:
+def kernel_list(
+    ctx: typer.Context,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Machine-readable output.")
+    ] = False,
+) -> None:
     """List registered kernels.
 
     Examples:
         canfar-lab kernel list
+        canfar-lab kernel list --json
+        canfar-lab --json kernel list
     """
-    from canfar_lab.cli.context import get_opts
-
-    opts = get_opts(ctx)
+    opts = merge_opts(ctx, json_output=json_output)
     rows = list_kernels()
     if opts.json:
         ui.print_json(rows)

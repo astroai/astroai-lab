@@ -7,7 +7,7 @@ from typing import Annotated
 import typer
 
 from canfar_lab import ui
-from canfar_lab.cli.context import get_opts
+from canfar_lab.cli.context import get_opts, merge_opts
 from canfar_lab.config.settings import get_settings
 from canfar_lab.core.git import git_init_and_commit, git_push, git_status
 from canfar_lab.core.paths import resolve_paths
@@ -184,16 +184,22 @@ def register(app: typer.Typer) -> None:
         ui.print_hint(f"  `cd {dest}`")
 
     @app.command()
-    def saves(ctx: typer.Context) -> None:
+    def saves(
+        ctx: typer.Context,
+        json_output: Annotated[
+            bool, typer.Option("--json", help="Machine-readable output.")
+        ] = False,
+    ) -> None:
         """List saved environments.
 
         Examples:
             canfar-lab saves
+            canfar-lab saves --json
             canfar-lab --json saves
         """
         from canfar_lab.core.project import save_rows
 
-        opts = get_opts(ctx)
+        opts = merge_opts(ctx, json_output=json_output)
         paths = resolve_paths()
         rows = save_rows(paths.save_dir)
         if opts.json:
@@ -205,15 +211,19 @@ def register(app: typer.Typer) -> None:
     def push(
         ctx: typer.Context,
         name: Annotated[str | None, typer.Option("--name", help="Env save name.")] = None,
+        yes: Annotated[
+            bool, typer.Option("--yes", "-y", help="Non-interactive; skip confirmations.")
+        ] = False,
     ) -> None:
         """End-of-session archive: git push + env save.
 
         Examples:
             canfar-lab push
             canfar-lab push --yes
+            canfar-lab --yes push
             canfar-lab push --name mylab
         """
-        opts = get_opts(ctx)
+        opts = merge_opts(ctx, yes=yes)
         settings = get_settings()
         paths = resolve_paths()
         cwd = Path.cwd()

@@ -211,10 +211,11 @@ def test_kernel_register_cli(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_kernel_list_json(lab_env: Path) -> None:
     with patch("canfar_lab.cli.kernel.list_kernels", return_value=[{"name": "k", "path": "/p"}]):
-        result = runner.invoke(app, ["--json", "kernel", "list"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert data[0]["name"] == "k"
+        for argv in (["--json", "kernel", "list"], ["kernel", "list", "--json"]):
+            result = runner.invoke(app, argv)
+            assert result.exit_code == 0, result.output
+            data = json.loads(result.stdout)
+            assert data[0]["name"] == "k"
 
 
 def test_workspace_save_cli(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:

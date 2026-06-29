@@ -1,6 +1,6 @@
 # CLI reference
 
-Global flags (all commands):
+Global flags (most commands accept these **before** the subcommand, e.g. `canfar-lab --json status`. Several commands also accept the same flags **after** the subcommand name — see examples below):
 
 | Flag | Description |
 |------|-------------|
@@ -99,15 +99,17 @@ Stage data from `/arc` to scratch or sync back.
 ```bash
 canfar-lab data stage /arc/home/user/data
 canfar-lab data sync /scratch/out /arc/home/user/data
+canfar-lab data stage /arc/path --dry-run
+canfar-lab data sync /scratch/out /arc/path --yes
 ```
 
 ### `canfar-lab clean home|cache`
 
-Prune caches and home clutter (defaults to dry-run on destructive ops).
+Prune caches and home clutter. Pass **`--dry-run`** to preview; destructive runs need explicit category flags (`--all-safe` or individual toggles).
 
 ```bash
 canfar-lab clean home --all-safe --dry-run
-canfar-lab clean cache --all-safe --yes
+canfar-lab clean cache --all-safe --dry-run
 ```
 
 ### `canfar-lab config show|path`

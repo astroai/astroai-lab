@@ -91,9 +91,13 @@ def test_clean_home_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     cache = home / ".cache" / "pip"
     cache.mkdir(parents=True)
     (cache / "wheel").write_text("x")
-    result = runner.invoke(app, ["--dry-run", "clean", "home", "--stale-pkg"])
-    assert result.exit_code == 0
-    assert "dry-run" in result.output.lower()
+    for argv in (
+        ["--dry-run", "clean", "home", "--stale-pkg"],
+        ["clean", "home", "--stale-pkg", "--dry-run"],
+    ):
+        result = runner.invoke(app, argv)
+        assert result.exit_code == 0, result.output
+        assert "dry-run" in result.output.lower()
 
 
 def test_hygiene_collect_and_apply_dry_run(tmp_path: Path) -> None:
@@ -118,8 +122,9 @@ def test_status_command(lab_env: Path) -> None:
         with patch("canfar_lab.cli.status.list_arc_projects", return_value=[]):
             with patch("canfar_lab.cli.status.home_breakdown", return_value=[]):
                 with patch("canfar_lab.cli.status.top_cpu_processes", return_value=[]):
-                    result = runner.invoke(app, ["status"])
-    assert result.exit_code == 0
+                    for argv in (["status"], ["status", "--json"], ["--json", "status"]):
+                        result = runner.invoke(app, argv)
+                        assert result.exit_code == 0, result.output
 
 
 def test_banner_json(lab_env: Path) -> None:
