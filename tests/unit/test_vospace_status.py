@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import sys
 from unittest.mock import MagicMock, patch
 
 from canfar_lab.core.arc_permissions import GmsGroups
 from canfar_lab.core.vospace_status import (
     VaultNodeStatus,
+    VaultStatus,
+    candidate_vault_names,
     gms_name_from_uri,
+    vault_by_name,
     vault_node_status,
+    vault_status_dict,
     vault_statuses,
 )
 
@@ -75,14 +80,76 @@ def test_vault_statuses_with_mock_client() -> None:
     client.size.return_value = 512
     gms = GmsGroups(groups=["team-ro"], source="test")
 
-    with patch("canfar_lab.core.vospace_status._vos_client", return_value=(client, "anonymous")):
-        with patch("canfar_lab.core.vospace_status.candidate_vault_names", return_value=["team"]):
-            status = vault_statuses(arc_names=["team"], gms=gms)
+    with patch.dict(sys.modules, {"vos": MagicMock()}):
+        with patch(
+            "canfar_lab.core.vospace_status._vos_client",
+            return_value=(client, "anonymous"),
+        ):
+            with patch(
+                "canfar_lab.core.vospace_status.candidate_vault_names",
+                return_value=["team"],
+            ):
+                status = vault_statuses(arc_names=["team"], gms=gms)
 
     assert status is not None
+    assert status.auth == "anonymous"
     assert len(status.nodes) == 1
     assert status.nodes[0].read_group == "team-ro"
     assert status.nodes[0].quota_bytes == 2048
+
+
+def test_vault_statuses_empty_candidates() -> None:
+    client = MagicMock()
+    with patch.dict(sys.modules, {"vos": MagicMock()}):
+        with patch(
+            "canfar_lab.core.vospace_status._vos_client",
+            return_value=(client, "netrc"),
+        ):
+            with patch(
+                "canfar_lab.core.vospace_status.candidate_vault_names",
+                return_value=[],
+            ):
+                status = vault_statuses(arc_names=[], gms=None)
+
+    assert status is not None
+    assert status.nodes == []
+    assert status.auth == "netrc"
+
+
+def test_candidate_vault_names_deduplicates(monkeypatch) -> None:
+    monkeypatch.setenv("USER", "alice")
+    client = MagicMock()
+    with patch(
+        "canfar_lab.core.vospace_status._discover_vault_names",
+        return_value=["Team", "extra"],
+    ):
+        names = candidate_vault_names(
+            arc_names=["team"],
+            gms=GmsGroups(groups=["team-ro"], source="test"),
+            client=client,
+        )
+    assert names == ["team", "alice", "extra"]
+
+
+def test_vault_status_dict_and_by_name() -> None:
+    node = VaultNodeStatus(
+        name="home",
+        uri="vault:/home",
+        used_bytes=100,
+        quota_bytes=1000,
+        read_group="ro",
+        write_group=None,
+        gms_member=True,
+    )
+    vault = VaultStatus(nodes=[node], auth="cert")
+    data = vault_status_dict(vault)
+    assert data is not None
+    assert data["service"] == "vault"
+    assert data["auth"] == "cert"
+    assert data["nodes"][0]["read_group"] == "ro"
+    assert vault_by_name(vault)["home"] is node
+    assert vault_status_dict(None) is None
+    assert vault_by_name(None) == {}
 
 
 def test_vault_quota_line() -> None:
