@@ -17,7 +17,7 @@ def show_banner(*, json_output: bool = False) -> None:
     cwd = Path.cwd()
     project_kind = detect_project(cwd)
     home_pct = quota_used_pct(paths.home)
-    active_arc, _ = arc_project_statuses(cwd)
+    active_arc, _, _, _ = arc_project_statuses(cwd, vault=False)
 
     if json_output:
         ui.print_json(
@@ -33,6 +33,7 @@ def show_banner(*, json_output: bool = False) -> None:
                     {
                         "name": active_arc.name,
                         "path": str(active_arc.path),
+                        "access": active_arc.access,
                         "quota_pct": active_arc.quota.pct if active_arc.quota else None,
                         "quota_free": active_arc.quota.free if active_arc.quota else None,
                     }
@@ -51,10 +52,11 @@ def show_banner(*, json_output: bool = False) -> None:
         q = active_arc.quota
         if q is not None:
             ui.print_hint(
-                f"  team:    {active_arc.path} ({q.free} free of {q.total}, {q.pct}% used)"
+                f"  team:    {active_arc.path} [{active_arc.access}] "
+                f"({q.free} free of {q.total}, {q.pct}% used)"
             )
         else:
-            ui.print_hint(f"  team:    {active_arc.path}")
+            ui.print_hint(f"  team:    {active_arc.path} [{active_arc.access}]")
     if home_pct is not None and home_pct >= 80:
         ui.print_warn(f"  home quota: {home_pct}% — `canfar-lab clean home --all-safe` to free space")
     if git.in_repo and git.uncommitted:

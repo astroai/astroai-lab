@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+from canfar_lab.core.arc_permissions import GmsGroups
+from canfar_lab.core.vospace_status import (
+    VaultNodeStatus,
+    gms_name_from_uri,
+    vault_node_status,
+    vault_statuses,
+)
+
+
+def test_gms_name_from_uri() -> None:
+    assert gms_name_from_uri("ivo://cadc.nrc.ca/gms?bcg-read") == "bcg-read"
+    assert gms_name_from_uri("NONE") is None
+    assert gms_name_from_uri(None) is None
+
+
+def test_vault_node_status_parses_quota_and_groups() -> None:
+    node = MagicMock()
+    node.props = {
+        "quota": "1073741824",
+        "length": "1048576",
+        "groupread": "ivo://cadc.nrc.ca/gms?team-ro",
+        "groupwrite": "ivo://cadc.nrc.ca/gms?team-rw",
+    }
+    client = MagicMock()
+    client.get_node.return_value = node
+    gms = GmsGroups(groups=["team-ro"], source="test")
+
+    status = vault_node_status("myteam", client=client, gms=gms)
+
+    assert status.found
+    assert status.quota_bytes == 1073741824
+    assert status.used_bytes == 1048576
+    assert status.read_group == "team-ro"
+    assert status.write_group == "team-rw"
+    assert status.gms_member is True
+
+
+def test_vault_node_status_not_found() -> None:
+    class NotFoundException(Exception):
+        pass
+
+    client = MagicMock()
+    client.get_node.side_effect = NotFoundException("missing")
+    status = vault_node_status("missing", client=client, gms=None)
+    assert status.error == "not_found"
+
+
+def test_vault_statuses_missing_vos(monkeypatch) -> None:
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "vos" or name.startswith("vos."):
+            raise ImportError("no vos")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    assert vault_statuses(arc_names=[], gms=None) is None
+
+
+def test_vault_statuses_with_mock_client() -> None:
+    node = MagicMock()
+    node.props = {
+        "quota": "2048",
+        "groupread": "ivo://cadc.nrc.ca/gms?team-ro",
+        "groupwrite": "NONE",
+    }
+    client = MagicMock()
+    client.get_node.return_value = node
+    client.size.return_value = 512
+    gms = GmsGroups(groups=["team-ro"], source="test")
+
+    with patch("canfar_lab.core.vospace_status._vos_client", return_value=(client, "anonymous")):
+        with patch("canfar_lab.core.vospace_status.candidate_vault_names", return_value=["team"]):
+            status = vault_statuses(arc_names=["team"], gms=gms)
+
+    assert status is not None
+    assert len(status.nodes) == 1
+    assert status.nodes[0].read_group == "team-ro"
+    assert status.nodes[0].quota_bytes == 2048
+
+
+def test_vault_quota_line() -> None:
+    node = VaultNodeStatus(
+        name="home",
+        uri="vault:/home",
+        used_bytes=100,
+        quota_bytes=1000,
+        read_group=None,
+        write_group=None,
+        gms_member=None,
+    )
+    line = node.quota_line(current=True)
+    assert line is not None
+    assert line.label == "home (vault)"
+    assert line.current is True
+    assert line.pct == 10

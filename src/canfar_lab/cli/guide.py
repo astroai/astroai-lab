@@ -29,7 +29,7 @@ GUIDE_TEXT = """
   canfar-lab resume NAME           restore saved env
   canfar-lab saves                 list saved envs
   canfar-lab push                  end-of-session archive (canfar-lab push --yes)
-  canfar-lab status --json         quotas, canfar auth/ps, processes
+  canfar-lab status --json         quotas, team projects, GMS/vault, canfar auth/ps, processes
   canfar-lab doctor --json         paths, caches, tools
 
 [bold]Platform tools[/bold]

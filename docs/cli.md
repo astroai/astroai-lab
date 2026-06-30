@@ -72,7 +72,22 @@ canfar-lab push --yes --name mylab
 
 ### `canfar-lab status`
 
-Quotas, home breakdown, top CPU processes.
+Quotas, home breakdown, team project membership, CANFAR auth/sessions, and top processes.
+
+```bash
+canfar-lab status
+canfar-lab status --json
+```
+
+**`--json` keys:** `quotas`, `home`, `processes`, `canfar_auth`, `canfar_sessions`, `arc_project`, `arc_projects`, `gms_groups`, `vault`.
+
+Each **`arc_projects[]`** entry includes `access` (`rw`/`ro`), `acl_groups` (from `getfacl`), `gms_member`, optional nested **`vault`** (VOSpace quota/groups), and `quota` (POSIX `df` on `/arc/projects/<name>`).
+
+**`gms_groups`:** `{groups, source}` from `cadc-groups list` when cert/netrc is available, else `null`.
+
+**`vault`:** `{service, source, auth, nodes[]}` from the vos API (`vault:/<name>`). Vault quotas may also appear in `quotas` as `"<name> (vault)"`.
+
+Requires optional tools on PATH: `getfacl`, `cadc-groups` (CADC venv), `vos` — all ship in AstroAI session images.
 
 ### `canfar-lab doctor`
 
@@ -156,6 +171,7 @@ canfar-lab project init mygroup --members alice,bob
 | `TMP_SRC_DIR` | Session work dir (Skaha) |
 | `TMP_SCRATCH_DIR` | Session scratch (Skaha) |
 | `CANFAR_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`) |
+| `CANFAR_LAB_RUNTIME_ROOT` | Runtime uv/pixi roots (default: scratch `.runtime-$USER`) |
 | `CANFAR_LAB_NPM_PREFIX` | npm global prefix (default: scratch `.local`) |
 | `CANFAR_LAB_CONFIG_DIR` | Workbench config (`~/.canfar/lab`) |
 

@@ -44,7 +44,7 @@ canfar-lab save [name]           # lockfile manifest → /arc
 canfar-lab resume NAME           # restore saved env
 canfar-lab saves                 # list saved envs (--json)
 canfar-lab push --yes              # git push + env save
-canfar-lab status --json           # quotas, canfar auth/ps
+canfar-lab status --json           # quotas, team projects, GMS/vault, canfar auth/ps
 canfar-lab doctor --json           # paths, caches, tools
 canfar-lab agent setup             # MCP + skills (once per user on /arc)
 canfar-lab agent update            # refresh skills/rules after image upgrade

@@ -119,7 +119,7 @@ def test_data_stage_missing_source(lab_env: Path) -> None:
 
 def test_status_command(lab_env: Path) -> None:
     with patch("canfar_lab.cli.status.collect_status_quotas", return_value=[]):
-        with patch("canfar_lab.cli.status.arc_project_statuses", return_value=(None, [])):
+        with patch("canfar_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)):
             with patch("canfar_lab.cli.status.home_breakdown", return_value=[]):
                 with patch("canfar_lab.cli.status.top_cpu_processes", return_value=[]):
                     for argv in (["status"], ["status", "--json"], ["--json", "status"]):
@@ -145,15 +145,18 @@ def test_status_json_includes_arc_projects(lab_env: Path) -> None:
         is_cwd=True,
     )
     with patch("canfar_lab.cli.status.collect_status_quotas", return_value=[active.quota]):
-        with patch("canfar_lab.cli.status.arc_project_statuses", return_value=(active, [active])):
+        with patch("canfar_lab.cli.status.arc_project_statuses", return_value=(active, [active], None, None)):
             with patch("canfar_lab.cli.status.home_breakdown", return_value=[]):
                 with patch("canfar_lab.cli.status.top_cpu_processes", return_value=[]):
                     result = runner.invoke(app, ["status", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["arc_project"]["name"] == "mygroup"
+    assert data["arc_project"]["access"] == "ro"
     assert data["arc_project"]["quota"]["free"] == "9G"
     assert len(data["arc_projects"]) == 1
+    assert data["gms_groups"] is None
+    assert data["vault"] is None
 
 
 def test_banner_json(lab_env: Path) -> None:

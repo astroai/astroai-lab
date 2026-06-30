@@ -110,10 +110,16 @@ def test_arc_project_statuses_marks_cwd() -> None:
     with patch("canfar_lab.core.storage.find_arc_project_root", return_value=foo):
         with patch("canfar_lab.core.storage.list_arc_projects", return_value=[bar, foo]):
             with patch("canfar_lab.core.storage.df_line", return_value=q) as mock_df:
-                active, rows = arc_project_statuses()
+                with patch("canfar_lab.core.storage.read_acl_groups", return_value=[]):
+                    with patch("canfar_lab.core.storage.project_access", return_value="rw"):
+                        with patch("canfar_lab.core.storage.list_gms_groups", return_value=None):
+                            active, rows, gms, vault = arc_project_statuses(gms=False, vault=False)
+    assert gms is None
+    assert vault is None
     assert active is not None
     assert active.name == "foo"
     assert active.is_cwd is True
+    assert active.access == "rw"
     assert rows[0].name == "foo"
     mock_df.assert_any_call(foo, "foo", current=True)
     mock_df.assert_any_call(bar, "bar", current=False)
@@ -126,6 +132,6 @@ def test_collect_status_quotas_includes_home_and_scratch(tmp_path: Path) -> None
     scratch.mkdir()
     q = QuotaLine(label="x", path="p", used="1", total="2", free="1", pct=50)
     with patch("canfar_lab.core.storage.df_line", return_value=q):
-        with patch("canfar_lab.core.storage.arc_project_statuses", return_value=(None, [])):
+        with patch("canfar_lab.core.storage.arc_project_statuses", return_value=(None, [], None, None)):
             rows = collect_status_quotas(home=home, scratch=scratch)
     assert len(rows) == 2

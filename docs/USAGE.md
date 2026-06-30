@@ -62,8 +62,9 @@ Shell completion: `canfar-lab --install-completion bash`
 ## First project
 
 ```bash
-canfar-lab status              # quotas, paths, suggested next step
-canfar-lab doctor              # paths, caches, tool availability (--json)
+canfar-lab                        # brief banner + next step (not full status)
+canfar-lab status                 # quotas, team projects, GMS/vault, processes
+canfar-lab doctor                 # paths, caches, tool availability (--json)
 gh auth login                  # once per user — clone/push + GitHub MCP
 
 canfar-lab init mylab
@@ -107,7 +108,7 @@ canfar-lab env resume mylab        # restores into ${TMP_SRC_DIR}/mylab
 cd mylab && pixi run python analysis.py
 ```
 
-Integration tests: `pytest tests/integration/test_cold_start_save_resume.py --no-cov`. In AstroAI images: `./scripts/test-canfar-lab-loop.sh` (via `make test-ray`).
+Integration tests: `pytest tests/integration/test_cold_start_save_resume.py --no-cov`. In AstroAI images: [containers/scripts/test-canfar-lab-loop.sh](https://github.com/astroai/containers/blob/main/scripts/test-canfar-lab-loop.sh) (`make test-ray BUILD_TAG=local` in the containers repo).
 
 Distributed Ray on CANFAR: [AstroAI RAY.md](https://github.com/astroai/containers/blob/main/docs/RAY.md).
 
@@ -177,7 +178,7 @@ pixi add cadcdata cadctap vos canfar
 |---------|---------|
 | `canfar-lab` | Brief status |
 | `canfar-lab guide` | Printable cheat sheet |
-| `canfar-lab status` | Quotas, space, processes |
+| `canfar-lab status` | Quotas, home breakdown, team projects (access/ACL/GMS/vault), `canfar auth`/`canfar ps`, processes |
 | `canfar-lab doctor [--json]` | Paths, caches, tools |
 | `canfar-lab init NAME` | New pixi/uv project |
 | `canfar-lab clone REPO` | `gh` clone + install |

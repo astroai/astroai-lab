@@ -157,28 +157,126 @@ def status_human(
     processes: list[str],
     canfar_auth: str | None = None,
     canfar_sessions: list[str] | None = None,
+    gms_groups=None,
+    vault=None,
 ) -> None:
     console.print("[bold]canfar-lab status[/bold]\n")
     if canfar_auth:
         console.print(f"[bold]CANFAR Authentication:[/bold] {canfar_auth}\n")
+    if gms_groups is not None and gms_groups.groups:
+        names = ", ".join(gms_groups.groups[:8])
+        extra = (
+            f" (+{len(gms_groups.groups) - 8} more)"
+            if len(gms_groups.groups) > 8
+            else ""
+        )
+        console.print(f"[bold]CADC groups (GMS):[/bold] {names}{extra}\n")
+    elif Path("/arc/projects").is_dir() and gms_groups is None:
+        console.print(
+            "[dim]CADC groups: unavailable "
+            "(install cadc-groups / run cadc-get-cert)[/dim]\n"
+        )
     if active_project is not None:
         q = active_project.quota
+        access = getattr(active_project, "access", "?")
         if q is not None:
             console.print(
                 f"[bold]Team project (cwd):[/bold] {active_project.path} "
-                f"— {q.free} free of {q.total} ({q.pct}% used)"
+                f"[{access}] — {q.free} free of {q.total} ({q.pct}% used)"
             )
         else:
-            console.print(f"[bold]Team project (cwd):[/bold] {active_project.path}")
+            console.print(
+                f"[bold]Team project (cwd):[/bold] {active_project.path} [{access}]"
+            )
         console.print("")
     elif arc_projects:
-        names = ", ".join(p.name for p in arc_projects[:6])
+        names = ", ".join(
+            f"{p.name}({getattr(p, 'access', '?')})" for p in arc_projects[:6]
+        )
         extra = f" (+{len(arc_projects) - 6} more)" if len(arc_projects) > 6 else ""
         console.print(
-            f"[dim]cwd not under /arc/projects — readable team projects: {names}{extra}[/dim]\n"
+            f"[dim]cwd not under /arc/projects — accessible team projects: "
+            f"{names}{extra}[/dim]\n"
         )
     elif Path("/arc/projects").is_dir():
         console.print("[dim]No readable team projects under /arc/projects[/dim]\n")
+    if arc_projects:
+        pt = Table(title="Team projects (/arc/projects)")
+        pt.add_column("Project")
+        pt.add_column("Access")
+        pt.add_column("ACL groups")
+        pt.add_column("GMS")
+        pt.add_column("Vault groups")
+        for p in arc_projects:
+            groups = getattr(p, "acl_groups", None) or []
+            group_cell = ", ".join(f"{g.name}({g.perms})" for g in groups[:4])
+            if len(groups) > 4:
+                group_cell += f" (+{len(groups) - 4})"
+            gms_cell = (
+                "yes"
+                if getattr(p, "gms_member", None) is True
+                else "no"
+                if getattr(p, "gms_member", None) is False
+                else "—"
+            )
+            vault_node = getattr(p, "vault", None)
+            if vault_node is not None and vault_node.found:
+                vault_groups = ", ".join(
+                    g
+                    for g in (
+                        vault_node.read_group and f"ro:{vault_node.read_group}",
+                        vault_node.write_group and f"rw:{vault_node.write_group}",
+                    )
+                    if g
+                )
+            else:
+                vault_groups = "—"
+            name = p.name
+            if getattr(p, "is_cwd", False):
+                name = f"{name} [cyan](cwd)[/cyan]"
+            pt.add_row(
+                name,
+                getattr(p, "access", "?"),
+                group_cell or "—",
+                gms_cell,
+                vault_groups or "—",
+            )
+        console.print(pt)
+    if vault is not None and vault.nodes:
+        extra = [
+            node
+            for node in vault.nodes
+            if node.found
+            and node.name.casefold()
+            not in {p.name.casefold() for p in arc_projects}
+        ]
+        if extra:
+            vt = Table(title="VOSpace vault (extra containers)")
+            vt.add_column("Name")
+            vt.add_column("Quota")
+            vt.add_column("Read group")
+            vt.add_column("Write group")
+            vt.add_column("GMS")
+            for node in extra:
+                q = node.quota_line()
+                quota_cell = (
+                    f"{q.used} / {q.total} ({q.pct}%)" if q is not None else "—"
+                )
+                gms_cell = (
+                    "yes"
+                    if node.gms_member is True
+                    else "no"
+                    if node.gms_member is False
+                    else "—"
+                )
+                vt.add_row(
+                    node.name,
+                    quota_cell,
+                    node.read_group or "—",
+                    node.write_group or "—",
+                    gms_cell,
+                )
+            console.print(vt)
     if quotas:
         qt = Table(title="Storage quotas")
         qt.add_column("Location")
