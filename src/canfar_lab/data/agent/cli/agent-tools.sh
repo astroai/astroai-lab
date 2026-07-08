@@ -1,5 +1,5 @@
 # Pre-installed on CANFAR lab (use these names directly — no custom wrappers):
-#   rg  fd  fzf  bat  jq  gh  pixi  uv  hyperfine
+#   rg  fd  fzf  bat  peek  jq  gh  pixi  uv  hyperfine
 #   canfar  cadcget  cadc-tap  vcp  canfar-lab  — /opt/astroai/venv/cadc/bin
 #   sg  —  canfar-lab agent install ast-grep
 #

@@ -24,4 +24,6 @@ canfar-lab push --yes   # before session ends — code on TMP_SRC_DIR is ephemer
 Pin Python deps in **pixi.toml / uv.lock** here — not in the image platform venv.
 Platform CLIs (`canfar`, `cadcget`, `canfar-lab`) live in `/opt/astroai/venv/cadc`; upgrade this session with `upgrade-cadc-tools.sh` if needed.
 
-Search: `rg`, `fd`, `sg` (ast-grep skill). Help: `canfar-lab guide`, `canfar-lab status --json`.
+Search: `rg`, `fd`, `sg` (ast-grep skill). View files: `peek <path>` (markdown/text/archives) or `bat`/`less`. Help: `canfar-lab guide`, `canfar-lab status --json`.
+
+In webterm, prefer `peek` when pointing the user at generated plans, logs, or archives — do not dump huge files into the chat/terminal raw.

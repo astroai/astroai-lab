@@ -62,7 +62,10 @@ fd name
 sg -p 'class $N' -l py          # needs: canfar-lab agent install ast-grep
 pixi run pytest -q
 uv run python script.py
+peek README.md                  # markdown/text; peek archive.tgz [member]
 ```
+
+When showing the user a generated markdown, log, or archive in webterm (or any AstroAI session), prefer `peek <path>` (or `bat`/`less`) over dumping huge files raw.
 
 ## Help
 
