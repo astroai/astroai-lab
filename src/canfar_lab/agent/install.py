@@ -212,7 +212,10 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("goose")
     elif name == "kilo":
         env = {"XDG_BIN_DIR": str(_bin_dir())}
-        _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
+        try:
+            _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
+        except subprocess.CalledProcessError:
+            pass  # fall back to npm when upstream installer is unavailable
         if shutil.which("kilo") is None and not (_bin_dir() / "kilo").is_file():
             _require("npm")
             run(

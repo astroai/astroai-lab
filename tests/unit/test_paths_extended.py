@@ -56,7 +56,7 @@ def test_find_arc_project_root_mounted() -> None:
     with patch("pathlib.Path.is_dir", side_effect=lambda: True):
         # We start from /arc/projects/demo/subdir
         start = Path("/arc/projects/demo/subdir")
-        # Since we mocked is_dir to return True, find_arc_project_root should find /arc/projects/demo
+        # is_dir mocked True → find_arc_project_root finds /arc/projects/demo
         assert find_arc_project_root(start) == Path("/arc/projects/demo")
 
 
