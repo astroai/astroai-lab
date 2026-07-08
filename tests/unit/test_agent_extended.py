@@ -10,9 +10,11 @@ from canfar_lab.agent.bundles import (
     ensure_agent_dirs,
     install_goose_config,
     install_upstream_skills,
+    list_github_sources,
     merge_claude_json,
     merge_opencode_mcp,
     run_bundle,
+    update_github_source,
     write_stamp,
 )
 from canfar_lab.cli.main import app
@@ -78,3 +80,51 @@ def test_agent_project_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 def test_project_init_cli_no_arc() -> None:
     result = runner.invoke(app, ["project", "init", "mygroup"])
     assert result.exit_code == 1
+
+
+def test_list_github_sources() -> None:
+    sources = list_github_sources()
+    assert any(s["name"] == "ast-grep" for s in sources)
+
+
+def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = update_github_source(
+        home,
+        "ast-grep",
+        "ast-grep/agent-skill",
+        "ast-grep/skills/ast-grep",
+        force=True,
+        dry_run=True,
+    )
+    assert result.status == "dry-run"
+
+
+def test_agent_sources_list_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["agent", "sources", "list"])
+    assert result.exit_code == 0
+    assert "ast-grep" in (result.stdout + result.stderr)
+
+
+def test_agent_sync_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["--dry-run", "agent", "sync"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "refreshed skill" in out or "would refresh skill" in out
+
+
+def test_agent_sources_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["--dry-run", "agent", "sources", "update"])
+    assert result.exit_code == 0
+    assert "ast-grep" in (result.stdout + result.stderr)

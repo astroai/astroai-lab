@@ -135,13 +135,16 @@ Optional preferences file.
 
 Freeze/restore full project trees (zstd bundles).
 
-### `canfar-lab agent setup|update|project|verify|list|install|models`
+### `canfar-lab agent setup|update|sync|sources|project|verify|list|install|models`
 
 AI agent MCP, rules, skills, tool installation, and free model presets.
 
 ```bash
 canfar-lab agent setup
-canfar-lab agent update
+canfar-lab agent sync              # full refresh: all agents, MCP, skills, GitHub sources
+canfar-lab agent update            # alias for sync
+canfar-lab agent sources update    # GitHub upstream skills only
+canfar-lab agent sources list
 canfar-lab agent project
 canfar-lab agent install kilo
 canfar-lab agent install goose

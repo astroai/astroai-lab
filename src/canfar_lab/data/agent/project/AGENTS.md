@@ -11,7 +11,7 @@ canfar-lab agent models free    # OpenRouter :free + Kilo auto/free configs
 gh auth login
 ```
 
-Refresh bundles after an image upgrade: `canfar-lab agent update`
+Refresh bundles after an image upgrade: `canfar-lab agent sync`
 
 ## This repo
 

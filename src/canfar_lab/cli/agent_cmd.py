@@ -19,7 +19,10 @@ agent_app = typer.Typer(help="AI agent setup and tool installation.")
 @agent_app.callback(invoke_without_command=True)
 def agent_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        ui.print_hint("Use: `canfar-lab agent setup` | `canfar-lab agent install --list`")
+        ui.print_hint(
+            "Use: `canfar-lab agent setup` | `canfar-lab agent sync` | "
+            "`canfar-lab agent sources update`"
+        )
 
 
 @agent_app.command("setup")
@@ -66,13 +69,105 @@ def agent_update_cmd(ctx: typer.Context) -> None:
     Examples:
         canfar-lab agent update
     """
+    _run_agent_sync(ctx)
+
+
+@agent_app.command("sync")
+def agent_sync_cmd(ctx: typer.Context) -> None:
+    """Explicitly refresh all coding agents, MCP servers, rules, and GitHub skills.
+
+    Reinstalls every agent bundle with --force, pulls upstream GitHub skill
+    sources, and verifies the result.
+
+    Examples:
+        canfar-lab agent sync
+        canfar-lab agent sync --dry-run
+    """
+    _run_agent_sync(ctx)
+
+
+def _run_agent_sync(ctx: typer.Context) -> None:
     opts = get_opts(ctx)
     try:
-        agent_setup_mod.agent_setup(mode="update", force=True, dry_run=opts.dry_run)
+        results = agent_setup_mod.agent_sync(dry_run=opts.dry_run)
     except LabError as exc:
         ui.print_error(str(exc))
         raise typer.Exit(1) from exc
+    if not opts.dry_run:
+        try:
+            agent_setup_mod.agent_verify()
+        except LabError as exc:
+            ui.print_warn(str(exc))
+    prefix = "would refresh" if opts.dry_run else "refreshed"
+    for result in results:
+        if result.status == "skipped":
+            continue
+        ui.print_ok(f"{prefix} skill {result.name} ({result.repo}: {result.status})")
     ui.print_ok("Agent config updated")
+
+
+sources_app = typer.Typer(help="GitHub upstream skill sources (see skills-sources.json).")
+agent_app.add_typer(sources_app, name="sources")
+
+
+@sources_app.callback(invoke_without_command=True)
+def sources_root(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        ui.print_hint("Use: `canfar-lab agent sources list` | `canfar-lab agent sources update`")
+
+
+@sources_app.command("list")
+def sources_list_cmd(ctx: typer.Context) -> None:
+    """List configured GitHub skill sources and local cache paths."""
+    opts = get_opts(ctx)
+    home = Path.home()
+    rows = []
+    for item in agent_setup_mod.list_github_sources():
+        cache = agent_setup_mod.upstream_cache_path(home, item["repo"])
+        installed = home / ".cursor" / "skills" / item["name"] / "SKILL.md"
+        rows.append(
+            {
+                **item,
+                "cache": str(cache),
+                "cached": (cache / ".git").is_dir(),
+                "installed": installed.is_file(),
+            }
+        )
+    if opts.json:
+        ui.print_json(rows)
+        return
+    for row in rows:
+        state = "installed" if row["installed"] else "missing"
+        cache_state = "cached" if row["cached"] else "not cached"
+        ui.print_hint(f"  {row['name']:<28} {row['repo']}  ({state}, {cache_state})")
+        ui.print_hint(f"    {row['homepage']}")
+
+
+@sources_app.command("update")
+def sources_update_cmd(ctx: typer.Context) -> None:
+    """Pull all GitHub upstream skill sources and refresh ~/.cursor/skills copies.
+
+    Examples:
+        canfar-lab agent sources update
+        canfar-lab agent sources update --dry-run
+    """
+    opts = get_opts(ctx)
+    try:
+        results = agent_setup_mod.update_all_github_sources(force=True, dry_run=opts.dry_run)
+    except LabError as exc:
+        ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    prefix = "would update" if opts.dry_run else "updated"
+    failures = 0
+    for result in results:
+        if result.status == "failed":
+            failures += 1
+            ui.print_error(f"{result.name}: {result.detail}")
+        elif result.status != "skipped":
+            ui.print_ok(f"{prefix} {result.name} ({result.repo}: {result.status})")
+    if failures:
+        raise typer.Exit(1)
+    ui.print_ok("GitHub skill sources refreshed")
 
 
 @agent_app.command("project")

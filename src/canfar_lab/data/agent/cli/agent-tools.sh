@@ -7,7 +7,8 @@
 # uv project:    uv sync && uv run python script.py          (versions in uv.lock)
 #
 # Platform CLI upgrade (this session):  upgrade-cadc-tools.sh --upgrade canfar-lab
-# Agent bundles refresh:                canfar-lab agent update
+# Agent bundles refresh:                canfar-lab agent sync
+# GitHub upstream skills only:          canfar-lab agent sources update
 #
 # Agent skills from GitHub:  canfar-lab agent setup cursor  (see skills-sources.json)
 # More skills via pixi:      pixi global install pixi-skills && pixi-skills manage --backend cursor

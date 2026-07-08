@@ -13,7 +13,8 @@ canfar-lab agent models free        # OpenRouter + Kilo free-tier model presets
 gh auth login                       # GitHub for gh + GitHub MCP
 ```
 
-Refresh agent bundles after an image upgrade: `canfar-lab agent update`
+Refresh agent bundles after an image upgrade: `canfar-lab agent sync`
+GitHub upstream skills only: `canfar-lab agent sources update`
 
 ## Daily workflow
 

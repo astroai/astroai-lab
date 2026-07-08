@@ -3,12 +3,21 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from canfar_lab.agent.bundle_path import bundle_root
 from canfar_lab.agent.free_models import apply_free_models, apply_kilo, free_models_guide
 from canfar_lab.errors import LabError
+
+
+@dataclass(frozen=True)
+class SourceUpdateResult:
+    name: str
+    repo: str
+    status: str
+    detail: str = ""
 
 
 def _merge_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
@@ -122,6 +131,127 @@ def _upstream_cache_root(home: Path, repo: str) -> Path:
     return home / ".cache" / "canfar-lab" / "upstream-skills" / repo.replace("/", "_")
 
 
+def upstream_cache_path(home: Path, repo: str) -> Path:
+    return _upstream_cache_root(home, repo)
+
+
+def _git_run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _clone_upstream_repo(cache_root: Path, repo: str, path: str) -> tuple[str, str]:
+    if cache_root.exists():
+        shutil.rmtree(cache_root)
+    cache_root.parent.mkdir(parents=True, exist_ok=True)
+    clone = _git_run(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--filter=blob:none",
+            "--sparse",
+            f"https://github.com/{repo}.git",
+            str(cache_root),
+        ]
+    )
+    if clone.returncode != 0:
+        detail = (clone.stderr or clone.stdout or "clone failed").strip()
+        return "failed", detail
+    _git_run(["git", "-C", str(cache_root), "sparse-checkout", "set", path])
+    return "cloned", repo
+
+
+def _refresh_upstream_repo(cache_root: Path, repo: str, path: str) -> tuple[str, str]:
+    if not (cache_root / ".git").is_dir():
+        return _clone_upstream_repo(cache_root, repo, path)
+    fetch = _git_run(["git", "-C", str(cache_root), "fetch", "--depth", "1", "origin", "HEAD"])
+    if fetch.returncode != 0:
+        shutil.rmtree(cache_root)
+        return _clone_upstream_repo(cache_root, repo, path)
+    _git_run(["git", "-C", str(cache_root), "reset", "--hard", "FETCH_HEAD"])
+    _git_run(["git", "-C", str(cache_root), "sparse-checkout", "set", path])
+    return "updated", repo
+
+
+def list_github_sources(root: Path | None = None) -> list[dict[str, str]]:
+    sources = (root or bundle_root()) / "skills-sources.json"
+    if not sources.is_file():
+        return []
+    data = _read_json(sources)
+    rows: list[dict[str, str]] = []
+    for item in data.get("upstream_skills", []):
+        rows.append(
+            {
+                "name": item["name"],
+                "repo": item["repo"],
+                "path": item["path"],
+                "homepage": item.get("homepage", f"https://github.com/{item['repo']}"),
+            }
+        )
+    return rows
+
+
+def update_github_source(
+    home: Path,
+    name: str,
+    repo: str,
+    path: str,
+    *,
+    force: bool,
+    dry_run: bool,
+) -> SourceUpdateResult:
+    dst = home / ".cursor" / "skills" / name
+    if (dst / "SKILL.md").is_file() and not force:
+        return SourceUpdateResult(name, repo, "skipped", "already installed")
+
+    if dry_run:
+        return SourceUpdateResult(name, repo, "dry-run", path)
+
+    cache_root = _upstream_cache_root(home, repo)
+    status, detail = _refresh_upstream_repo(cache_root, repo, path)
+    if status == "failed":
+        return SourceUpdateResult(name, repo, status, detail)
+
+    src = cache_root / path
+    if not (src / "SKILL.md").is_file():
+        return SourceUpdateResult(name, repo, "failed", f"missing SKILL.md at {path}")
+
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst)
+    return SourceUpdateResult(name, repo, status, path)
+
+
+def update_all_github_sources(
+    home: Path | None = None,
+    *,
+    force: bool = True,
+    dry_run: bool = False,
+) -> list[SourceUpdateResult]:
+    root = bundle_root()
+    home = home or Path.home()
+    results: list[SourceUpdateResult] = []
+    for item in list_github_sources(root):
+        results.append(
+            update_github_source(
+                home,
+                item["name"],
+                item["repo"],
+                item["path"],
+                force=force,
+                dry_run=dry_run,
+            )
+        )
+    return results
+
+
 def install_upstream_skill(
     root: Path,
     home: Path,
@@ -132,63 +262,16 @@ def install_upstream_skill(
     force: bool,
     dry_run: bool,
 ) -> bool:
-    dst = home / ".cursor" / "skills" / name
-    if (dst / "SKILL.md").is_file() and not force:
-        return False
-    if dry_run:
-        return True
-    cache_root = _upstream_cache_root(home, repo)
-    src = cache_root / path
-    if not (cache_root / ".git").is_dir():
-        cache_root.parent.mkdir(parents=True, exist_ok=True)
-        if cache_root.exists():
-            shutil.rmtree(cache_root)
-        subprocess.run(
-            [
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                "--filter=blob:none",
-                "--sparse",
-                f"https://github.com/{repo}.git",
-                str(cache_root),
-            ],
-            check=False,
-            capture_output=True,
-        )
-    else:
-        subprocess.run(["git", "-C", str(cache_root), "pull", "--ff-only"], check=False)
-    subprocess.run(
-        ["git", "-C", str(cache_root), "sparse-checkout", "set", path],
-        check=False,
-    )
-    if not (src / "SKILL.md").is_file():
-        return False
-    if dst.exists():
-        shutil.rmtree(dst)
-    shutil.copytree(src, dst)
-    return True
+    result = update_github_source(home, name, repo, path, force=force, dry_run=dry_run)
+    return result.status in {"cloned", "updated", "dry-run"}
 
 
 def install_upstream_skills(root: Path, home: Path, *, force: bool, dry_run: bool) -> int:
-    sources = root / "skills-sources.json"
-    if not sources.is_file():
-        return 0
-    data = _read_json(sources)
-    count = 0
-    for item in data.get("upstream_skills", []):
-        if install_upstream_skill(
-            root,
-            home,
-            item["name"],
-            item["repo"],
-            item["path"],
-            force=force,
-            dry_run=dry_run,
-        ):
-            count += 1
-    return count
+    return sum(
+        1
+        for r in update_all_github_sources(home, force=force, dry_run=dry_run)
+        if r.status in {"cloned", "updated", "dry-run"}
+    )
 
 
 def default_bundle_names(root: Path) -> list[str]:
@@ -418,6 +501,19 @@ def agent_setup(
     for name in names:
         run_bundle(name, root, home, project_dir, force=force, dry_run=dry_run)
     write_stamp(home, mode, dry_run=dry_run)
+
+
+def agent_sync(*, dry_run: bool = False) -> list[SourceUpdateResult]:
+    """Refresh all agent MCP, rules, skills, configs, and GitHub skill sources."""
+    root = bundle_root()
+    home = Path.home()
+    names = default_bundle_names(root)
+    ensure_agent_dirs(home, dry_run=dry_run)
+    for name in names:
+        run_bundle(name, root, home, None, force=True, dry_run=dry_run)
+    results = update_all_github_sources(home, force=True, dry_run=dry_run)
+    write_stamp(home, "sync", dry_run=dry_run)
+    return results
 
 
 def agent_verify() -> None:
