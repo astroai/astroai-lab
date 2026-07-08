@@ -27,7 +27,10 @@ def test_init_team_project_success(tmp_path: Path) -> None:
     fake_arc = tmp_path / "arc_projects"
     fake_arc.mkdir()
 
-    with patch("canfar_lab.core.team.Path", lambda *args: fake_arc if args == ("/arc/projects",) else Path(*args)):
+    with patch(
+        "canfar_lab.core.team.Path",
+        lambda *args: fake_arc if args == ("/arc/projects",) else Path(*args),
+    ):
         with patch("canfar_lab.core.team.subprocess.run") as mock_run:
             proj = init_team_project("mygroup", members=["alice", "bob"])
     assert proj == fake_arc / "mygroup"
@@ -49,8 +52,8 @@ def test_project_layout(tmp_path: Path) -> None:
 
 
 def test_project_quota_line(tmp_path: Path) -> None:
-    from canfar_lab.core.team import project_quota_line
     from canfar_lab.core.storage import QuotaLine
+    from canfar_lab.core.team import project_quota_line
 
     with patch("canfar_lab.core.team.df_line") as mock_df:
         mock_df.return_value = QuotaLine(

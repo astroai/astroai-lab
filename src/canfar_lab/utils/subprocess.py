@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
 from canfar_lab.errors import LabError
-
 
 
 def run_cmd(

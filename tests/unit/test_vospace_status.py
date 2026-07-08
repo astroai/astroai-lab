@@ -167,3 +167,31 @@ def test_vault_quota_line() -> None:
     assert line.label == "home (vault)"
     assert line.current is True
     assert line.pct == 10
+
+
+def test_discover_vault_names() -> None:
+    from canfar_lab.core.vospace_status import _discover_vault_names
+
+    child1 = MagicMock()
+    child1.name = "proj1"
+    child1.props = {
+        "groupread": "ivo://cadc.nrc.ca/gms?team-ro",
+        "groupwrite": "NONE",
+    }
+
+    child2 = MagicMock()
+    child2.name = "proj2"
+    child2.props = {
+        "groupread": "NONE",
+        "groupwrite": "ivo://cadc.nrc.ca/gms?other-team",
+    }
+
+    root = MagicMock()
+    root.nodes = [child1, child2]
+
+    client = MagicMock()
+    client.get_node.return_value = root
+
+    gms = GmsGroups(groups=["team-ro"], source="test")
+    names = _discover_vault_names(client, gms)
+    assert names == ["proj1"]

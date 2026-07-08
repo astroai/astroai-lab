@@ -49,8 +49,7 @@ def parse_getfacl_output(text: str) -> tuple[str | None, list[AclGroupEntry]]:
             continue
         pending.append((name, perms))
     groups = [
-        AclGroupEntry(name=name, perms=effective_perms(perms, mask))
-        for name, perms in pending
+        AclGroupEntry(name=name, perms=effective_perms(perms, mask)) for name, perms in pending
     ]
     return mask, groups
 

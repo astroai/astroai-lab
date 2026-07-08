@@ -59,11 +59,13 @@ def register(app: typer.Typer) -> None:
         if shutil.which("canfar") is not None:
             try:
                 from canfar_lab.utils.subprocess import run_capture
+
                 canfar_auth = run_capture(["canfar", "auth", "show"])
             except Exception:
                 canfar_auth = "Not authenticated"
             try:
                 from canfar_lab.utils.subprocess import run_capture
+
                 canfar_sessions = run_capture(["canfar", "ps"]).splitlines()
             except Exception:
                 pass
@@ -73,13 +75,9 @@ def register(app: typer.Typer) -> None:
                 {
                     "quotas": [q.__dict__ for q in quotas],
                     "home": home_rows,
-                    "arc_project": (
-                        arc_project_dict(active_project) if active_project else None
-                    ),
+                    "arc_project": (arc_project_dict(active_project) if active_project else None),
                     "arc_projects": [arc_project_dict(p) for p in arc_projects],
-                    "gms_groups": (
-                        {"groups": gms.groups, "source": gms.source} if gms else None
-                    ),
+                    "gms_groups": ({"groups": gms.groups, "source": gms.source} if gms else None),
                     "vault": vault_status_dict(vault),
                     "processes": procs,
                     "canfar_auth": canfar_auth,

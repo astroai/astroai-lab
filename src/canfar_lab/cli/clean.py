@@ -75,6 +75,9 @@ def clean_cache(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show actions without executing.")
     ] = False,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Non-interactive; skip confirmations.")
+    ] = False,
 ) -> None:
     """Clear scratch download caches.
 
@@ -82,7 +85,7 @@ def clean_cache(
         canfar-lab clean cache --all-safe
         canfar-lab clean cache --dry-run --pixi --uv
     """
-    opts = merge_opts(ctx, dry_run=dry_run)
+    opts = merge_opts(ctx, dry_run=dry_run, yes=yes)
     if all_safe:
         pip = uv_cache = npm = pixi = conda = True
     if not any([pip, uv_cache, npm, pixi, conda, hf]):

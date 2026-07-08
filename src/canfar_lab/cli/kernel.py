@@ -36,9 +36,7 @@ def kernel_register(
 @kernel_app.command("list")
 def kernel_list(
     ctx: typer.Context,
-    json_output: Annotated[
-        bool, typer.Option("--json", help="Machine-readable output.")
-    ] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Machine-readable output.")] = False,
 ) -> None:
     """List registered kernels.
 

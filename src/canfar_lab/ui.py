@@ -39,6 +39,7 @@ def _format_text(text: str) -> str:
     if not isinstance(text, str):
         return text
     import re
+
     lines = []
     for line in text.splitlines():
         # Match lines starting with optional whitespace, followed by a command
@@ -165,16 +166,11 @@ def status_human(
         console.print(f"[bold]CANFAR Authentication:[/bold] {canfar_auth}\n")
     if gms_groups is not None and gms_groups.groups:
         names = ", ".join(gms_groups.groups[:8])
-        extra = (
-            f" (+{len(gms_groups.groups) - 8} more)"
-            if len(gms_groups.groups) > 8
-            else ""
-        )
+        extra = f" (+{len(gms_groups.groups) - 8} more)" if len(gms_groups.groups) > 8 else ""
         console.print(f"[bold]CADC groups (GMS):[/bold] {names}{extra}\n")
     elif Path("/arc/projects").is_dir() and gms_groups is None:
         console.print(
-            "[dim]CADC groups: unavailable "
-            "(install cadc-groups / run cadc-get-cert)[/dim]\n"
+            "[dim]CADC groups: unavailable (install cadc-groups / run cadc-get-cert)[/dim]\n"
         )
     if active_project is not None:
         q = active_project.quota
@@ -185,18 +181,13 @@ def status_human(
                 f"[{access}] — {q.free} free of {q.total} ({q.pct}% used)"
             )
         else:
-            console.print(
-                f"[bold]Team project (cwd):[/bold] {active_project.path} [{access}]"
-            )
+            console.print(f"[bold]Team project (cwd):[/bold] {active_project.path} [{access}]")
         console.print("")
     elif arc_projects:
-        names = ", ".join(
-            f"{p.name}({getattr(p, 'access', '?')})" for p in arc_projects[:6]
-        )
+        names = ", ".join(f"{p.name}({getattr(p, 'access', '?')})" for p in arc_projects[:6])
         extra = f" (+{len(arc_projects) - 6} more)" if len(arc_projects) > 6 else ""
         console.print(
-            f"[dim]cwd not under /arc/projects — accessible team projects: "
-            f"{names}{extra}[/dim]\n"
+            f"[dim]cwd not under /arc/projects — accessible team projects: {names}{extra}[/dim]\n"
         )
     elif Path("/arc/projects").is_dir():
         console.print("[dim]No readable team projects under /arc/projects[/dim]\n")
@@ -246,9 +237,7 @@ def status_human(
         extra = [
             node
             for node in vault.nodes
-            if node.found
-            and node.name.casefold()
-            not in {p.name.casefold() for p in arc_projects}
+            if node.found and node.name.casefold() not in {p.name.casefold() for p in arc_projects}
         ]
         if extra:
             vt = Table(title="VOSpace vault (extra containers)")
@@ -259,15 +248,9 @@ def status_human(
             vt.add_column("GMS")
             for node in extra:
                 q = node.quota_line()
-                quota_cell = (
-                    f"{q.used} / {q.total} ({q.pct}%)" if q is not None else "—"
-                )
+                quota_cell = f"{q.used} / {q.total} ({q.pct}%)" if q is not None else "—"
                 gms_cell = (
-                    "yes"
-                    if node.gms_member is True
-                    else "no"
-                    if node.gms_member is False
-                    else "—"
+                    "yes" if node.gms_member is True else "no" if node.gms_member is False else "—"
                 )
                 vt.add_row(
                     node.name,

@@ -21,9 +21,8 @@ def init_team_project(name: str, *, members: list[str] | None = None) -> Path:
             hint="Team workspaces require CANFAR /arc/projects storage.",
         )
     proj = root / name
-    if not proj.is_dir():
-        for sub in ("data", "results", "env-saves"):
-            (proj / sub).mkdir(parents=True, exist_ok=True)
+    for sub in ("data", "results", "env-saves"):
+        (proj / sub).mkdir(parents=True, exist_ok=True)
     if members:
         for member in members:
             member = member.strip()

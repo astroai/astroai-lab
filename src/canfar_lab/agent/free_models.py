@@ -11,14 +11,13 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from canfar_lab.agent.bundle_path import bundle_root
 from canfar_lab.errors import LabError
-
 
 OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
 OPENROUTER_DOCS = "https://openrouter.ai/docs/guides/routing/provider-selection#free-model-routing"

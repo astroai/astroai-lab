@@ -67,6 +67,13 @@ def test_config_show_json(lab_home: Path) -> None:
     assert data["default_pm"] == "pixi"
 
 
+def test_config_show_json_local(lab_home: Path) -> None:
+    result = runner.invoke(app, ["config", "show", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["default_pm"] == "pixi"
+
+
 def test_saves_empty_json(lab_home: Path) -> None:
     result = runner.invoke(app, ["--json", "saves"])
     assert result.exit_code == 0

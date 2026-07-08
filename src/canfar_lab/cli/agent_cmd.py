@@ -6,9 +6,9 @@ from typing import Annotated
 import typer
 
 from canfar_lab import ui
+from canfar_lab.agent import bundles as agent_setup_mod
 from canfar_lab.agent import free_models as agent_free_models
 from canfar_lab.agent import install as agent_install
-from canfar_lab.agent import bundles as agent_setup_mod
 from canfar_lab.cli.context import get_opts
 from canfar_lab.core.paths import user_bin_dir
 from canfar_lab.errors import LabError

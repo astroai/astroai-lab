@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 from canfar_lab.core.cadc_auth import (
     cadc_cert_path,

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from canfar_lab.core.arc_permissions import (
+    AclGroupEntry,
     GmsGroups,
     effective_perms,
     list_gms_groups,
@@ -12,7 +13,6 @@ from canfar_lab.core.arc_permissions import (
     project_gms_member,
     read_acl_groups,
 )
-from canfar_lab.core.arc_permissions import AclGroupEntry
 
 
 def test_effective_perms_applies_mask() -> None:

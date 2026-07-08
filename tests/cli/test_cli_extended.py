@@ -94,7 +94,7 @@ def test_clone_with_from_env(
                                 app,
                                 ["clone", "--from-env", "ml-base", "org/repo"],
                             )
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
 
 
 def test_init_existing_dir(lab_env: Path) -> None:

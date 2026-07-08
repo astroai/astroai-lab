@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
 
 from canfar_lab import ui
-from canfar_lab.cli.context import get_opts
+from canfar_lab.cli.context import merge_opts
 from canfar_lab.config.settings import config_file_path, get_settings
 
 config_app = typer.Typer(
@@ -19,14 +21,18 @@ def config_root(ctx: typer.Context) -> None:
 
 
 @config_app.command("show")
-def config_show(ctx: typer.Context) -> None:
+def config_show(
+    ctx: typer.Context,
+    json_output: Annotated[bool, typer.Option("--json", help="Machine-readable output.")] = False,
+) -> None:
     """Display current lab settings.
 
     Examples:
         canfar-lab config show
+        canfar-lab config show --json
         canfar-lab --json config show
     """
-    opts = get_opts(ctx)
+    opts = merge_opts(ctx, json_output=json_output)
     settings = get_settings()
     data = settings.model_dump(mode="json")
     if opts.json:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -134,23 +133,23 @@ def collect_cache_targets(
     conda: bool,
     hf: bool,
 ) -> list[CleanTarget]:
+    from canfar_lab.shell.session_env import resolve_session_env
+
+    env = resolve_session_env(ensure=False)
+
     env_map = {
-        "pip": ("PIP_CACHE_DIR", pip),
-        "uv": ("UV_CACHE_DIR", uv_cache),
-        "npm": ("NPM_CONFIG_CACHE", npm),
-        "pixi": ("PIXI_CACHE_DIR", pixi),
-        "conda": ("MAMBA_PKGS_DIRS", conda),
-        "hf": ("HF_HOME", hf),
+        "pip": (env.pip_cache_dir, "PIP_CACHE_DIR", pip),
+        "uv": (env.uv_cache_dir, "UV_CACHE_DIR", uv_cache),
+        "npm": (env.npm_config_cache, "NPM_CONFIG_CACHE", npm),
+        "pixi": (env.pixi_cache_dir, "PIXI_CACHE_DIR", pixi),
+        "conda": (env.mamba_pkgs_dirs, "MAMBA_PKGS_DIRS", conda),
+        "hf": (env.hf_home, "HF_HOME", hf),
     }
     targets: list[CleanTarget] = []
-    for label, (var, enabled) in env_map.items():
+    for label, (path, var, enabled) in env_map.items():
         if not enabled:
             continue
-        raw = os.environ.get(var, "").strip()
-        if not raw:
-            continue
-        path = Path(raw)
-        if not path.exists():
+        if not path or not path.exists():
             continue
         size = _path_bytes(path)
         targets.append(CleanTarget(path=path, label=f"{label} ({var})", bytes=size))

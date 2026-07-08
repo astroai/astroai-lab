@@ -166,9 +166,7 @@ def arc_project_dict(info: ArcProjectInfo) -> dict:
         "path": str(info.path),
         "is_cwd": info.is_cwd,
         "access": info.access,
-        "acl_groups": [
-            {"name": g.name, "perms": g.perms} for g in (info.acl_groups or [])
-        ],
+        "acl_groups": [{"name": g.name, "perms": g.perms} for g in (info.acl_groups or [])],
         "gms_member": info.gms_member,
         "quota": info.quota.__dict__ if info.quota else None,
         "vault": vault_payload,

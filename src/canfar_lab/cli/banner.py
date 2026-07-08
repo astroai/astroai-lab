@@ -58,7 +58,9 @@ def show_banner(*, json_output: bool = False) -> None:
         else:
             ui.print_hint(f"  team:    {active_arc.path} [{active_arc.access}]")
     if home_pct is not None and home_pct >= 80:
-        ui.print_warn(f"  home quota: {home_pct}% — `canfar-lab clean home --all-safe` to free space")
+        ui.print_warn(
+            f"  home quota: {home_pct}% — `canfar-lab clean home --all-safe` to free space"
+        )
     if git.in_repo and git.uncommitted:
         ui.print_warn("  uncommitted changes — `git add -A && git commit -m 'session work'`")
     if project_kind:

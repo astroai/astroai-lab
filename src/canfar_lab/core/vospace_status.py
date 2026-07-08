@@ -176,10 +176,8 @@ def _discover_vault_names(client, gms: GmsGroups | None) -> list[str]:
     except Exception:
         logger.debug("vault root listing failed", exc_info=True)
         return []
-    for child in root.node_list or []:
-        info = child.get_info()
-        read_group = gms_name_from_uri(info.get("readGroup"))
-        write_group = gms_name_from_uri(info.get("writeGroup"))
+    for child in getattr(root, "nodes", []) or []:
+        read_group, write_group = _vault_groups(child.props)
         matched = any(
             group and group.casefold() in gms_names
             for group in (read_group, write_group, child.name)

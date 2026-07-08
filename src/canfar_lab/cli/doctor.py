@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from dataclasses import asdict
 from typing import Annotated
 
@@ -8,7 +9,6 @@ import typer
 from canfar_lab import ui
 from canfar_lab.cli.context import get_opts
 from canfar_lab.core.paths import quota_used_pct, resolve_paths
-import shutil
 
 doctor_app = typer.Typer(help="Full session diagnostic.", invoke_without_command=True)
 TOOL_NAMES = ("git", "gh", "pixi", "uv", "jq", "rg", "canfar", "rsync", "jupyter")
@@ -36,6 +36,7 @@ def doctor_cmd(
     if tools.get("canfar"):
         try:
             from canfar_lab.utils.subprocess import run_capture
+
             canfar_auth = run_capture(["canfar", "auth", "show"])
         except Exception:
             canfar_auth = "Not authenticated"
