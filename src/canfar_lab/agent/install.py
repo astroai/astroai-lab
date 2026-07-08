@@ -71,6 +71,10 @@ def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
 def _link_into_local_bin(src: Path, name: str) -> None:
     if not src.is_file():
         return
+    try:
+        src.chmod(src.stat().st_mode | 0o111)
+    except OSError:
+        pass
     dst = _bin_dir() / name
     try:
         if src.resolve() == dst.resolve():
@@ -122,6 +126,10 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
     if found is None:
         raise LabError(f"Binary {binary} not found in {asset}")
     shutil.copy2(found, _bin_dir() / binary)
+    try:
+        (_bin_dir() / binary).chmod((_bin_dir() / binary).stat().st_mode | 0o111)
+    except OSError:
+        pass
     archive.unlink(missing_ok=True)
 
 
@@ -184,6 +192,10 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         src = _bin_dir() / binary
         if src.is_file():
             src.rename(_bin_dir() / "codex")
+        try:
+            (_bin_dir() / "codex").chmod((_bin_dir() / "codex").stat().st_mode | 0o111)
+        except OSError:
+            pass
         _verify_cmd("codex")
     elif name == "copilot":
         env = {"PREFIX": str(_npm_prefix()), "CI": "1"}
@@ -204,23 +216,23 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         if shutil.which("kilo") is None and not (_bin_dir() / "kilo").is_file():
             _require("npm")
             run(
-                ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli"],
+                ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli@latest"],
                 env=_session_environ(),
             )
         _verify_cmd("kilo")
     elif name == "cline":
         _require("npm")
         run(
-            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "cline"],
+            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "cline@latest"],
             env=_session_environ(),
         )
         _verify_cmd("cline")
     elif name in ("freebuff", "pi", "codewhale"):
         _require("npm")
         pkg = {
-            "freebuff": "freebuff",
-            "pi": "@earendil-works/pi-coding-agent",
-            "codewhale": "codewhale",
+            "freebuff": "freebuff@latest",
+            "pi": "@earendil-works/pi-coding-agent@latest",
+            "codewhale": "codewhale@latest",
         }[name]
         run(
             ["npm", "install", "-g", "--prefix", str(_npm_prefix()), pkg],
@@ -229,7 +241,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd(name if name != "pi" else "pi")
     elif name == "swival":
         _require("uv")
-        run(["uv", "tool", "install", "swival"], env=_session_environ())
+        run(["uv", "tool", "install", "--force", "swival"], env=_session_environ())
         _verify_cmd("swival")
     elif name == "ast-grep":
         if arch not in ("x86_64", "aarch64"):

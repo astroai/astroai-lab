@@ -51,6 +51,21 @@ def test_find_arc_project_root_no_mount(tmp_path: Path, monkeypatch: pytest.Monk
     assert find_arc_project_root() is None
 
 
+def test_find_arc_project_root_mounted() -> None:
+    from unittest.mock import patch
+    with patch("pathlib.Path.is_dir", side_effect=lambda: True):
+        # We start from /arc/projects/demo/subdir
+        start = Path("/arc/projects/demo/subdir")
+        # Since we mocked is_dir to return True, find_arc_project_root should find /arc/projects/demo
+        assert find_arc_project_root(start) == Path("/arc/projects/demo")
+
+
+def test_find_arc_project_root_not_found() -> None:
+    from unittest.mock import patch
+    with patch("pathlib.Path.is_dir", side_effect=lambda: True):
+        assert find_arc_project_root(Path("/foo/bar")) is None
+
+
 def test_git_push_mocked(tmp_path: Path) -> None:
     from unittest.mock import patch
 

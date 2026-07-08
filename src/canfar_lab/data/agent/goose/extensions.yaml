@@ -24,6 +24,20 @@ extensions:
     enabled: true
     type: stdio
     timeout: 120
+  sequential-thinking:
+    name: Sequential Thinking
+    cmd: npx
+    args: [-y, "@modelcontextprotocol/server-sequential-thinking"]
+    enabled: true
+    type: stdio
+    timeout: 120
+  puppeteer:
+    name: Puppeteer Browser
+    cmd: npx
+    args: [-y, "@modelcontextprotocol/server-puppeteer"]
+    enabled: true
+    type: stdio
+    timeout: 180
 
 preferences:
   permission_mode: prompt
