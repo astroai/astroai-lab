@@ -64,7 +64,10 @@ Shell completion: `canfar-lab --install-completion bash`
 ```bash
 canfar-lab                        # brief banner + next step (not full status)
 canfar-lab status                 # quotas, team projects, GMS/vault, processes
-canfar-lab doctor                 # paths, caches, tool availability (--json)
+canfar-lab paths                  # resolved work/scratch/cache/save paths
+canfar-lab tools                  # tools on PATH (+ versions)
+canfar-lab check                  # quick health check (exit 1 on failure)
+canfar-lab doctor                 # full paths, caches, tool availability (--json)
 gh auth login                  # once per user — clone/push + GitHub MCP
 
 canfar-lab init mylab

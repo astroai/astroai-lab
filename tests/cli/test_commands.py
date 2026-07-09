@@ -49,6 +49,30 @@ def test_doctor_json(lab_home: Path) -> None:
     assert "tools" in data
 
 
+def test_paths_json(lab_home: Path) -> None:
+    result = runner.invoke(app, ["paths", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "work_dir" in data
+    assert "cwd" in data
+
+
+def test_tools_json(lab_home: Path) -> None:
+    result = runner.invoke(app, ["tools", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "tools" in data
+    assert any(t["name"] == "git" for t in data["tools"])
+
+
+def test_check_json(lab_home: Path) -> None:
+    result = runner.invoke(app, ["check", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is True
+    assert "checks" in data
+
+
 def test_default_banner(lab_home: Path) -> None:
     result = runner.invoke(app, [])
     assert result.exit_code == 0
@@ -140,4 +164,3 @@ def test_project_init_cli(mock_quota, mock_layout, mock_init, lab_home: Path) ->
     assert "Project workspace: /arc/projects/demo" in result.output
     assert "data/" in result.output
     assert "quota: 10GB / 100GB" in result.output
-

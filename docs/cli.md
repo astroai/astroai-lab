@@ -89,6 +89,34 @@ Each **`arc_projects[]`** entry includes `access` (`rw`/`ro`), `acl_groups` (fro
 
 Requires optional tools on PATH: `getfacl`, `cadc-groups` (CADC venv), `vos` — all ship in AstroAI session images.
 
+### `canfar-lab paths`
+
+Resolved session paths (work, scratch, caches, saves, cwd).
+
+```bash
+canfar-lab paths
+canfar-lab paths --json
+```
+
+### `canfar-lab tools`
+
+Inventory of common session tools on PATH, with versions when available.
+
+```bash
+canfar-lab tools
+canfar-lab tools --json
+```
+
+### `canfar-lab check`
+
+Quick health check: writable work/scratch/save paths plus `git` and `canfar-lab`. Exit code `1` on failure. Use **`--strict`** to also require recommended tools (`pixi`, `uv`, `gh`, `rg`, `jq`, `canfar`).
+
+```bash
+canfar-lab check
+canfar-lab check --json
+canfar-lab check --strict
+```
+
 ### `canfar-lab doctor`
 
 Full paths and tools report.

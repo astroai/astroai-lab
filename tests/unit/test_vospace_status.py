@@ -70,6 +70,7 @@ def test_vault_statuses_missing_vos(monkeypatch) -> None:
 
 def test_vault_statuses_with_mock_client() -> None:
     import sys
+
     sys.modules["vos"] = MagicMock()
     node = MagicMock()
     node.props = {

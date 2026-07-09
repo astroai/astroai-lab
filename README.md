@@ -45,9 +45,12 @@ canfar-lab clone owner/repo
 canfar-lab save mylab
 canfar-lab resume mylab
 canfar-lab push
+canfar-lab paths            # work / scratch / cache paths
+canfar-lab tools            # tools on PATH
+canfar-lab check            # quick health check
 ```
 
-Machine-readable output: add **`--json`** to list/status/doctor commands.
+Machine-readable output: add **`--json`** to list/status/paths/tools/check/doctor commands.
 
 ## Configuration
 

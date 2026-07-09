@@ -69,6 +69,9 @@ check_help_ok "resume" resume
 check_help_ok "saves" saves
 check_help_ok "push" push
 check_help_ok "status" status
+check_help_ok "paths" paths
+check_help_ok "tools" tools
+check_help_ok "check" check
 check_help_ok "doctor" doctor
 
 echo "=== Nested typers ==="
@@ -99,6 +102,10 @@ check_flag_in_help "save" "--full" save
 check_flag_in_help "resume" "--from" resume
 check_flag_in_help "saves" "--json" saves
 check_flag_in_help "status" "--json" status
+check_flag_in_help "paths" "--json" paths
+check_flag_in_help "tools" "--json" tools
+check_flag_in_help "check" "--json" check
+check_flag_in_help "check" "--strict" check
 check_flag_in_help "push" "--yes" push
 check_flag_in_help "doctor" "--json" doctor
 check_flag_in_help "env list" "--json" env list
@@ -110,6 +117,9 @@ echo "=== Flag placement (global OR subcommand) ==="
 for spec in \
     "saves --json" \
     "status --json" \
+    "paths --json" \
+    "tools --json" \
+    "check --json" \
     "push --yes" \
     "clean home --dry-run" \
     "clean cache --dry-run" \
@@ -131,6 +141,12 @@ check_invocation "guide" guide
 check_invocation "status" status
 check_invocation "status json sub" status --json
 check_invocation "status json global" --json status
+check_invocation "paths" paths
+check_invocation "paths json" paths --json
+check_invocation "tools" tools
+check_invocation "tools json" tools --json
+check_invocation "check" check
+check_invocation "check json" check --json
 check_invocation "doctor" doctor
 check_invocation "saves list" saves
 check_invocation "saves json sub" saves --json

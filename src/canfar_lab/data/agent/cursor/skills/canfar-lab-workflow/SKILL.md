@@ -72,7 +72,10 @@ When showing the user a generated markdown, log, or archive in webterm (or any A
 ```bash
 canfar-lab guide
 canfar-lab status --json          # quotas, team projects (access/ACL/GMS/vault), canfar auth/ps
-canfar-lab doctor --json          # paths, caches, tools on PATH
+canfar-lab paths --json           # resolved work/scratch/cache/save paths
+canfar-lab tools --json           # tools on PATH (+ versions)
+canfar-lab check                  # quick health check
+canfar-lab doctor --json          # full paths, caches, tools on PATH
 canfar-lab clean home --all-safe --dry-run
 less /opt/astroai/USAGE.md
 ```

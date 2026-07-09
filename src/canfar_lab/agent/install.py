@@ -199,8 +199,25 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("codex")
     elif name == "copilot":
         env = {"PREFIX": str(_npm_prefix()), "CI": "1"}
-        _curl_pipe_bash("https://gh.io/copilot-install", env=env)
+        try:
+            _curl_pipe_bash("https://gh.io/copilot-install", env=env)
+        except subprocess.CalledProcessError:
+            pass  # fall back to npm when gh.io is rate-limited or unavailable
         copilot_bin = _npm_prefix() / "bin" / "copilot"
+        if not copilot_bin.is_file() and shutil.which("copilot") is None:
+            _require("npm")
+            run(
+                [
+                    "npm",
+                    "install",
+                    "-g",
+                    "--prefix",
+                    str(_npm_prefix()),
+                    "@github/copilot@latest",
+                ],
+                env=_session_environ(),
+            )
+            copilot_bin = _npm_prefix() / "bin" / "copilot"
         _link_into_local_bin(copilot_bin, "copilot")
         _verify_cmd("copilot", extra_paths=[copilot_bin])
     elif name == "goose":

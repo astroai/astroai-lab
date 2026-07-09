@@ -30,7 +30,10 @@ GUIDE_TEXT = """
   canfar-lab saves                 list saved envs
   canfar-lab push                  end-of-session archive (canfar-lab push --yes)
   canfar-lab status --json         quotas, team projects, GMS/vault, canfar auth/ps, processes
-  canfar-lab doctor --json         paths, caches, tools
+  canfar-lab paths --json          resolved work/scratch/cache/save paths
+  canfar-lab tools --json          session tools on PATH (+ versions)
+  canfar-lab check                 quick health check (paths + core tools)
+  canfar-lab doctor --json         full paths, caches, tools report
 
 [bold]Platform tools[/bold]
   /opt/astroai/venv/cadc           canfar, cadcget, canfar-lab (writable this session)

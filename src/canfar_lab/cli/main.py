@@ -19,6 +19,7 @@ from canfar_lab.cli.doctor import doctor_app
 from canfar_lab.cli.env import env_app
 from canfar_lab.cli.guide import print_guide
 from canfar_lab.cli.kernel import kernel_app
+from canfar_lab.cli.paths_cmd import register as register_paths
 from canfar_lab.cli.project import project_app
 from canfar_lab.cli.workspace import workspace_app
 
@@ -33,6 +34,7 @@ app = typer.Typer(
 
 init_clone_env.register(app)
 status_mod.register(app)
+register_paths(app)
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(env_app, name="env")
 app.add_typer(data_app, name="data")

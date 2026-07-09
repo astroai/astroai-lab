@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from dataclasses import asdict
 from typing import Annotated
 
@@ -9,9 +8,9 @@ import typer
 from canfar_lab import ui
 from canfar_lab.cli.context import get_opts
 from canfar_lab.core.paths import quota_used_pct, resolve_paths
+from canfar_lab.core.tools import doctor_tools
 
 doctor_app = typer.Typer(help="Full session diagnostic.", invoke_without_command=True)
-TOOL_NAMES = ("git", "gh", "pixi", "uv", "jq", "rg", "canfar", "rsync", "jupyter")
 
 
 @doctor_app.callback()
@@ -31,7 +30,7 @@ def doctor_cmd(
     if ctx.invoked_subcommand is not None:
         return
     paths = resolve_paths()
-    tools = {name: shutil.which(name) is not None for name in TOOL_NAMES}
+    tools = doctor_tools()
     canfar_auth = None
     if tools.get("canfar"):
         try:
@@ -62,3 +61,4 @@ def doctor_cmd(
         ui.print_json(asdict(report))
         return
     ui.doctor_human(report)
+    ui.print_hint("  also: `canfar-lab paths` · `canfar-lab tools` · `canfar-lab check`")

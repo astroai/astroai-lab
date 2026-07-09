@@ -53,6 +53,7 @@ def test_find_arc_project_root_no_mount(tmp_path: Path, monkeypatch: pytest.Monk
 
 def test_find_arc_project_root_mounted() -> None:
     from unittest.mock import patch
+
     with patch("pathlib.Path.is_dir", side_effect=lambda: True):
         # We start from /arc/projects/demo/subdir
         start = Path("/arc/projects/demo/subdir")
@@ -62,6 +63,7 @@ def test_find_arc_project_root_mounted() -> None:
 
 def test_find_arc_project_root_not_found() -> None:
     from unittest.mock import patch
+
     with patch("pathlib.Path.is_dir", side_effect=lambda: True):
         assert find_arc_project_root(Path("/foo/bar")) is None
 
