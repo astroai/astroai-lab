@@ -96,4 +96,6 @@ Shell completion: `canfar-lab --install-completion bash`
 
 ## License
 
-GNU Affero General Public License v3.0 or later — same as the [canfar](https://github.com/opencadc/canfar) client.
+The canfar-lab project code is licensed under the [MIT License](LICENSE).
+The external [canfar client](https://github.com/opencadc/canfar) retains its
+own upstream license and notices.
