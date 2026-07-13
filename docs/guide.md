@@ -5,7 +5,9 @@
 - **Laptop / portal:** `canfar login` (or `canfar auth`), `canfar create`, `canfar ps` — start and stop sessions.
 - **Inside the session:** `astroai-lab …`, Jupyter, `vcp`/`vls`, pixi/uv.
 
-Notebook students: Portal → notebook image → open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) → `astroai-lab kernel ensure` if needed.
+Notebook students: Portal → **notebook** image → open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) → `astroai-lab kernel ensure` if needed.
+
+Marimo students: Portal → **marimo** image → open seeded `TMP_SRC_DIR/notebooks/starter.py` (or `astroai-lab notebook starter marimo`).
 
 In-session workbench for the [CANFAR Science Platform](https://www.opencadc.org/canfar/).
 

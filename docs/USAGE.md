@@ -34,9 +34,9 @@ after the portal has launched an AstroAI image.
 
 ### Student path (notebook-first) — all steps inside the session
 
-1. **Laptop:** open the Science Portal → launch **notebook** (GPU node only if you need a GPU).
-2. **In the session:** open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`).
-3. **In the session:** use the **AstroAI** kernel; if missing, terminal: `astroai-lab kernel ensure`.
+1. **Laptop:** open the Science Portal → launch **notebook** or **marimo** (GPU node only if you need a GPU).
+2. **Jupyter:** open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) → **AstroAI** kernel (`astroai-lab kernel ensure` if missing).
+3. **Marimo:** session opens `TMP_SRC_DIR/notebooks` with `starter.py` seeded; or `astroai-lab notebook starter marimo`.
 4. **In the session:** `astroai-lab doctor` — caches should sit under `/scratch`, not `$HOME`.
 5. **In the session:** work on `/scratch`; keep results with `astroai-lab data sync … /arc/projects/…` or plain `vcp` to `vos:`.
 6. Later projects: still **in session**, `astroai-lab init` / `clone` + pixi/uv.

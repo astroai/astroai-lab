@@ -202,6 +202,7 @@ Copy starter notebooks into scratch/work (also shipped at `/opt/astroai/notebook
 ```bash
 astroai-lab notebook starter
 astroai-lab notebook starter ray_train --to /scratch
+astroai-lab notebook starter marimo          # → TMP_SRC_DIR/notebooks/starter.py
 ```
 
 ### `astroai-lab project init`
