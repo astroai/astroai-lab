@@ -45,7 +45,7 @@ Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subco
 
 ```bash
 upgrade-cadc-tools.sh list
-upgrade-cadc-tools.sh 'astroai-lab @ git+https://github.com/sfabbro/canfar-lab.git@main'
+upgrade-cadc-tools.sh 'astroai-lab @ git+https://github.com/astroai/astroai-lab.git@main'
 astroai-lab data stage /arc/path --dry-run
 astroai-lab doctor --json
 ```

@@ -40,8 +40,8 @@ dev = [
 
 [project.urls]
 Homepage = "https://opencadc.github.io/canfar/"
-Repository = "https://github.com/sfabbro/canfar-lab"
-Issues = "https://github.com/sfabbro/canfar-lab/issues"
+Repository = "https://github.com/astroai/astroai-lab"
+Issues = "https://github.com/astroai/astroai-lab/issues"
 
 [project.scripts]
 astroai-lab = "astroai_lab.cli.main:main_entry"
