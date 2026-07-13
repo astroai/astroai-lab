@@ -136,6 +136,7 @@ export ASTROAI_LAB_WORK_DIR="$HOME/work"
 export ASTROAI_LAB_SCRATCH_DIR="$HOME/scratch"
 mkdir -p "$HOME/work" "$HOME/scratch"
 trap 'rm -rf "$HOME"' EXIT
+eval "$("${CLI[@]}" env export)"
 
 check_invocation "guide" guide
 check_invocation "status" status
