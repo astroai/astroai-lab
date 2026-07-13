@@ -26,7 +26,9 @@ def doctor_cmd(
 ) -> None:
     """Show session paths, quotas, tools, and home-cache hygiene.
 
-    Exit code 1 when /scratch is writable but package caches still target $HOME.
+    Exit code 1 when /scratch is writable but cache *env vars* still target $HOME.
+    Leftover directories under $HOME are reported but do not fail the process — run
+    ``astroai-lab clean home --all-safe --yes`` to reclaim space.
 
     Examples:
         astroai-lab doctor
@@ -61,6 +63,7 @@ def doctor_cmd(
         env=session.exports(),
     )
     hygiene_issues = [f"{i.kind}: {i.detail}" for i in hygiene]
+    env_hygiene_failed = any(i.kind == "env" for i in hygiene)
 
     report = ui.DoctorReport(
         work_dir=str(paths.work_dir),
@@ -86,5 +89,5 @@ def doctor_cmd(
         ui.print_json(asdict(report))
     else:
         ui.doctor_human(report)
-    if hygiene_issues:
+    if env_hygiene_failed:
         raise typer.Exit(1)

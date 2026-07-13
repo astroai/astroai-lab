@@ -53,6 +53,30 @@ def test_hygiene_ok_with_scratch_exports(tmp_path: Path) -> None:
     assert hygiene_ok(home=home, scratch=scratch, env=env)
 
 
+def test_path_leftovers_without_env_misconfig(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    scratch = tmp_path / "scratch"
+    home.mkdir()
+    scratch.mkdir()
+    (home / ".cache" / "uv").mkdir(parents=True)
+    env = {
+        "UV_CACHE_DIR": str(scratch / "uv"),
+        "PIXI_CACHE_DIR": str(scratch / "pixi"),
+        "PIP_CACHE_DIR": str(scratch / "pip"),
+        "XDG_CACHE_HOME": str(scratch / "xdg-cache"),
+        "NPM_CONFIG_CACHE": str(scratch / "npm"),
+        "HF_HOME": str(scratch / "hf"),
+        "TORCH_HOME": str(scratch / "torch"),
+        "TMPDIR": str(scratch / "tmp"),
+        "CONDA_PKGS_DIRS": str(scratch / "conda"),
+        "MAMBA_PKGS_DIRS": str(scratch / "conda"),
+    }
+    issues = check_home_cache_hygiene(home=home, scratch=scratch, env=env)
+    assert any(i.kind == "path" for i in issues)
+    assert not any(i.kind == "env" for i in issues)
+    assert not hygiene_ok(home=home, scratch=scratch, env=env)
+
+
 def test_session_env_xdg_cache_on_scratch(tmp_path: Path, monkeypatch) -> None:
     from astroai_lab.shell.session_env import resolve_session_env
 
