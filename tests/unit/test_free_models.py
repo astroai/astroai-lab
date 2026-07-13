@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from canfar_lab.agent.free_models import (
+from astroai_lab.agent.free_models import (
     DEFAULT_PRESET,
     apply_codex,
     apply_free_models,
@@ -77,7 +77,7 @@ def test_apply_free_models_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 def test_agent_models_list_cli() -> None:
     from typer.testing import CliRunner
 
-    from canfar_lab.cli.main import app
+    from astroai_lab.cli.main import app
 
     result = CliRunner().invoke(app, ["agent", "models", "list"])
     assert result.exit_code == 0
@@ -87,7 +87,7 @@ def test_agent_models_list_cli() -> None:
 def test_agent_install_list_includes_kilo_cline() -> None:
     from typer.testing import CliRunner
 
-    from canfar_lab.cli.main import app
+    from astroai_lab.cli.main import app
 
     result = CliRunner().invoke(app, ["agent", "install", "--list"])
     assert result.exit_code == 0
@@ -108,7 +108,7 @@ def test_apply_free_models_writes(tmp_path: Path) -> None:
 def test_agent_models_free_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from typer.testing import CliRunner
 
-    from canfar_lab.cli.main import app
+    from astroai_lab.cli.main import app
 
     home = tmp_path / "home"
     home.mkdir()
@@ -121,7 +121,7 @@ def test_agent_models_free_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 def test_agent_models_guide() -> None:
     from typer.testing import CliRunner
 
-    from canfar_lab.cli.main import app
+    from astroai_lab.cli.main import app
 
     result = CliRunner().invoke(app, ["agent", "models"])
     assert result.exit_code == 0

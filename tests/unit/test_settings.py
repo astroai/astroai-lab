@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from canfar_lab.config.settings import get_settings
-from canfar_lab.errors import LabError
+from astroai_lab.config.settings import get_settings
+from astroai_lab.errors import LabError
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +16,7 @@ def _clear_settings_cache() -> None:
 def test_yaml_config_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    cfg_dir = home / ".canfar" / "lab"
+    cfg_dir = home / ".astroai" / "lab"
     cfg_dir.mkdir(parents=True)
     (cfg_dir / "config.yaml").write_text("default_pm: uv\nclone_from_env: ml-base\n")
     monkeypatch.setenv("HOME", str(home))
@@ -26,6 +26,6 @@ def test_yaml_config_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_lab_error_hint() -> None:
-    err = LabError("missing tool", hint="canfar-lab doctor")
+    err = LabError("missing tool", hint="astroai-lab doctor")
     assert "missing tool" in str(err)
-    assert err.hint == "canfar-lab doctor"
+    assert err.hint == "astroai-lab doctor"

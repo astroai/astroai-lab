@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full local CI for canfar-lab. GitHub Actions runs a minimal pytest-only gate.
+# Full local CI for astroai-lab. GitHub Actions runs a minimal pytest-only gate.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

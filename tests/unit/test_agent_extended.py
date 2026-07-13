@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from canfar_lab.agent.bundle_path import bundle_root
-from canfar_lab.agent.bundles import (
+from astroai_lab.agent.bundle_path import bundle_root
+from astroai_lab.agent.bundles import (
     ensure_agent_dirs,
     install_goose_config,
     install_upstream_skills,
@@ -17,7 +17,7 @@ from canfar_lab.agent.bundles import (
     update_github_source,
     write_stamp,
 )
-from canfar_lab.cli.main import app
+from astroai_lab.cli.main import app
 
 runner = CliRunner()
 
@@ -32,7 +32,7 @@ def test_ensure_agent_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 def test_write_stamp(tmp_path: Path) -> None:
     home = tmp_path / "home"
     write_stamp(home, "install", dry_run=False)
-    assert (home / ".canfar" / "lab" / "agent-setup-stamp").is_file()
+    assert (home / ".astroai" / "lab" / "agent-setup-stamp").is_file()
 
 
 def test_run_bundle_cli_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

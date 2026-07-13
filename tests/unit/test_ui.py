@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from canfar_lab import ui
+from astroai_lab import ui
 
 
 def _combined(capsys) -> str:
@@ -14,8 +14,8 @@ def test_doctor_human(capsys) -> None:
     report = ui.DoctorReport(
         work_dir="/srcdir",
         scratch_dir="/scratch",
-        save_dir="/home/.canfar/lab/saves",
-        config_dir="/home/.canfar/lab",
+        save_dir="/home/.astroai/lab/saves",
+        config_dir="/home/.astroai/lab",
         home="/home",
         user_bin="/scratch/.local/bin",
         npm_prefix="/scratch/.local",
@@ -42,7 +42,7 @@ def test_env_list_table_with_rows(capsys) -> None:
 
 
 def test_status_human(capsys) -> None:
-    from canfar_lab.core.storage import ArcProjectInfo, QuotaLine
+    from astroai_lab.core.storage import ArcProjectInfo, QuotaLine
 
     quotas = [
         QuotaLine(

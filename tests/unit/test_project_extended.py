@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from canfar_lab.core.project import (
+from astroai_lab.core.project import (
     format_dir_size,
     install_project,
     read_manifest,
@@ -16,8 +16,8 @@ from canfar_lab.core.project import (
     warm_cache,
     write_manifest,
 )
-from canfar_lab.errors import LabError
-from canfar_lab.models.manifest import EnvManifest, ProjectKind
+from astroai_lab.errors import LabError
+from astroai_lab.models.manifest import EnvManifest, ProjectKind
 
 
 def _pixi(path: Path) -> None:
@@ -95,8 +95,8 @@ def test_save_env_full_packs(tmp_path: Path) -> None:
     mock_zstd.stdin = MagicMock()
     mock_zstd.returncode = 0
 
-    with patch("canfar_lab.core.project.subprocess.run", return_value=mock_tar):
-        with patch("canfar_lab.core.project.subprocess.Popen", return_value=mock_zstd):
+    with patch("astroai_lab.core.project.subprocess.run", return_value=mock_tar):
+        with patch("astroai_lab.core.project.subprocess.Popen", return_value=mock_zstd):
             save_env("proj", tmp_path / "save", project, full=True)
     assert (tmp_path / "save" / "env.tar.zst").exists()
 
@@ -107,7 +107,7 @@ def test_restore_env_installs_when_not_full(tmp_path: Path) -> None:
     save_dir = tmp_path / "save"
     save_env("proj", save_dir, project)
     dest = tmp_path / "restored"
-    with patch("canfar_lab.core.project.install_project") as install:
+    with patch("astroai_lab.core.project.install_project") as install:
         restore_env(save_dir, dest)
     install.assert_called_once_with(dest)
 
@@ -125,23 +125,23 @@ def test_restore_env_full_unpacks(tmp_path: Path) -> None:
     mock_zstd = MagicMock()
     mock_zstd.stdout = MagicMock()
     mock_zstd.returncode = 0
-    with patch("canfar_lab.core.project.subprocess.Popen", return_value=mock_zstd):
-        with patch("canfar_lab.core.project.subprocess.run") as mock_run:
+    with patch("astroai_lab.core.project.subprocess.Popen", return_value=mock_zstd):
+        with patch("astroai_lab.core.project.subprocess.run") as mock_run:
             restore_env(save_dir, tmp_path / "dest")
     mock_run.assert_called_once()
 
 
 def test_install_project_pixi(tmp_path: Path) -> None:
     _pixi(tmp_path)
-    with patch("canfar_lab.core.project.run") as mock_run:
+    with patch("astroai_lab.core.project.run") as mock_run:
         install_project(tmp_path)
     mock_run.assert_called_with(["pixi", "install"], cwd=tmp_path, quiet=False)
 
 
 def test_install_project_uv_bootstrap(tmp_path: Path) -> None:
     _uv(tmp_path)
-    with patch("canfar_lab.core.project._run_uv_sync", return_value=False):
-        with patch("canfar_lab.core.project.run") as mock_run:
+    with patch("astroai_lab.core.project._run_uv_sync", return_value=False):
+        with patch("astroai_lab.core.project.run") as mock_run:
             install_project(tmp_path, bootstrap_lock=True)
     assert mock_run.call_count >= 2
 
@@ -158,7 +158,7 @@ def test_warm_cache_pixi(tmp_path: Path) -> None:
         user="u",
     )
     write_manifest(save_dir / "manifest.json", manifest)
-    with patch("canfar_lab.core.project.run") as mock_run:
+    with patch("astroai_lab.core.project.run") as mock_run:
         warm_cache(save_dir)
     mock_run.assert_called_once()
 
@@ -175,16 +175,16 @@ def test_warm_cache_uv(tmp_path: Path) -> None:
         user="u",
     )
     write_manifest(save_dir / "manifest.json", manifest)
-    with patch("canfar_lab.core.project.run") as mock_run:
+    with patch("astroai_lab.core.project.run") as mock_run:
         warm_cache(save_dir)
     mock_run.assert_called_once()
 
 
 def test_init_project_mocked(tmp_path: Path) -> None:
-    from canfar_lab.core.project import init_project
+    from astroai_lab.core.project import init_project
 
     target = tmp_path / "new"
-    with patch("canfar_lab.core.project.run") as mock_run:
+    with patch("astroai_lab.core.project.run") as mock_run:
         kind = init_project(target, use_uv=True)
     assert kind == ProjectKind.UV
     mock_run.assert_called_once()

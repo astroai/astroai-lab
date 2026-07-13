@@ -5,14 +5,14 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from canfar_lab.agent.bundles import agent_setup, install_file, list_bundles, verify_setup
-from canfar_lab.cli.main import app
+from astroai_lab.agent.bundles import agent_setup, install_file, list_bundles, verify_setup
+from astroai_lab.cli.main import app
 
 runner = CliRunner()
 
 
 def test_bundle_root_exists() -> None:
-    from canfar_lab.agent.bundle_path import bundle_root
+    from astroai_lab.agent.bundle_path import bundle_root
 
     assert (bundle_root() / "manifest.json").is_file()
 
@@ -62,21 +62,21 @@ def test_agent_setup_cli_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
 
 def test_install_tool_unknown() -> None:
-    from canfar_lab.agent.install import install_tool
-    from canfar_lab.errors import LabError
+    from astroai_lab.agent.install import install_tool
+    from astroai_lab.errors import LabError
 
     with pytest.raises(LabError, match="Unknown tool"):
         install_tool("not-a-tool")
 
 
 def test_install_tool_dry_run() -> None:
-    from canfar_lab.agent.install import install_tool
+    from astroai_lab.agent.install import install_tool
 
     install_tool("node", dry_run=True)
 
 
 def test_merge_mcp_servers(tmp_path: Path) -> None:
-    from canfar_lab.agent.bundles import merge_mcp_servers
+    from astroai_lab.agent.bundles import merge_mcp_servers
 
     src = tmp_path / "src.json"
     dst = tmp_path / "dst.json"

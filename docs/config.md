@@ -2,7 +2,7 @@
 
 **Zero config by default.** Paths resolve from session environment variables (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`) and standard CANFAR mount points.
 
-Optional preferences live at **`~/.canfar/lab/config.yaml`**. All keys are optional.
+Optional preferences live at **`~/.astroai/lab/config.yaml`**. All keys are optional.
 
 ```yaml
 # example
@@ -13,24 +13,24 @@ push:
   require_clean_git: false
 ```
 
-Environment variables override YAML (prefix **`CANFAR_LAB_`**):
+Environment variables override YAML (prefix **`ASTROAI_LAB_`**):
 
 | Variable | YAML key |
 |----------|----------|
-| `CANFAR_LAB_WORK_DIR` | `work_dir` |
-| `CANFAR_LAB_SCRATCH_DIR` | `scratch_dir` |
-| `CANFAR_LAB_SAVE_DIR` | `save_dir` |
-| `CANFAR_LAB_DEFAULT_PM` | `default_pm` |
-| `CANFAR_LAB_CLONE_FROM_ENV` | `clone_from_env` |
-| `CANFAR_LAB_PUSH__AUTO_SAVE` | `push.auto_save` |
-| `CANFAR_LAB_PUSH__REQUIRE_CLEAN_GIT` | `push.require_clean_git` |
+| `ASTROAI_LAB_WORK_DIR` | `work_dir` |
+| `ASTROAI_LAB_SCRATCH_DIR` | `scratch_dir` |
+| `ASTROAI_LAB_SAVE_DIR` | `save_dir` |
+| `ASTROAI_LAB_DEFAULT_PM` | `default_pm` |
+| `ASTROAI_LAB_CLONE_FROM_ENV` | `clone_from_env` |
+| `ASTROAI_LAB_PUSH__AUTO_SAVE` | `push.auto_save` |
+| `ASTROAI_LAB_PUSH__REQUIRE_CLEAN_GIT` | `push.require_clean_git` |
 
 Inspect current settings:
 
 ```bash
-canfar-lab config show
-canfar-lab config path
-canfar-lab --json config show
+astroai-lab config show
+astroai-lab config path
+astroai-lab --json config show
 ```
 
 Per-project config inside git repos is intentionally **not** supported — keeps OSS repos portable.

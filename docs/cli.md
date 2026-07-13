@@ -1,6 +1,6 @@
 # CLI reference
 
-Global flags (most commands accept these **before** the subcommand, e.g. `canfar-lab --json status`. Several commands also accept the same flags **after** the subcommand name — see examples below):
+Global flags (most commands accept these **before** the subcommand, e.g. `astroai-lab --json status`. Several commands also accept the same flags **after** the subcommand name — see examples below):
 
 | Flag | Description |
 |------|-------------|
@@ -12,71 +12,71 @@ Global flags (most commands accept these **before** the subcommand, e.g. `canfar
 
 ## Top-level commands
 
-### `canfar-lab`
+### `astroai-lab`
 
 Brief status banner when invoked with no subcommand.
 
-### `canfar-lab init NAME`
+### `astroai-lab init NAME`
 
 Create a pixi or uv project under the work directory.
 
 ```bash
-canfar-lab init mylab
-canfar-lab init mylab --uv --no-git
+astroai-lab init mylab
+astroai-lab init mylab --uv --no-git
 ```
 
-### `canfar-lab clone REPO`
+### `astroai-lab clone REPO`
 
 Clone via `gh` and install dependencies.
 
 ```bash
-canfar-lab clone owner/repo
-canfar-lab clone --from-env ml-base owner/repo
+astroai-lab clone owner/repo
+astroai-lab clone --from-env ml-base owner/repo
 ```
 
-### `canfar-lab save [NAME]`
+### `astroai-lab save [NAME]`
 
-Save lockfile manifest to `~/.canfar/lab/saves/`.
+Save lockfile manifest to `~/.astroai/lab/saves/`.
 
 ```bash
-canfar-lab save
-canfar-lab save mylab --full
+astroai-lab save
+astroai-lab save mylab --full
 ```
 
-### `canfar-lab resume NAME`
+### `astroai-lab resume NAME`
 
 Restore a saved environment and run install.
 
 ```bash
-canfar-lab resume mylab
-canfar-lab resume mylab --from /arc/projects/team/env-saves/mylab
+astroai-lab resume mylab
+astroai-lab resume mylab --from /arc/projects/team/env-saves/mylab
 ```
 
-### `canfar-lab saves`
+### `astroai-lab saves`
 
 List saved environments.
 
 ```bash
-canfar-lab saves
-canfar-lab saves --json
+astroai-lab saves
+astroai-lab saves --json
 ```
 
-### `canfar-lab push`
+### `astroai-lab push`
 
 End-of-session: git push (if repo) + env save + summary.
 
 ```bash
-canfar-lab push
-canfar-lab push --yes --name mylab
+astroai-lab push
+astroai-lab push --yes --name mylab
 ```
 
-### `canfar-lab status`
+### `astroai-lab status`
 
 Quotas, home breakdown, team project membership, CANFAR auth/sessions, and top processes.
 
 ```bash
-canfar-lab status
-canfar-lab status --json
+astroai-lab status
+astroai-lab status --json
 ```
 
 **`--json` keys:** `quotas`, `home`, `processes`, `canfar_auth`, `canfar_sessions`, `arc_project`, `arc_projects`, `gms_groups`, `vault`.
@@ -89,123 +89,144 @@ Each **`arc_projects[]`** entry includes `access` (`rw`/`ro`), `acl_groups` (fro
 
 Requires optional tools on PATH: `getfacl`, `cadc-groups` (CADC venv), `vos` — all ship in AstroAI session images.
 
-### `canfar-lab paths`
+### `astroai-lab paths`
 
 Resolved session paths (work, scratch, caches, saves, cwd).
 
 ```bash
-canfar-lab paths
-canfar-lab paths --json
+astroai-lab paths
+astroai-lab paths --json
 ```
 
-### `canfar-lab tools`
+### `astroai-lab tools`
 
 Inventory of common session tools on PATH, with versions when available.
 
 ```bash
-canfar-lab tools
-canfar-lab tools --json
+astroai-lab tools
+astroai-lab tools --json
 ```
 
-### `canfar-lab check`
+### `astroai-lab check`
 
-Quick health check: writable work/scratch/save paths plus `git` and `canfar-lab`. Exit code `1` on failure. Use **`--strict`** to also require recommended tools (`pixi`, `uv`, `gh`, `rg`, `jq`, `canfar`).
+Quick health check: writable work/scratch/save paths plus `git` and `astroai-lab`. Exit code `1` on failure. Use **`--strict`** to also require recommended tools (`pixi`, `uv`, `gh`, `rg`, `jq`, `canfar`).
 
 ```bash
-canfar-lab check
-canfar-lab check --json
-canfar-lab check --strict
+astroai-lab check
+astroai-lab check --json
+astroai-lab check --strict
 ```
 
-### `canfar-lab doctor`
+### `astroai-lab doctor`
 
 Full paths and tools report.
 
 ```bash
-canfar-lab doctor --json
+astroai-lab doctor --json
 ```
 
-### `canfar-lab guide`
+### `astroai-lab guide`
 
 Print session workflow cheat sheet.
 
 ## Nested commands
 
-### `canfar-lab env save|resume|list`
+### `astroai-lab env save|resume|list`
 
 Backward-compatible aliases for flat commands.
 
-### `canfar-lab data stage|sync`
+### `astroai-lab data stage|sync`
 
 Stage data from `/arc` to scratch or sync back.
 
 ```bash
-canfar-lab data stage /arc/home/user/data
-canfar-lab data sync /scratch/out /arc/home/user/data
-canfar-lab data stage /arc/path --dry-run
-canfar-lab data sync /scratch/out /arc/path --yes
+astroai-lab data stage /arc/home/user/data
+astroai-lab data sync /scratch/out /arc/home/user/data
+astroai-lab data stage /arc/path --dry-run
+astroai-lab data sync /scratch/out /arc/path --yes
 ```
 
-### `canfar-lab clean home|cache`
+### `astroai-lab clean home|cache`
 
 Prune caches and home clutter. Pass **`--dry-run`** to preview; destructive runs need explicit category flags (`--all-safe` or individual toggles).
 
 ```bash
-canfar-lab clean home --all-safe --dry-run
-canfar-lab clean cache --all-safe --dry-run
+astroai-lab clean home --all-safe --dry-run
+astroai-lab clean cache --all-safe --dry-run
 ```
 
-### `canfar-lab config show|path`
+### `astroai-lab config show|path`
 
 Optional preferences file.
 
-### `canfar-lab workspace save|restore`
+### `astroai-lab workspace save|restore`
 
 Freeze/restore full project trees (zstd bundles).
 
-### `canfar-lab agent setup|update|sync|sources|project|verify|list|install|models`
+### `astroai-lab agent setup|update|sync|sources|project|verify|list|install|models`
 
 AI agent MCP, rules, skills, tool installation, and free model presets.
 
 ```bash
-canfar-lab agent setup
-canfar-lab agent sync              # full refresh: all agents, MCP, skills, GitHub sources
-canfar-lab agent update            # alias for sync
-canfar-lab agent sources update    # GitHub upstream skills only
-canfar-lab agent sources list
-canfar-lab agent project
-canfar-lab agent install kilo
-canfar-lab agent install goose
-canfar-lab agent install cline
-canfar-lab agent install --list
-canfar-lab agent models
-canfar-lab agent models free
-canfar-lab agent models free --preset long
+astroai-lab agent setup
+astroai-lab agent sync              # full refresh: all agents, MCP, skills, GitHub sources
+astroai-lab agent update            # alias for sync
+astroai-lab agent sources update    # GitHub upstream skills only
+astroai-lab agent sources list
+astroai-lab agent project
+astroai-lab agent install kilo
+astroai-lab agent install goose
+astroai-lab agent install cline
+astroai-lab agent install --list
+astroai-lab agent models
+astroai-lab agent models free
+astroai-lab agent models free --preset long
 ```
 
-### `canfar-lab project init`
+
+### `astroai-lab kernel`
+
+Jupyter kernels for notebook sessions.
+
+```bash
+astroai-lab kernel ensure              # scratch-safe default (no pixi project)
+astroai-lab kernel register [PATH]     # project .pixi/.venv as kernel
+astroai-lab kernel list
+astroai-lab kernel unregister NAME
+```
+
+### `astroai-lab notebook starter`
+
+Copy starter notebooks into scratch/work (also shipped at `/opt/astroai/notebooks/` in images).
+
+```bash
+astroai-lab notebook starter
+astroai-lab notebook starter ray_train --to /scratch
+```
+
+### `astroai-lab project init`
 
 Team workspace under `/arc/projects`.
 
 ```bash
-canfar-lab project init mygroup --members alice,bob
+astroai-lab project init mygroup --members alice,bob
 ```
 
 ## Environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `CANFAR_LAB_WORK_DIR` | Work directory override |
-| `CANFAR_LAB_SCRATCH_DIR` | Scratch directory override |
-| `CANFAR_LAB_SAVE_DIR` | Env saves directory override |
-| `CANFAR_LAB_PYTHONPATH` | Extra `PYTHONPATH` entries (colon-separated) |
+| `ASTROAI_LAB_WORK_DIR` | Work directory override |
+| `ASTROAI_LAB_SCRATCH_DIR` | Scratch directory override |
+| `ASTROAI_LAB_SAVE_DIR` | Env saves directory override |
+| `ASTROAI_LAB_PYTHONPATH` | Extra `PYTHONPATH` entries (colon-separated) |
 | `TMP_SRC_DIR` | Session work dir (Skaha) |
 | `TMP_SCRATCH_DIR` | Session scratch (Skaha) |
-| `CANFAR_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`) |
-| `CANFAR_LAB_RUNTIME_ROOT` | Runtime uv/pixi roots (default: scratch `.runtime-$USER`) |
-| `CANFAR_LAB_NPM_PREFIX` | npm global prefix (default: scratch `.local`) |
-| `CANFAR_LAB_CONFIG_DIR` | Workbench config (`~/.canfar/lab`) |
+| `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`) |
+| `ASTROAI_LAB_RUNTIME_ROOT` | Runtime uv/pixi roots (default: scratch `.runtime-$USER`) |
+| `ASTROAI_LAB_NPM_PREFIX` | npm global prefix (default: scratch `.local`) |
+| `ASTROAI_LAB_CONFIG_DIR` | Workbench config (`~/.astroai/lab`) |
 
-Session paths are applied in login shells via `canfar-lab env export` (bundled in `/etc/canfar-lab/profile.sh` on CANFAR images).
+Session paths are applied in login shells via `astroai-lab env export` (bundled in `/etc/astroai-lab/profile.sh` on CANFAR images).
 
 See [config.md](config.md) for optional YAML preferences.

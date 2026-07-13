@@ -8,12 +8,12 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from canfar_lab.cli.main import app
-from canfar_lab.config.settings import get_settings
-from canfar_lab.core.git import git_init_and_commit, git_status
-from canfar_lab.core.hygiene import apply_clean, collect_home_targets
-from canfar_lab.core.project import save_env, save_rows
-from canfar_lab.models.manifest import ProjectKind
+from astroai_lab.cli.main import app
+from astroai_lab.config.settings import get_settings
+from astroai_lab.core.git import git_init_and_commit, git_status
+from astroai_lab.core.hygiene import apply_clean, collect_home_targets
+from astroai_lab.core.project import save_env, save_rows
+from astroai_lab.models.manifest import ProjectKind
 
 runner = CliRunner()
 
@@ -30,7 +30,7 @@ def lab_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home.mkdir()
     work.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("CANFAR_LAB_WORK_DIR", str(work))
+    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
     monkeypatch.chdir(work)
     return work
 
@@ -51,7 +51,7 @@ def test_git_init_and_commit(tmp_path: Path) -> None:
     repo = tmp_path / "newrepo"
     repo.mkdir()
     (repo / "README.md").write_text("hi")
-    with patch("canfar_lab.utils.subprocess.run") as mock_run:
+    with patch("astroai_lab.utils.subprocess.run") as mock_run:
         git_init_and_commit(repo)
     assert mock_run.call_count >= 3
 
@@ -75,9 +75,9 @@ def test_push_skips_git_when_not_repo(lab_env: Path, monkeypatch: pytest.MonkeyP
     project = lab_env / "mylab"
     _pixi_project(project)
     monkeypatch.chdir(project)
-    with patch("canfar_lab.core.git.git_status") as gs:
+    with patch("astroai_lab.core.git.git_status") as gs:
         gs.return_value = type("S", (), {"in_repo": False, "uncommitted": False})()
-        with patch("canfar_lab.cli.init_clone_env.save_env") as save:
+        with patch("astroai_lab.cli.init_clone_env.save_env") as save:
             result = runner.invoke(app, ["--yes", "push"])
     assert result.exit_code == 0
     save.assert_called_once()
@@ -87,7 +87,7 @@ def test_clean_home_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("CANFAR_LAB_WORK_DIR", str(tmp_path / "work"))
+    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(tmp_path / "work"))
     cache = home / ".cache" / "pip"
     cache.mkdir(parents=True)
     (cache / "wheel").write_text("x")
@@ -118,19 +118,19 @@ def test_data_stage_missing_source(lab_env: Path) -> None:
 
 
 def test_status_command(lab_env: Path) -> None:
-    with patch("canfar_lab.cli.status.collect_status_quotas", return_value=[]):
+    with patch("astroai_lab.cli.status.collect_status_quotas", return_value=[]):
         with patch(
-            "canfar_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)
+            "astroai_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)
         ):
-            with patch("canfar_lab.cli.status.home_breakdown", return_value=[]):
-                with patch("canfar_lab.cli.status.top_cpu_processes", return_value=[]):
+            with patch("astroai_lab.cli.status.home_breakdown", return_value=[]):
+                with patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]):
                     for argv in (["status"], ["status", "--json"], ["--json", "status"]):
                         result = runner.invoke(app, argv)
                         assert result.exit_code == 0, result.output
 
 
 def test_status_json_includes_arc_projects(lab_env: Path) -> None:
-    from canfar_lab.core.storage import ArcProjectInfo, QuotaLine
+    from astroai_lab.core.storage import ArcProjectInfo, QuotaLine
 
     active = ArcProjectInfo(
         name="mygroup",
@@ -146,13 +146,13 @@ def test_status_json_includes_arc_projects(lab_env: Path) -> None:
         ),
         is_cwd=True,
     )
-    with patch("canfar_lab.cli.status.collect_status_quotas", return_value=[active.quota]):
+    with patch("astroai_lab.cli.status.collect_status_quotas", return_value=[active.quota]):
         with patch(
-            "canfar_lab.cli.status.arc_project_statuses",
+            "astroai_lab.cli.status.arc_project_statuses",
             return_value=(active, [active], None, None),
         ):
-            with patch("canfar_lab.cli.status.home_breakdown", return_value=[]):
-                with patch("canfar_lab.cli.status.top_cpu_processes", return_value=[]):
+            with patch("astroai_lab.cli.status.home_breakdown", return_value=[]):
+                with patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]):
                     result = runner.invoke(app, ["status", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)

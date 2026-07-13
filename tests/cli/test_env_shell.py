@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from canfar_lab.cli.main import app
+from astroai_lab.cli.main import app
 
 
 def test_env_export(tmp_path: Path, monkeypatch) -> None:
@@ -12,7 +12,7 @@ def test_env_export(tmp_path: Path, monkeypatch) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["env", "export", "--no-ensure"])
     assert result.exit_code == 0
-    assert "CANFAR_LAB_BIN_DIR" in result.stdout
+    assert "ASTROAI_LAB_BIN_DIR" in result.stdout
 
 
 def test_env_install_shell(tmp_path: Path) -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from canfar_lab.core.tools import (
+from astroai_lab.core.tools import (
     CheckItem,
     checks_ok,
     doctor_tools,
@@ -30,7 +30,7 @@ def test_inventory_tools_nonempty() -> None:
     assert len(tools) >= 10
     names = {t.name for t in tools}
     assert "git" in names
-    assert "canfar-lab" in names
+    assert "astroai-lab" in names
 
 
 def test_doctor_tools_keys() -> None:
@@ -48,8 +48,8 @@ def test_paths_dict(tmp_path: Path, monkeypatch) -> None:
     work.mkdir()
     scratch.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("CANFAR_LAB_WORK_DIR", str(work))
-    monkeypatch.setenv("CANFAR_LAB_SCRATCH_DIR", str(scratch))
+    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
+    monkeypatch.setenv("ASTROAI_LAB_SCRATCH_DIR", str(scratch))
     data = paths_dict()
     assert data["work_dir"] == str(work)
     assert data["scratch_dir"] == str(scratch)
@@ -65,8 +65,8 @@ def test_run_checks_ok_when_writable(tmp_path: Path, monkeypatch) -> None:
     work.mkdir()
     scratch.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("CANFAR_LAB_WORK_DIR", str(work))
-    monkeypatch.setenv("CANFAR_LAB_SCRATCH_DIR", str(scratch))
+    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
+    monkeypatch.setenv("ASTROAI_LAB_SCRATCH_DIR", str(scratch))
     items = run_checks()
     by_name = {i.name: i for i in items}
     assert by_name["work_dir"].ok

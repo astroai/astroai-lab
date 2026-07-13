@@ -5,18 +5,18 @@ from unittest.mock import patch
 
 import pytest
 
-from canfar_lab.core.team import init_team_project
+from astroai_lab.core.team import init_team_project
 
 
 def test_init_team_project_invalid_name() -> None:
-    from canfar_lab.errors import LabError
+    from astroai_lab.errors import LabError
 
     with pytest.raises(LabError, match="Invalid"):
         init_team_project("bad name!")
 
 
 def test_init_team_project_no_arc() -> None:
-    from canfar_lab.errors import LabError
+    from astroai_lab.errors import LabError
 
     with patch.object(Path, "is_dir", return_value=False):
         with pytest.raises(LabError, match="/arc/projects"):
@@ -28,10 +28,10 @@ def test_init_team_project_success(tmp_path: Path) -> None:
     fake_arc.mkdir()
 
     with patch(
-        "canfar_lab.core.team.Path",
+        "astroai_lab.core.team.Path",
         lambda *args: fake_arc if args == ("/arc/projects",) else Path(*args),
     ):
-        with patch("canfar_lab.core.team.subprocess.run") as mock_run:
+        with patch("astroai_lab.core.team.subprocess.run") as mock_run:
             proj = init_team_project("mygroup", members=["alice", "bob"])
     assert proj == fake_arc / "mygroup"
     assert (proj / "data").is_dir()
@@ -42,7 +42,7 @@ def test_init_team_project_success(tmp_path: Path) -> None:
 
 
 def test_project_layout(tmp_path: Path) -> None:
-    from canfar_lab.core.team import project_layout
+    from astroai_lab.core.team import project_layout
 
     proj = tmp_path / "mygroup"
     proj.mkdir()
@@ -52,10 +52,10 @@ def test_project_layout(tmp_path: Path) -> None:
 
 
 def test_project_quota_line(tmp_path: Path) -> None:
-    from canfar_lab.core.storage import QuotaLine
-    from canfar_lab.core.team import project_quota_line
+    from astroai_lab.core.storage import QuotaLine
+    from astroai_lab.core.team import project_quota_line
 
-    with patch("canfar_lab.core.team.df_line") as mock_df:
+    with patch("astroai_lab.core.team.df_line") as mock_df:
         mock_df.return_value = QuotaLine(
             label="mygroup",
             path=str(tmp_path),
@@ -69,7 +69,7 @@ def test_project_quota_line(tmp_path: Path) -> None:
 
 
 def test_project_quota_line_none(tmp_path: Path) -> None:
-    from canfar_lab.core.team import project_quota_line
+    from astroai_lab.core.team import project_quota_line
 
-    with patch("canfar_lab.core.team.df_line", return_value=None):
+    with patch("astroai_lab.core.team.df_line", return_value=None):
         assert project_quota_line(tmp_path, "mygroup") is None

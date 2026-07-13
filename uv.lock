@@ -21,7 +21,7 @@ wheels = [
 ]
 
 [[package]]
-name = "canfar-lab"
+name = "astroai-lab"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

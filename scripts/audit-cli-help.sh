@@ -1,8 +1,8 @@
 #!/usr/bin/bash
-# Audit canfar-lab help text vs accepted flags. Exit 1 on mismatches.
+# Audit astroai-lab help text vs accepted flags. Exit 1 on mismatches.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-CLI=(uv run canfar-lab)
+CLI=(uv run astroai-lab)
 FAIL=0
 
 check_help_ok() {
@@ -131,9 +131,9 @@ for spec in \
 done
 
 echo "=== Smoke invocations (lab env) ==="
-export HOME="/tmp/canfar-lab-audit-$$"
-export CANFAR_LAB_WORK_DIR="$HOME/work"
-export CANFAR_LAB_SCRATCH_DIR="$HOME/scratch"
+export HOME="/tmp/astroai-lab-audit-$$"
+export ASTROAI_LAB_WORK_DIR="$HOME/work"
+export ASTROAI_LAB_SCRATCH_DIR="$HOME/scratch"
 mkdir -p "$HOME/work" "$HOME/scratch"
 trap 'rm -rf "$HOME"' EXIT
 

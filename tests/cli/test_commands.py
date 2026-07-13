@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from canfar_lab.cli.main import app
-from canfar_lab.config.settings import get_settings
+from astroai_lab.cli.main import app
+from astroai_lab.config.settings import get_settings
 
 runner = CliRunner()
 
@@ -25,14 +25,14 @@ def lab_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     work = home / "work"
     work.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("CANFAR_LAB_WORK_DIR", str(work))
+    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
     return home
 
 
 def test_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "canfar-lab" in result.stdout
+    assert "astroai-lab" in result.stdout
 
 
 def test_guide_command() -> None:
@@ -76,10 +76,10 @@ def test_check_json(lab_home: Path) -> None:
 def test_default_banner(lab_home: Path) -> None:
     result = runner.invoke(app, [])
     assert result.exit_code == 0
-    assert "canfar-lab" in result.output.lower() or "work" in result.output.lower()
+    assert "astroai-lab" in result.output.lower() or "work" in result.output.lower()
 
 
-@patch("canfar_lab.cli.banner.arc_project_statuses")
+@patch("astroai_lab.cli.banner.arc_project_statuses")
 def test_banner_with_active_team(mock_status, lab_home: Path) -> None:
     active = MagicMock()
     active.name = "demo"
@@ -99,7 +99,7 @@ def test_banner_with_active_team(mock_status, lab_home: Path) -> None:
 def test_config_path(lab_home: Path) -> None:
     result = runner.invoke(app, ["config", "path"])
     assert result.exit_code == 0
-    assert str(lab_home / ".canfar" / "lab" / "config.yaml") in result.stdout
+    assert str(lab_home / ".astroai" / "lab" / "config.yaml") in result.stdout
 
 
 def test_config_show_json(lab_home: Path) -> None:
@@ -151,9 +151,9 @@ def test_init_creates_pixi_project(lab_home: Path, monkeypatch: pytest.MonkeyPat
     assert (target / "pixi.toml").is_file() or (target / "pyproject.toml").is_file()
 
 
-@patch("canfar_lab.cli.project.init_team_project")
-@patch("canfar_lab.cli.project.project_layout")
-@patch("canfar_lab.cli.project.project_quota_line")
+@patch("astroai_lab.cli.project.init_team_project")
+@patch("astroai_lab.cli.project.project_layout")
+@patch("astroai_lab.cli.project.project_quota_line")
 def test_project_init_cli(mock_quota, mock_layout, mock_init, lab_home: Path) -> None:
     mock_init.return_value = Path("/arc/projects/demo")
     mock_layout.return_value = ["data/", "results/", "env-saves/"]

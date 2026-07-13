@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from canfar_lab.core.git import git_push
-from canfar_lab.core.paths import (
+from astroai_lab.core.git import git_push
+from astroai_lab.core.paths import (
     find_arc_project_root,
     quota_used_pct,
     scratch_cache_root,
     user_bin_dir,
 )
-from canfar_lab.errors import LabError
+from astroai_lab.errors import LabError
 
 
 def test_scratch_cache_root_with_scratch(tmp_path: Path) -> None:
@@ -42,7 +42,7 @@ def test_user_bin_dir_prefers_scratch(tmp_path: Path, monkeypatch: pytest.Monkey
     scratch.mkdir()
     (scratch / ".local" / "bin").mkdir(parents=True)
     monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
-    monkeypatch.delenv("CANFAR_LAB_BIN_DIR", raising=False)
+    monkeypatch.delenv("ASTROAI_LAB_BIN_DIR", raising=False)
     assert user_bin_dir() == scratch / ".local" / "bin"
 
 
@@ -71,7 +71,7 @@ def test_find_arc_project_root_not_found() -> None:
 def test_git_push_mocked(tmp_path: Path) -> None:
     from unittest.mock import patch
 
-    with patch("canfar_lab.utils.subprocess.run") as mock_run:
+    with patch("astroai_lab.utils.subprocess.run") as mock_run:
         git_push(tmp_path)
     mock_run.assert_called_once()
 

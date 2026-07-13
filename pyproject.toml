@@ -1,12 +1,12 @@
 [project]
-name = "canfar-lab"
+name = "astroai-lab"
 version = "0.1.0"
-description = "In-session workbench CLI for the CANFAR Science Platform"
+description = "In-session workbench CLI for AstroAI sessions on the CANFAR Science Platform"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [{ name = "Simon Fabbro", email = "simon.fabbro@nrc-cnrc.gc.ca" }]
-keywords = ["canfar", "science-platform", "astronomy", "session"]
+keywords = ["astroai", "canfar", "science-platform", "astronomy", "session"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -44,26 +44,27 @@ Repository = "https://github.com/sfabbro/canfar-lab"
 Issues = "https://github.com/sfabbro/canfar-lab/issues"
 
 [project.scripts]
-canfar-lab = "canfar_lab.cli.main:main_entry"
+astroai-lab = "astroai_lab.cli.main:main_entry"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/canfar_lab"]
+packages = ["src/astroai_lab"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "--cov=canfar_lab --cov-report=term-missing --cov-fail-under=75"
+addopts = "--cov=astroai_lab --cov-report=term-missing --cov-fail-under=75"
 
 [tool.coverage.run]
-source = ["src/canfar_lab"]
+source = ["src/astroai_lab"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+extend-exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
