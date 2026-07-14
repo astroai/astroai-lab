@@ -6,6 +6,9 @@ description: >-
 ---
 # AstroAI lab in 3 commands
 
+**Names:** `canfar` = platform sessions/auth; `astroai-lab` = in-session workbench;
+AstroAI = product images/tools; CANFAR = Science Platform host.
+
 ```bash
 astroai-lab agent setup              # once per user — MCP + skills (persists on /arc)
 astroai-lab agent install kilo       # or: goose, cline, opencode, codex, agent

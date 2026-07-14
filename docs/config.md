@@ -1,8 +1,8 @@
 # Optional configuration
 
-**Zero config by default.** Paths resolve from session environment variables (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`) and standard CANFAR mount points.
-
-Optional preferences live at **`~/.astroai/lab/config.yaml`**. All keys are optional.
+Paths resolve from session environment variables (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`)
+and standard CANFAR mount points. Optional preferences live at
+**`~/.astroai/lab/config.yaml`**. Every key is optional.
 
 ```yaml
 # example
@@ -33,4 +33,5 @@ astroai-lab config path
 astroai-lab --json config show
 ```
 
-Per-project config inside git repos is intentionally **not** supported — keeps OSS repos portable.
+Workbench settings stay in `~/.astroai/lab/` so published git repos remain
+portable (`pixi.toml` / `pyproject.toml` only).

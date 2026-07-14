@@ -1,47 +1,85 @@
-> **Renamed from `canfar-lab`.** CLI is `astroai-lab`; config lives at `~/.astroai/lab` (one-shot migrate from `~/.canfar/lab`). There is no `canfar-lab` alias.
-
 # astroai-lab
 
-In-session workbench for the [CANFAR Science Platform](https://www.opencadc.org/canfar/).
+In-session workbench CLI for **AstroAI** sessions on the
+[CANFAR Science Platform](https://www.opencadc.org/canfar/).
 
-Use **`canfar`** to authenticate and manage sessions. Use **`astroai-lab`** inside a running session for the daily workflow: init/clone, save/resume environments, push before closing.
+Use the platform client [`canfar`](https://github.com/opencadc/canfar) to log in and
+start sessions. Use **`astroai-lab`** inside a running session for projects,
+environment save/resume, data movement, hygiene checks, and AI agent setup.
 
-## AI coding agents
-
-```bash
-astroai-lab agent setup              # once per user — MCP + skills (persists on /arc)
-astroai-lab agent install kilo       # or goose, cline, opencode, codex, agent
-astroai-lab agent models free        # OpenRouter + Kilo free-tier model presets
-gh auth login                       # GitHub for gh + GitHub MCP
+```mermaid
+flowchart LR
+  subgraph laptop [Your laptop or portal]
+    Portal[Science Portal]
+    CanfarCLI["canfar login / create / ps"]
+  end
+  subgraph session [Running AstroAI session]
+    Lab["astroai-lab"]
+    Tools["pixi / uv / Jupyter / CADC tools"]
+  end
+  Portal --> session
+  CanfarCLI --> session
+  Lab --> Tools
 ```
 
-Refresh after image upgrade: `astroai-lab agent update`
+## Names at a glance
 
-See [docs/cli.md](docs/cli.md) for `astroai-lab agent models free --preset long` and per-agent setup.
+| Name | Meaning |
+|------|---------|
+| **AstroAI** | Product: GitHub org [`astroai`](https://github.com/astroai), Harbor project `astroai`, session images and tools |
+| **CANFAR** | Science Platform: portal, Skaha, `/arc`, authentication, session scheduling |
+| **`canfar`** | Platform CLI — auth, create/list/delete sessions, images |
+| **`astroai-lab`** | This package — workbench **inside** a session |
+| **`images.canfar.net/astroai/*`** | AstroAI images hosted on CANFAR Harbor |
+
+Session images and how to launch them:
+[astroai-containers](https://github.com/astroai/astroai-containers).
 
 ## Session loop
 
 ```bash
-astroai-lab resume mylab     # or init / clone
-cd $WORK/mylab && pixi run python analysis.py
-astroai-lab save             # anytime
-astroai-lab push             # before closing session
+astroai-lab resume mylab          # or: init / clone
+cd "$WORK/mylab" && pixi run python analysis.py
+astroai-lab save                  # anytime
+astroai-lab push                  # before closing the session
 ```
 
-Run **`astroai-lab guide`** for the full cheat sheet.
+Printable cheat sheet: `astroai-lab guide` · [docs/guide.md](docs/guide.md)
+
+```mermaid
+flowchart TD
+  A[Start AstroAI session] --> B["astroai-lab resume / init / clone"]
+  B --> C[Work under TMP_SRC_DIR with pixi or uv]
+  C --> D["astroai-lab save"]
+  D --> C
+  C --> E["astroai-lab data sync … /arc/…"]
+  E --> F["astroai-lab push"]
+  F --> G[End session]
+```
 
 ## Install
 
+AstroAI session images already include `astroai-lab` on PATH.
+
+On a laptop or for development (package is published from GitHub):
+
 ```bash
-pip install astroai-lab
-# or during development:
-uv tool install /path/to/astroai-lab
+uv tool install git+https://github.com/astroai/astroai-lab.git
+# or:
+pip install "git+https://github.com/astroai/astroai-lab.git"
 ```
 
-## Quick start
+Editable checkout:
 
 ```bash
-astroai-lab                  # brief status
+uv sync --all-extras
+uv run astroai-lab --help
+```
+
+## Quick start (inside a session)
+
+```bash
+astroai-lab                  # status banner
 astroai-lab init mylab
 astroai-lab clone owner/repo
 astroai-lab save mylab
@@ -50,54 +88,59 @@ astroai-lab push
 astroai-lab paths            # work / scratch / cache paths
 astroai-lab tools            # tools on PATH
 astroai-lab check            # quick health check
+astroai-lab doctor           # full diagnostic
 ```
 
-Machine-readable output: add **`--json`** to list/status/paths/tools/check/doctor commands.
+Machine-readable output: add **`--json`** where supported
+(`status`, `paths`, `tools`, `check`, `doctor`, …).
+
+## AI coding agents
+
+Optional — once per user on persistent `/arc` home:
+
+```bash
+astroai-lab agent setup
+astroai-lab agent install kilo       # or goose, cline, opencode, …
+astroai-lab agent models free
+gh auth login
+```
+
+After an image upgrade: `astroai-lab agent update`. Details in [docs/cli.md](docs/cli.md).
 
 ## Configuration
 
-Paths auto-detect from Skaha session variables (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`).
-Optional preferences: **`~/.astroai/lab/config.yaml`**.
+Paths come from Skaha session variables (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`).
+Optional preferences: **`~/.astroai/lab/config.yaml`** — see [docs/config.md](docs/config.md).
 
-| Doc | Scope |
-|-----|--------|
-| [docs/USAGE.md](docs/USAGE.md) | **astroai-lab** — commands, storage, CADC/canfar integration, agents |
-| [docs/guide.md](docs/guide.md) | Short session loop |
+## Documentation
+
+| Doc | Audience |
+|-----|----------|
+| [docs/USAGE.md](docs/USAGE.md) | Newcomers and daily use — storage, CADC, workflows |
+| [docs/guide.md](docs/guide.md) | Short session cheat sheet |
 | [docs/cli.md](docs/cli.md) | Full CLI reference |
+| [docs/config.md](docs/config.md) | Optional YAML / env overrides |
 
-**AstroAI session images** (webterm, notebook, …): [containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md).
+Related:
 
-## Relationship to `canfar`
+| Repo | Role |
+|------|------|
+| [astroai-containers](https://github.com/astroai/astroai-containers) | Session images (`webterm`, `notebook`, `ray-manager`, …) |
+| [astroai-workload](https://github.com/astroai/astroai-workload) | Ray Jobs submit helpers |
+| [canfar](https://github.com/opencadc/canfar) | Platform client |
 
-| Tool | Scope |
-|------|-------|
-| [`canfar`](https://github.com/opencadc/canfar) | Platform client — auth, sessions, images |
-| **`astroai-lab`** | Session workbench — code, deps, scratch, `/arc` |
+Platform documentation: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)
 
 ## Development
 
-Run the full check suite locally before pushing:
-
 ```bash
-./scripts/ci.sh
-```
-
-That runs ruff (lint + format), then pytest with coverage. GitHub Actions only runs pytest as a lightweight gate.
-
-Manual steps:
-
-```bash
+./scripts/ci.sh                 # ruff + pytest with coverage
 uv sync --all-extras
-uv run astroai-lab guide
 uv run pytest -q
-uv run ruff check .
-uv run ruff format --check .
+astroai-lab --install-completion bash
 ```
-
-Shell completion: `astroai-lab --install-completion bash`
 
 ## License
 
-The astroai-lab project code is licensed under the [MIT License](LICENSE).
-The external [canfar client](https://github.com/opencadc/canfar) retains its
-own upstream license and notices.
+[MIT](LICENSE). The external [`canfar`](https://github.com/opencadc/canfar) client
+keeps its own upstream license.

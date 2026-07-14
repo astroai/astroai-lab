@@ -39,9 +39,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://opencadc.github.io/canfar/"
+Homepage = "https://github.com/astroai/astroai-lab"
+Documentation = "https://github.com/astroai/astroai-lab/blob/main/docs/USAGE.md"
 Repository = "https://github.com/astroai/astroai-lab"
 Issues = "https://github.com/astroai/astroai-lab/issues"
+Platform = "https://opencadc.github.io/canfar/"
 
 [project.scripts]
 astroai-lab = "astroai_lab.cli.main:main_entry"

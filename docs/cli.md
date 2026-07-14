@@ -1,5 +1,9 @@
 # CLI reference
 
+Power-user reference for **`astroai-lab`** (in-session workbench). Platform
+session lifecycle uses the separate **`canfar`** CLI —
+[opencadc.github.io/canfar](https://opencadc.github.io/canfar/).
+
 Global flags (most commands accept these **before** the subcommand, e.g. `astroai-lab --json status`. Several commands also accept the same flags **after** the subcommand name — see examples below):
 
 | Flag | Description |

@@ -2,6 +2,9 @@
 
 AstroAI lab project — guidance for AI coding agents.
 
+**Names:** `canfar` manages platform sessions; `astroai-lab` is the in-session
+workbench. AstroAI is the product; CANFAR is the Science Platform.
+
 ## Setup (each developer, once)
 
 ```bash
@@ -26,4 +29,4 @@ Platform CLIs (`canfar`, `cadcget`, `astroai-lab`) live in `/opt/astroai/venv/ca
 
 Search: `rg`, `fd`, `sg` (ast-grep skill). View files: `peek <path>` (markdown/text/archives) or `bat`/`less`. Help: `astroai-lab guide`, `astroai-lab status --json`, `astroai-lab paths`, `astroai-lab tools`, `astroai-lab check`.
 
-In webterm, prefer `peek` when pointing the user at generated plans, logs, or archives — do not dump huge files into the chat/terminal raw.
+In webterm, prefer `peek` when pointing the user at generated plans, logs, or archives.

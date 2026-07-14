@@ -3,11 +3,12 @@ from __future__ import annotations
 from astroai_lab.utils.console import console
 
 GUIDE_TEXT = """
-[bold]astroai-lab[/bold] — CANFAR Science Platform in-session workbench
+[bold]astroai-lab[/bold] — in-session workbench for AstroAI on CANFAR
 
-[bold]Relationship to canfar[/bold]
-  canfar          authenticate, create sessions, manage images (outside or inside)
-  astroai-lab      day-to-day work inside a running session
+[bold]Names[/bold]
+  canfar           platform CLI — login, create sessions, images
+  astroai-lab      this tool — projects, env, paths, data, agents (inside a session)
+  AstroAI          product (images + tools); CANFAR is the Science Platform
 
 [bold]Storage tiers[/bold]
   work dir        ephemeral code (TMP_SRC_DIR, default /srcdir)
@@ -30,13 +31,13 @@ GUIDE_TEXT = """
   astroai-lab saves                 list saved envs
   astroai-lab push                  end-of-session archive (astroai-lab push --yes)
   astroai-lab status --json         quotas, team projects, GMS/vault, canfar auth/ps, processes
-  astroai-lab kernel ensure   # notebook-only scratch-safe kernel
+  astroai-lab kernel ensure         notebook scratch-safe kernel
   astroai-lab notebook starter
   astroai-lab doctor --json         paths, caches, tools
 
 [bold]Platform tools[/bold]
   /opt/astroai/venv/cadc           canfar, cadcget, astroai-lab (writable this session)
-  upgrade-cadc-tools.sh            bump platform CLIs without a new image
+  upgrade-cadc-tools.sh            bump platform CLIs this session
 
 [bold]Flags[/bold]
   --json --yes --dry-run           before or on subcommands (e.g. clean home --dry-run)
@@ -49,7 +50,7 @@ GUIDE_TEXT = """
   astroai-lab clean home --all-safe --dry-run
   astroai-lab clean cache --all-safe
 
-[bold]Portable OSS projects[/bold]
+[bold]Portable projects[/bold]
   Published repos use standard pixi.toml / pyproject.toml only.
   astroai-lab clone --from-env is session-local bootstrap only.
 
@@ -59,6 +60,7 @@ GUIDE_TEXT = """
 
 [bold]More[/bold]
   https://opencadc.github.io/canfar/
+  https://github.com/astroai/astroai-lab
 """
 
 

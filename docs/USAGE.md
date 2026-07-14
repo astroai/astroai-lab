@@ -1,283 +1,231 @@
 # astroai-lab usage
 
-**astroai-lab** is the in-session workbench CLI for the
-[CANFAR Science Platform](https://www.opencadc.org/canfar/). It complements
-[`canfar`](https://github.com/opencadc/canfar) (platform auth and sessions) and
-the CADC archive clients (`cadcget`, `cadc-tap`, `vcp`, …) that ship in session
-images.
+**astroai-lab** is the in-session workbench for AstroAI sessions on the
+[CANFAR Science Platform](https://www.opencadc.org/canfar/).
+
+It works alongside:
+
+| Tool | Role |
+|------|------|
+| [`canfar`](https://github.com/opencadc/canfar) | Platform auth and session lifecycle |
+| CADC clients (`cadcget`, `cadc-tap`, `vcp`, …) | Archive and VOSpace I/O in session images |
+| [Session images](https://github.com/astroai/astroai-containers) | `webterm`, `notebook`, `vscode`, `marimo`, Ray |
 
 | Doc | Scope |
 |-----|--------|
-| **USAGE.md** (this file) | `astroai-lab` commands, storage, agents, CADC/canfar integration |
+| **USAGE.md** (this file) | Narrative: where to work, storage, workflows |
 | [guide.md](guide.md) | Short session loop |
 | [cli.md](cli.md) | Full CLI reference |
 | [config.md](config.md) | Optional `~/.astroai/lab/config.yaml` |
 
-**Session images** (webterm, notebook, vscode, marimo): see
-[AstroAI containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md)
-(in-session: `less /opt/astroai/USAGE.md`).
+In a session: `astroai-lab guide` · `less /opt/astroai/USAGE.md` (image user guide).
 
 Platform docs: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)
 
 ---
 
-## Where you work (laptop vs session)
+## Where you work
+
+```mermaid
+flowchart TB
+  subgraph outside [Laptop or browser]
+    SP[Science Portal]
+    CF["canfar login / create / ps"]
+  end
+  subgraph session [AstroAI session]
+    AL[astroai-lab]
+    PM[pixi / uv]
+    NB[Jupyter / marimo]
+    CADC[vcp / cadcget / …]
+  end
+  SP --> session
+  CF --> session
+  AL --> PM
+  AL --> NB
+  AL --> CADC
+```
 
 | Where | What you do | Tools |
 |-------|-------------|--------|
-| **Laptop / browser** | Log in, start/stop sessions | Science Portal, or `canfar auth` / `canfar create` / `canfar ps` |
-| **Inside a CANFAR session** | Analyze data, notebooks, training, agents | `astroai-lab`, Jupyter, `vcp`/`vls`, pixi/uv |
+| **Laptop / browser** | Log in, start and stop sessions | Science Portal, or `canfar login` / `canfar create` / `canfar ps` |
+| **Inside a session** | Code, notebooks, training, agents | `astroai-lab`, Jupyter, pixi/uv, CADC clients |
 
-**`astroai-lab` is an in-session tool.** Students do not run `kernel ensure` or
-`doctor` on their laptop — those commands run in the session terminal / notebook
-after the portal has launched an AstroAI image.
+`astroai-lab` commands run **inside** the session (terminal, notebook cell, or VS Code).
 
-### Student path (notebook-first) — all steps inside the session
+### Student path (notebook-first)
 
-1. **Laptop:** open the Science Portal → launch **notebook** or **marimo** (GPU node only if you need a GPU).
-2. **Jupyter:** open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) → **AstroAI** kernel (`astroai-lab kernel ensure` if missing).
-3. **Marimo:** session opens `TMP_SRC_DIR/notebooks` with `starter.py` seeded; or `astroai-lab notebook starter marimo`.
-4. **In the session:** `astroai-lab doctor` — caches should sit under `/scratch`, not `$HOME`.
-5. **In the session:** work on `/scratch`; keep results with `astroai-lab data sync … /arc/projects/…` or plain `vcp` to `vos:`.
-6. Later projects: still **in session**, `astroai-lab init` / `clone` + pixi/uv.
+1. Open the [Science Portal](https://www.canfar.net/science-portal) → launch **notebook** or **marimo** (pick a GPU node only if you need a GPU).
+2. **Jupyter:** open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) and select the AstroAI kernel (`astroai-lab kernel ensure` if needed).
+3. **Marimo:** the session opens under `TMP_SRC_DIR/notebooks` with `starter.py` seeded; or run `astroai-lab notebook starter marimo`.
+4. Run `astroai-lab doctor` — caches should resolve under `/scratch`, not `$HOME`.
+5. Keep long-lived results with `astroai-lab data sync … /arc/projects/…` or `vcp` to VOSpace.
+6. Later: `astroai-lab init` / `clone` plus pixi or uv for project environments.
 
-VOSpace: use **`vls` / `vcp`** from the image (vostools). No `astroai-lab` wrapper.
-
-## How the tools fit together
-
-| Tool | Where | Role |
-|------|-------|------|
-| **`canfar`** | Laptop or session | Login, create/list/delete sessions |
-| **`vcp` / `vls`** | Session (image PATH) | VOSpace archive |
-| **`astroai-lab`** | **Session only** | Paths, hygiene, env saves, kernels, agents, `/arc`↔`/scratch` rsync |
-
-```bash
-# On your laptop — start a session
-canfar auth login
-canfar create notebook images.canfar.net/astroai/notebook:26.06
-
-# Inside the session — daily work
-astroai-lab status
-astroai-lab init mylab
-cadcget cadc:CFHT/806045o.fits -o "${TMP_SCRATCH_DIR}/"
-pixi run python analysis.py
-astroai-lab push
-```
+VOSpace: use **`vls` / `vcp`** from the image. There is no separate `astroai-lab` VOSpace wrapper.
 
 ---
 
 ## Install
 
-**In AstroAI session images:** pre-installed in `/opt/astroai/venv/cadc` (on PATH).
+Session images ship `astroai-lab` on PATH under `/opt/astroai/venv/cadc`.
 
-**Elsewhere:**
+Elsewhere (GitHub; not required for portal users):
 
 ```bash
-pip install astroai-lab
-# or: uv tool install astroai-lab
+uv tool install git+https://github.com/astroai/astroai-lab.git
+pip install "git+https://github.com/astroai/astroai-lab.git"
 ```
 
-Shell completion: `astroai-lab --install-completion bash`
+Development checkout:
+
+```bash
+uv sync --all-extras
+uv run astroai-lab --help
+./scripts/ci.sh
+```
 
 ---
 
 ## First project
 
 ```bash
-astroai-lab                        # brief banner + next step (not full status)
-astroai-lab status                 # quotas, team projects, GMS/vault, processes
-astroai-lab paths                  # resolved work/scratch/cache/save paths
-astroai-lab tools                  # tools on PATH (+ versions)
-astroai-lab check                  # quick health check (exit 1 on failure)
-astroai-lab doctor                 # full paths, caches, tool availability (--json)
-gh auth login                  # once per user — clone/push + GitHub MCP
-
 astroai-lab init mylab
-cd mylab && pixi add numpy astropy
-pixi run python -c "import astropy; print(astropy.__version__)"
+cd "$WORK/mylab"
+pixi add numpy
+pixi run python -c "import numpy; print(numpy.__version__)"
+astroai-lab save mylab
 ```
 
-Clone existing work:
+Clone an existing GitHub repo (needs `gh auth login` once):
 
 ```bash
 astroai-lab clone owner/repo
-cd repo && pixi run python analysis.py
+astroai-lab clone --from-env mylab owner/repo   # optional: warm from a named save
 ```
 
-Save before the session ends (`TMP_SRC_DIR` and `/scratch` are ephemeral):
+End of session:
 
 ```bash
-git add -A && git commit -m "session work"
-astroai-lab push                # git push + env save
+astroai-lab push --yes
 ```
 
-Resume next time:
+`push` runs git push when applicable and saves the environment lockfiles to `/arc`.
 
-```bash
-astroai-lab resume mylab
-cd mylab && pixi run python analysis.py
-```
-
-### Cold start → save → resume loop
-
-Simulates a new session with the same `/arc/home` but empty work dir:
-
-```bash
-astroai-lab init mylab && cd mylab
-pixi add numpy astropy
-astroai-lab env save mylab          # manifest → ~/.astroai/lab/saves/mylab
-
-# Next session (empty TMP_SRC_DIR, same HOME on /arc)
-cd "${TMP_SRC_DIR}"
-astroai-lab env resume mylab        # restores into ${TMP_SRC_DIR}/mylab
-cd mylab && pixi run python analysis.py
-```
-
-Integration tests: `pytest tests/integration/test_cold_start_save_resume.py --no-cov`. In AstroAI images: [containers/scripts/test-astroai-lab-loop.sh](https://github.com/astroai/astroai-containers/blob/main/scripts/test-astroai-lab-loop.sh) (`make test-ray BUILD_TAG=local` in the containers repo).
-
-Distributed Ray on CANFAR: [AstroAI RAY.md](https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md).
-
----
-
-## Storage (astroai-lab view)
-
-| Tier | Path | Purpose | Backup |
-|------|------|---------|--------|
-| Work | `TMP_SRC_DIR` → `/srcdir` | Code, active env | **`git push`** |
-| Scratch | `TMP_SCRATCH_DIR` → `/scratch` | Data, caches, agent CLIs | `astroai-lab data sync` → `/arc` |
-| Home | `~/.astroai/lab` on `/arc/home` | Saves, agent config | automatic |
-| Team | `/arc/projects/<group>/` | Shared data, team tools | project quota |
-
-Session shell paths come from **`astroai-lab env export`** (wired in AstroAI images via `/etc/astroai-lab/profile.sh`):
-
-| Variable | Typical value (scratch mounted) |
-|----------|--------------------------------|
-| `ASTROAI_LAB_BIN_DIR` | `${TMP_SCRATCH_DIR}/.local/bin` |
-| `ASTROAI_LAB_RUNTIME_ROOT` | `${TMP_SCRATCH_DIR}/.runtime-$USER` |
-| `UV_CACHE_DIR` | `${TMP_SCRATCH_DIR}/.cache-$USER/uv` |
-
-Inspect: **`astroai-lab doctor`**.
-
-```bash
-astroai-lab data stage /arc/projects/mygroup/catalog.fits
-astroai-lab data sync "${TMP_SCRATCH_DIR}/results/" /arc/projects/mygroup/results/
-astroai-lab clean home --all-safe --dry-run
-astroai-lab clean cache --all-safe
+```mermaid
+flowchart TD
+  I[init or clone] --> W[Edit and run under TMP_SRC_DIR]
+  W --> S[save]
+  S --> W
+  W --> D[data sync to /arc]
+  D --> P[push]
+  P --> X[End session — scratch wiped]
 ```
 
 ---
 
-## Working with `canfar` and CADC clients
+## Storage
 
-**astroai-lab does not replace `canfar`.** Use `canfar` for platform operations; use CADC CLIs for archive I/O; use `astroai-lab` for project and session hygiene.
+| Tier | Env / path | Lifetime | Use for |
+|------|------------|----------|---------|
+| Work | `TMP_SRC_DIR` (`/srcdir`) | Session | Source trees, pixi/uv projects |
+| Scratch | `TMP_SCRATCH_DIR` (`/scratch`) | Session | Datasets, build caches, temp |
+| Home | `/arc/home/<you>` | Persistent | Config, `~/.astroai/lab/saves/`, certs |
+| Projects | `/arc/projects/<group>` | Persistent | Shared data and team env-saves |
 
-### CADC clients (in session images)
-
-| CLI | Package | Example |
-|-----|---------|---------|
-| `cadcget`, `cadcput` | cadcdata | `cadcget cadc:CFHT/806045o.fits "${TMP_SCRATCH_DIR}/"` |
-| `cadc-tap` | cadctap | `cadc-tap "SELECT * FROM caom2.Observation LIMIT 5"` |
-| `vcp`, `vls` | vos | `vls vos:/` |
-| `canfar` | canfar | `canfar ps` |
-
-Auth:
+Inspect resolved paths:
 
 ```bash
-canfar auth login              # Science Platform
-cadc-get-cert -u "$USER"       # X509 for vos/cadcdata when needed
+astroai-lab paths
+astroai-lab paths --json
 ```
 
-In project code, pin versions in pixi/uv:
+Move data:
 
 ```bash
-pixi add cadcdata cadctap vos canfar
+astroai-lab data stage /arc/projects/mygroup/raw   # → scratch
+astroai-lab data sync /scratch/results /arc/projects/mygroup/results
 ```
-
-`astroai-lab doctor` reports whether `canfar`, `cadcget`, `pixi`, and `uv` are available.
 
 ---
 
-## Command reference
+## Working with `canfar` and CADC
 
-| Command | Purpose |
-|---------|---------|
-| `astroai-lab` | Brief status |
-| `astroai-lab guide` | Printable cheat sheet |
-| `astroai-lab status` | Quotas, home breakdown, team projects (access/ACL/GMS/vault), `canfar auth`/`canfar ps`, processes |
-| `astroai-lab doctor [--json]` | Paths, caches, tools |
-| `astroai-lab init NAME` | New pixi/uv project |
-| `astroai-lab clone REPO` | `gh` clone + install |
-| `astroai-lab save [NAME]` | Lockfile manifest → `~/.astroai/lab/saves/` |
-| `astroai-lab resume NAME` | Restore saved env |
-| `astroai-lab saves` | List saves (`--json`) |
-| `astroai-lab push` | Git push + env save |
-| `astroai-lab env export` | Bash `export` lines for shells |
-| `astroai-lab env install-shell DEST` | Install profile/hooks (image maintainers) |
-| `astroai-lab agent setup` | MCP + skills (once per user) |
-| `astroai-lab agent install TOOL` | AI CLI → `$ASTROAI_LAB_BIN_DIR` |
-| `astroai-lab agent models free` | Free-tier model presets |
+From a laptop or any AstroAI session:
 
-Add **`--json`** for scripts; **`--yes`** to skip prompts.
+```bash
+canfar login
+canfar create --name demo webterm
+canfar ps
+canfar open <session-id>
+canfar delete <session-id>
+```
 
-Full flag lists: [cli.md](cli.md).
+CADC / VOSpace examples (image PATH):
+
+```bash
+cadcget …
+vls vos:…
+vcp ./local.fits vos:…
+```
+
+`astroai-lab status` includes `canfar auth show` and `canfar ps` when the CLI is available.
+
+---
+
+## Command map
+
+| Goal | Command |
+|------|---------|
+| Status banner | `astroai-lab` |
+| New project | `astroai-lab init NAME` |
+| Clone + install | `astroai-lab clone REPO` |
+| Snapshot env | `astroai-lab save [NAME]` |
+| Restore env | `astroai-lab resume NAME` |
+| List saves | `astroai-lab saves` |
+| Close-out | `astroai-lab push` |
+| Quotas / sessions | `astroai-lab status` |
+| Paths / tools | `astroai-lab paths` · `astroai-lab tools` |
+| Health | `astroai-lab check` · `astroai-lab doctor` |
+| Data | `astroai-lab data stage\|sync` |
+| Clean caches | `astroai-lab clean home\|cache` |
+| Jupyter | `astroai-lab kernel ensure` · `astroai-lab notebook starter` |
+| Agents | `astroai-lab agent setup\|install\|…` |
+| Team dir | `astroai-lab project init` |
+
+Full flags: [cli.md](cli.md).
 
 ---
 
 ## AI coding agents
 
+Persists under `/arc` home (MCP, skills, tool binaries):
+
 ```bash
 astroai-lab agent setup
-astroai-lab agent install kilo    # or goose, cline, opencode, codex, agent
+astroai-lab agent install kilo
 astroai-lab agent models free
-astroai-lab agent update          # after image upgrade
+astroai-lab agent update          # after image upgrades
 ```
 
-Installs go to **`$ASTROAI_LAB_BIN_DIR`** (scratch when mounted, not `$HOME`).
-
-List tools: `astroai-lab agent install --list`
-
----
-
-## Examples
-
-**Shared ML env across clones:**
-
-```bash
-astroai-lab init ml-base && cd ml-base
-pixi add torch numpy
-astroai-lab save ml-base
-astroai-lab clone --from-env ml-base owner/project-a
-```
-
-**Non-interactive push (hooks / CI inside session):**
-
-```bash
-astroai-lab --yes push
-# or: astroai-lab push --yes
-```
-
-**Scriptable diagnostics:**
-
-```bash
-astroai-lab doctor --json | jq .tools
-astroai-lab status --json
-```
+See [cli.md](cli.md) for `agent models free --preset long` and per-agent options.
 
 ---
 
 ## Troubleshooting
 
-| Problem | What to try |
+| Symptom | What to run |
 |---------|-------------|
-| Lost code | `git push` or `astroai-lab push` before closing |
-| `cadcget` auth | `cadc-get-cert -u $USER` |
-| Home quota full | `astroai-lab clean home --all-safe` |
-| Caches on `/arc/home` | `astroai-lab doctor` — should show scratch paths when mounted |
-| Agent missing | `echo $ASTROAI_LAB_BIN_DIR`; new shell or `hash -r` |
+| Paths look wrong / caches under `$HOME` | `astroai-lab doctor --json` then fix env with a login shell (`bash -l`) |
+| Env save failed | `astroai-lab status` (quota); `astroai-lab clean home --all-safe --dry-run` |
+| Kernel missing in Jupyter | `astroai-lab kernel ensure` |
+| `canfar` unknown | Confirm you are on an AstroAI image; `astroai-lab tools` |
+| Need a printable loop | `astroai-lab guide` |
 
 ---
 
 ## See also
 
-- [CANFAR platform docs](https://opencadc.github.io/canfar/)
-- [AstroAI session guide](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md) — images, GPU, CVMFS, portal
+- [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md) — images, portal session types
+- [Ray on AstroAI](https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md) — distributed clusters
+- [astroai-workload](https://github.com/astroai/astroai-workload) — submit Ray Jobs from Python
+- [CANFAR client docs](https://opencadc.github.io/canfar/)
