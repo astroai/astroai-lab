@@ -52,18 +52,6 @@ def list_presets() -> dict[str, dict[str, str]]:
     return dict(PRESETS)
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    return read_json(path)
-
-
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    write_json(path, data)
-
-
-def _merge_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    return merge_dicts(base, overlay)
-
-
 def _openrouter_model(model: str) -> str:
     return model if model.startswith("openrouter/") else f"openrouter/{model}"
 
@@ -88,7 +76,7 @@ def apply_kilo(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
         return False
     if dry_run:
         return True
-    data = _read_json(_template("kilo.jsonc"))
+    data = read_json(_template("kilo.jsonc"))
     data["model"] = PRESETS[preset]["kilo"]
     cfg.parent.mkdir(parents=True, exist_ok=True)
     cfg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -125,18 +113,18 @@ def apply_opencode(home: Path, preset: str, *, force: bool, dry_run: bool) -> bo
     if not cfg.is_file() or force:
         base: dict[str, Any] = {}
         if cfg.is_file():
-            base = _read_json(cfg)
-        merged = _merge_dicts(base, overlay)
+            base = read_json(cfg)
+        merged = merge_dicts(base, overlay)
         if dry_run:
             return True
-        _write_json(cfg, merged)
+        write_json(cfg, merged)
         return True
-    data = _read_json(cfg)
+    data = read_json(cfg)
     if data.get("model") == model and not force:
         return False
     if dry_run:
         return True
-    _write_json(cfg, _merge_dicts(data, overlay))
+    write_json(cfg, merge_dicts(data, overlay))
     return True
 
 
