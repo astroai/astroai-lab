@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -8,7 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
-from astroai_lab.agent.free_models import apply_free_models, apply_kilo, free_models_guide
+from astroai_lab.agent.free_models import (
+    OPENROUTER_KEY_ENV,
+    apply_free_models,
+    apply_kilo,
+    free_models_guide,
+)
 from astroai_lab.errors import LabError
 
 
@@ -114,6 +120,107 @@ def merge_opencode_mcp(src: Path, dst: Path, *, force: bool, dry_run: bool) -> N
     data["mcp"] = _merge_dicts(data.get("mcp", {}), overlay.get("mcp", {}))
     data["lsp"] = _merge_dicts(data.get("lsp", {}), overlay.get("lsp", {}))
     _write_json(dst, data)
+
+
+def _toml_get(data: dict[str, Any], *keys: str) -> Any:
+    """Walk nested dict keys; return None if any key missing."""
+    for key in keys:
+        if not isinstance(data, dict):
+            return None
+        data = data.get(key)
+    return data
+
+
+def _merge_marimo_openrouter(cfg: Path, *, force: bool, dry_run: bool) -> None:
+    """Ensure ~/.marimo.toml has [ai.openrouter] api_key from OPENROUTER_API_KEY env.
+
+    Merge strategy (never overwrites user settings outside the AI sections):
+    1. If file missing, copy template from bundle data.
+    2. Check if api_key already set (tomllib).
+    3. If not set and env var present, inject api_key under [ai.openrouter].
+    """
+    root = bundle_root()
+    template = root / "marimo" / "marimo.toml"
+
+    if not cfg.is_file():
+        if not dry_run:
+            cfg.parent.mkdir(parents=True, exist_ok=True)
+            if template.is_file():
+                shutil.copy2(template, cfg)
+            else:
+                cfg.write_text(
+                    "# Marimo AI assistant — astroai-lab agent setup\n\n"
+                    "[ai.openrouter]\n"
+                    'base_url = "https://openrouter.ai/api/v1"\n',
+                    encoding="utf-8",
+                )
+
+    key = os.environ.get(OPENROUTER_KEY_ENV) or os.environ.get("OPENROUTER_KEY")
+    if not key:
+        return
+
+    # Check if api_key is already set using tomllib (stdlib 3.11+) or tomli
+    text = cfg.read_text(encoding="utf-8")
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore[no-redef]
+        except ImportError:
+            tomllib = None  # type: ignore[assignment]
+
+    if tomllib is not None:
+        try:
+            data = tomllib.loads(text)
+            current_key = _toml_get(data, "ai", "openrouter", "api_key")
+            if current_key and not force:
+                return
+        except Exception:
+            pass
+
+    if dry_run:
+        return
+
+    # Line-based merge: find [ai.openrouter] section and insert/update api_key
+    section_header = "[ai.openrouter]"
+    lines = text.splitlines()
+    section_idx: int | None = None
+    next_section_idx: int | None = None
+
+    for i, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped == section_header:
+            section_idx = i
+        elif section_idx is not None and stripped.startswith("[") and stripped.endswith("]"):
+            next_section_idx = i
+            break
+
+    if section_idx is not None:
+        # Section exists — look for existing api_key line within the section
+        section_end = next_section_idx if next_section_idx is not None else len(lines)
+        api_key_idx: int | None = None
+        for i in range(section_idx + 1, section_end):
+            if lines[i].strip().startswith("api_key"):
+                api_key_idx = i
+                break
+
+        if api_key_idx is not None:
+            if force:
+                indent = len(lines[api_key_idx]) - len(lines[api_key_idx].lstrip())
+                lines[api_key_idx] = " " * indent + f'api_key = "{key}"'
+                cfg.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return
+
+        # No api_key yet — insert right after the section header line
+        lines.insert(section_idx + 1, f'api_key = "{key}"')
+        cfg.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    else:
+        # Section missing — append at end
+        sep = "\n\n" if text.rstrip() else "\n"
+        cfg.write_text(
+            f"{text.rstrip()}{sep}[ai.openrouter]\napi_key = \"{key}\"\n",
+            encoding="utf-8",
+        )
 
 
 def install_goose_config(root: Path, home: Path, *, force: bool, dry_run: bool) -> None:
@@ -393,9 +500,15 @@ def run_bundle(
                 with bashrc.open("a", encoding="utf-8") as fh:
                     fh.write(
                         f"\n{marker}\n"
-                        '[[ -f "${HOME}/.config/astroai/lab/agent-env.sh" ]] '
-                        '&& source "${HOME}/.config/astroai/lab/agent-env.sh"\n'
+                        '[[ -f "${HOME}/.config/canfar/lab/agent-env.sh" ]] '
+                        '&& source "${HOME}/.config/canfar/lab/agent-env.sh"\n'
                     )
+    elif name == "marimo":
+        _merge_marimo_openrouter(
+            home / ".marimo.toml",
+            force=force,
+            dry_run=dry_run,
+        )
     elif name == "project":
         if project_dir is None:
             raise LabError("Project directory required.", hint="astroai-lab agent project [dir]")
@@ -473,6 +586,9 @@ def verify_setup(home: Path) -> list[str]:
     skill = home / ".cursor" / "skills" / "astroai-lab-workflow" / "SKILL.md"
     if not skill.is_file():
         issues.append("astroai-lab-workflow skill missing")
+    marimo = home / ".marimo.toml"
+    if marimo.is_file() and "openrouter" not in marimo.read_text(encoding="utf-8"):
+        issues.append("marimo.toml missing OpenRouter config — run: astroai-lab agent setup marimo")
     return issues
 
 

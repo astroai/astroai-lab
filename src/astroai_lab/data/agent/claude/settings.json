@@ -11,8 +11,7 @@
       "Bash(pix*:*)",
       "Bash(uv:*)",
       "Bash(shellcheck:*)",
-      "Bash(pixi:*)",
-      "Bash(uv:*)"
+      "Bash(pixi:*)"
     ]
   }
 }

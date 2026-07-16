@@ -216,8 +216,8 @@ def ensure_openrouter_in_agent_env(home: Path, *, dry_run: bool) -> None:
     marker = "# astroai-lab openrouter"
     line = (
         f"{marker}\n"
-        '[[ -f "${HOME}/.config/astroai/lab/openrouter.env" ]] '
-        '&& source "${HOME}/.config/astroai/lab/openrouter.env"\n'
+        '[[ -f "${HOME}/.config/canfar/lab/openrouter.env" ]] '
+        '&& source "${HOME}/.config/canfar/lab/openrouter.env"\n'
     )
     if dry_run:
         return
@@ -263,7 +263,7 @@ def apply_free_models(
     if apply_codex(home, preset, force=force, dry_run=dry_run):
         actions.append(f"codex → {info['openrouter']}")
     if write_openrouter_env(home, dry_run=dry_run):
-        actions.append("openrouter.env written (~/.config/astroai/lab/)")
+        actions.append("openrouter.env written (~/.config/canfar/lab/)")
     ensure_openrouter_in_agent_env(home, dry_run=dry_run)
 
     if not skip_cline:
