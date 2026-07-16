@@ -67,10 +67,7 @@ def _under_home(path: Path, home: Path) -> bool:
 
 def _is_protected(path: Path, home: Path) -> bool:
     rel = str(path.resolve().relative_to(home.resolve())) if _under_home(path, home) else ""
-    for prot in HOME_PROTECTED:
-        if rel == prot or rel.startswith(prot + "/"):
-            return True
-    return False
+    return any(rel == prot or rel.startswith(prot + "/") for prot in HOME_PROTECTED)
 
 
 def _path_bytes(path: Path) -> int:

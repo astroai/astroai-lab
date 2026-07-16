@@ -15,9 +15,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
             "ASTROAI_LAB_SCRATCH_DIR",
             "ASTROAI_LAB_DEFAULT_SCRATCH_DIR",
             "ASTROAI_LAB_DEFAULT_SRC_DIR",
-        ):
-            keys_to_remove.append(key)
-        elif key in ("UV_CACHE_DIR", "PIP_CACHE_DIR", "PIXI_CACHE_DIR", "MAMBA_PKGS_DIRS"):
+        ) or key in ("UV_CACHE_DIR", "PIP_CACHE_DIR", "PIXI_CACHE_DIR", "MAMBA_PKGS_DIRS"):
             keys_to_remove.append(key)
 
     for key in keys_to_remove:

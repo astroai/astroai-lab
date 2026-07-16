@@ -83,16 +83,14 @@ def test_vault_statuses_with_mock_client() -> None:
     client.size.return_value = 512
     gms = GmsGroups(groups=["team-ro"], source="test")
 
-    with patch.dict(sys.modules, {"vos": MagicMock()}):
-        with patch(
-            "astroai_lab.core.vospace_status._vos_client",
-            return_value=(client, "anonymous"),
-        ):
-            with patch(
-                "astroai_lab.core.vospace_status.candidate_vault_names",
-                return_value=["team"],
-            ):
-                status = vault_statuses(arc_names=["team"], gms=gms)
+    with patch.dict(sys.modules, {"vos": MagicMock()}), patch(
+        "astroai_lab.core.vospace_status._vos_client",
+        return_value=(client, "anonymous"),
+    ), patch(
+        "astroai_lab.core.vospace_status.candidate_vault_names",
+        return_value=["team"],
+    ):
+        status = vault_statuses(arc_names=["team"], gms=gms)
 
     assert status is not None
     assert status.auth == "anonymous"
@@ -103,16 +101,14 @@ def test_vault_statuses_with_mock_client() -> None:
 
 def test_vault_statuses_empty_candidates() -> None:
     client = MagicMock()
-    with patch.dict(sys.modules, {"vos": MagicMock()}):
-        with patch(
-            "astroai_lab.core.vospace_status._vos_client",
-            return_value=(client, "netrc"),
-        ):
-            with patch(
-                "astroai_lab.core.vospace_status.candidate_vault_names",
-                return_value=[],
-            ):
-                status = vault_statuses(arc_names=[], gms=None)
+    with patch.dict(sys.modules, {"vos": MagicMock()}), patch(
+        "astroai_lab.core.vospace_status._vos_client",
+        return_value=(client, "netrc"),
+    ), patch(
+        "astroai_lab.core.vospace_status.candidate_vault_names",
+        return_value=[],
+    ):
+        status = vault_statuses(arc_names=[], gms=None)
 
     assert status is not None
     assert status.nodes == []

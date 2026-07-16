@@ -123,18 +123,17 @@ def _merge_marimo_openrouter(cfg: Path, *, force: bool, dry_run: bool) -> None:
     root = bundle_root()
     template = root / "marimo" / "marimo.toml"
 
-    if not cfg.is_file():
-        if not dry_run:
-            cfg.parent.mkdir(parents=True, exist_ok=True)
-            if template.is_file():
-                shutil.copy2(template, cfg)
-            else:
-                cfg.write_text(
-                    "# Marimo AI assistant — astroai-lab agent setup\n\n"
-                    "[ai.openrouter]\n"
-                    'base_url = "https://openrouter.ai/api/v1"\n',
-                    encoding="utf-8",
-                )
+    if not cfg.is_file() and not dry_run:
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        if template.is_file():
+            shutil.copy2(template, cfg)
+        else:
+            cfg.write_text(
+                "# Marimo AI assistant — astroai-lab agent setup\n\n"
+                "[ai.openrouter]\n"
+                'base_url = "https://openrouter.ai/api/v1"\n',
+                encoding="utf-8",
+            )
 
     key = os.environ.get(OPENROUTER_KEY_ENV) or os.environ.get("OPENROUTER_KEY")
     if not key:
@@ -156,7 +155,7 @@ def _merge_marimo_openrouter(cfg: Path, *, force: bool, dry_run: bool) -> None:
             current_key = _toml_get(data, "ai", "openrouter", "api_key")
             if current_key and not force:
                 return
-        except Exception:
+        except Exception:  # noqa: BLE001 — tomllib may be absent or TOML unparseable; fall through to line-based merge
             pass
 
     if dry_run:
@@ -464,26 +463,24 @@ def run_bundle(
             dry_run=dry_run,
         )
         hook = home / ".config" / "canfar" / "lab" / "agent-env.sh"
-        if force or not hook.is_file():
-            if not dry_run:
-                hook.parent.mkdir(parents=True, exist_ok=True)
-                hook.write_text(
-                    "# AstroAI lab agent setup — GitHub token for gh + GitHub MCP\n"
-                    "if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then\n"
-                    '  export GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"\n'
-                    "fi\n",
-                    encoding="utf-8",
-                )
+        if (force or not hook.is_file()) and not dry_run:
+            hook.parent.mkdir(parents=True, exist_ok=True)
+            hook.write_text(
+                "# AstroAI lab agent setup — GitHub token for gh + GitHub MCP\n"
+                "if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then\n"
+                '  export GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"\n'
+                "fi\n",
+                encoding="utf-8",
+            )
         bashrc = home / ".bashrc"
         marker = "# astroai-lab agent setup"
-        if bashrc.exists() and marker not in bashrc.read_text():
-            if not dry_run:
-                with bashrc.open("a", encoding="utf-8") as fh:
-                    fh.write(
-                        f"\n{marker}\n"
-                        '[[ -f "${HOME}/.config/canfar/lab/agent-env.sh" ]] '
-                        '&& source "${HOME}/.config/canfar/lab/agent-env.sh"\n'
-                    )
+        if bashrc.exists() and marker not in bashrc.read_text() and not dry_run:
+            with bashrc.open("a", encoding="utf-8") as fh:
+                fh.write(
+                    f"\n{marker}\n"
+                    '[[ -f "${HOME}/.config/canfar/lab/agent-env.sh" ]] '
+                    '&& source "${HOME}/.config/canfar/lab/agent-env.sh"\n'
+                )
     elif name == "marimo":
         _merge_marimo_openrouter(
             home / ".marimo.toml",

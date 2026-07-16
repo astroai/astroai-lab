@@ -1,3 +1,4 @@
+import contextlib
 import shutil
 from typing import Annotated
 
@@ -14,6 +15,8 @@ from astroai_lab.core.storage import (
     top_cpu_processes,
 )
 from astroai_lab.core.vospace_status import vault_status_dict
+from astroai_lab.errors import LabError
+from astroai_lab.utils.subprocess import run_capture
 
 
 def register(app: typer.Typer) -> None:
@@ -38,19 +41,21 @@ def register(app: typer.Typer) -> None:
         seen_quota_labels = {q.label for q in quotas}
         arc_names = {p.name.casefold() for p in arc_projects}
         for proj in arc_projects:
-            if proj.vault is not None and proj.vault.found:
-                if q := proj.vault.quota_line(current=proj.is_cwd):
-                    if q.label not in seen_quota_labels:
-                        quotas.append(q)
-                        seen_quota_labels.add(q.label)
+            if (
+                proj.vault is not None
+                and proj.vault.found
+                and (q := proj.vault.quota_line(current=proj.is_cwd))
+                and q.label not in seen_quota_labels
+            ):
+                quotas.append(q)
+                seen_quota_labels.add(q.label)
         if vault is not None:
             for node in vault.nodes:
                 if not node.found or node.name.casefold() in arc_names:
                     continue
-                if q := node.quota_line():
-                    if q.label not in seen_quota_labels:
-                        quotas.append(q)
-                        seen_quota_labels.add(q.label)
+                if (q := node.quota_line()) and q.label not in seen_quota_labels:
+                    quotas.append(q)
+                    seen_quota_labels.add(q.label)
         home_rows = home_breakdown(paths.home)
         procs = top_cpu_processes()
 
@@ -58,17 +63,11 @@ def register(app: typer.Typer) -> None:
         canfar_sessions = None
         if shutil.which("canfar") is not None:
             try:
-                from astroai_lab.utils.subprocess import run_capture
-
                 canfar_auth = run_capture(["canfar", "auth", "show"])
-            except Exception:
+            except LabError:
                 canfar_auth = "Not authenticated"
-            try:
-                from astroai_lab.utils.subprocess import run_capture
-
+            with contextlib.suppress(LabError):
                 canfar_sessions = run_capture(["canfar", "ps"]).splitlines()
-            except Exception:
-                pass
 
         if opts.json:
             ui.print_json(

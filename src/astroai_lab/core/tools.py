@@ -9,6 +9,7 @@ from pathlib import Path
 
 from astroai_lab.core.git import git_status
 from astroai_lab.core.paths import quota_used_pct, resolve_paths
+from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run_capture
 
 # (command, version args) — empty args means presence-only.
@@ -83,7 +84,7 @@ def tool_info(name: str, version_args: tuple[str, ...] = ()) -> ToolInfo:
         try:
             out = run_capture([name, *version_args])
             version = _first_version_line(out)
-        except Exception:
+        except LabError:
             version = None
     return ToolInfo(name=name, available=True, path=path, version=version)
 
@@ -149,7 +150,7 @@ def _astroai_lab_available() -> ToolInfo:
             path="(importable)",
             version=f"astroai-lab {__version__}",
         )
-    except Exception:
+    except ImportError:
         return info
 
 

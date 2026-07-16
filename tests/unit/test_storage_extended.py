@@ -130,9 +130,8 @@ def test_collect_status_quotas_includes_home_and_scratch(tmp_path: Path) -> None
     home.mkdir()
     scratch.mkdir()
     q = QuotaLine(label="x", path="p", used="1", total="2", free="1", pct=50)
-    with patch("astroai_lab.core.storage.df_line", return_value=q):
-        with patch(
-            "astroai_lab.core.storage.arc_project_statuses", return_value=(None, [], None, None)
-        ):
-            rows = collect_status_quotas(home=home, scratch=scratch)
+    with patch("astroai_lab.core.storage.df_line", return_value=q), patch(
+        "astroai_lab.core.storage.arc_project_statuses", return_value=(None, [], None, None)
+    ):
+        rows = collect_status_quotas(home=home, scratch=scratch)
     assert len(rows) == 2

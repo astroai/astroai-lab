@@ -30,9 +30,8 @@ def test_init_team_project_success(tmp_path: Path) -> None:
     with patch(
         "astroai_lab.core.team.Path",
         lambda *args: fake_arc if args == ("/arc/projects",) else Path(*args),
-    ):
-        with patch("astroai_lab.core.team.subprocess.run") as mock_run:
-            proj = init_team_project("mygroup", members=["alice", "bob"])
+    ), patch("astroai_lab.core.team.subprocess.run") as mock_run:
+        proj = init_team_project("mygroup", members=["alice", "bob"])
     assert proj == fake_arc / "mygroup"
     assert (proj / "data").is_dir()
     assert (proj / "results").is_dir()

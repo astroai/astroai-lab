@@ -41,11 +41,11 @@ def save_workspace(
         check=True,
     )
     with archive.open("wb") as out:
+        # communicate(input=...) writes stdin, closes it, drains stdout/stderr,
+        # and waits — avoids deadlock when the tar output is large or zstd
+        # blocks on a full pipe buffer.
         zstd = subprocess.Popen(["zstd", "-T0", "-"], stdin=subprocess.PIPE, stdout=out)
-        assert zstd.stdin is not None
-        zstd.stdin.write(proc.stdout)
-        zstd.stdin.close()
-        zstd.wait()
+        zstd.communicate(input=proc.stdout)
 
     if with_cache:
         import os
@@ -83,8 +83,14 @@ def restore_workspace(
         raise LabError(f"Missing project archive in {bundle}")
 
     zstd = subprocess.Popen(["zstd", "-d", "-c", str(archive)], stdout=subprocess.PIPE)
-    subprocess.run(["tar", "-xf", "-", "-C", str(dest.parent)], stdin=zstd.stdout, check=True)
-    zstd.wait()
+    try:
+        subprocess.run(["tar", "-xf", "-", "-C", str(dest.parent)], stdin=zstd.stdout, check=True)
+    finally:
+        # communicate() drains remaining output and waits — avoids deadlock
+        # when tar fails mid-stream and the zstd pipe is still open.
+        zstd.communicate()
+        if zstd.returncode not in (0, None):
+            raise LabError("Failed to decompress workspace archive")
     return dest
 
 
@@ -95,8 +101,8 @@ def tar_zst(source: Path, dest: Path, *, arcname: str) -> None:
         check=True,
     )
     with dest.open("wb") as out:
+        # communicate(input=...) writes stdin, closes it, drains stdout/stderr,
+        # and waits — avoids deadlock when tar output is large or zstd
+        # blocks on a full pipe buffer.
         zstd = subprocess.Popen(["zstd", "-T0", "-"], stdin=subprocess.PIPE, stdout=out)
-        assert zstd.stdin is not None
-        zstd.stdin.write(proc.stdout)
-        zstd.stdin.close()
-        zstd.wait()
+        zstd.communicate(input=proc.stdout)

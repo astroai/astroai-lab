@@ -69,4 +69,4 @@ target-version = "py310"
 extend-exclude = ["*.ipynb", "src/astroai_lab/data/notebooks/starter.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "BLE", "SIM", "PIE"]

@@ -118,15 +118,13 @@ def test_data_stage_missing_source(lab_env: Path) -> None:
 
 
 def test_status_command(lab_env: Path) -> None:
-    with patch("astroai_lab.cli.status.collect_status_quotas", return_value=[]):
-        with patch(
-            "astroai_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)
-        ):
-            with patch("astroai_lab.cli.status.home_breakdown", return_value=[]):
-                with patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]):
-                    for argv in (["status"], ["status", "--json"], ["--json", "status"]):
-                        result = runner.invoke(app, argv)
-                        assert result.exit_code == 0, result.output
+    with patch("astroai_lab.cli.status.collect_status_quotas", return_value=[]), patch(
+        "astroai_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)
+    ), patch("astroai_lab.cli.status.home_breakdown", return_value=[]):
+        with patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]):
+            for argv in (["status"], ["status", "--json"], ["--json", "status"]):
+                result = runner.invoke(app, argv)
+                assert result.exit_code == 0, result.output
 
 
 def test_status_json_includes_arc_projects(lab_env: Path) -> None:

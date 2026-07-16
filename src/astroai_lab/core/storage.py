@@ -251,7 +251,6 @@ def collect_status_quotas(
                     current=True,
                 )
             )
-    if scratch is not None:
-        if q := df_line(scratch, "scratch"):
-            quotas.append(q)
+    if scratch is not None and (q := df_line(scratch, "scratch")):
+        quotas.append(q)
     return quotas

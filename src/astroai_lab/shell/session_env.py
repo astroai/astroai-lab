@@ -25,30 +25,42 @@ def _path_under_roots(path: Path, *roots: Path) -> bool:
 
 
 def _session_cache_path(var: str, default: Path, work: Path, scratch: Path | None) -> Path:
-    """Scratch-backed caches win over image build-time ENV when scratch is mounted."""
-    if scratch is None:
-        raw = os.environ.get(var, "").strip()
-        return Path(raw) if raw else default
+    """Scratch-backed caches win over image build-time ENV when scratch is mounted.
+
+    When scratch is absent, a pre-existing env value is kept only if it already
+    lives under the work dir; otherwise the build-time system-prefix default
+    (e.g. /usr/local/share/pixi/cache) is redirected to the session default.
+    """
     raw = os.environ.get(var, "").strip()
     if raw:
         path = Path(raw)
-        if _path_under_roots(path, scratch, work):
+        roots: list[Path] = [work]
+        if scratch is not None:
+            roots.append(scratch)
+        if _path_under_roots(path, *roots):
             return path
     return default
 
 
 def _session_runtime_path(var: str, default: Path, scratch: Path | None) -> Path:
-    """Runtime roots (uv/pixi/mamba) stay off /usr/local when scratch is mounted."""
-    if scratch is None:
-        raw = os.environ.get(var, "").strip()
-        return Path(raw) if raw else default
+    """Runtime roots (uv/pixi/mamba) stay off /usr/local build-time prefixes.
+
+    A pre-existing env value is kept only if it already lives under the runtime
+    root (ASTROAI_LAB_RUNTIME_ROOT) or scratch; otherwise the build-time
+    system-prefix default (e.g. /usr/local/share/micromamba) is redirected to
+    the session default.
+    """
     raw = os.environ.get(var, "").strip()
     if raw:
         path = Path(raw)
         runtime_root = os.environ.get("ASTROAI_LAB_RUNTIME_ROOT", "").strip()
-        roots = [scratch]
+        roots: list[Path] = []
+        if scratch is not None:
+            roots.append(scratch)
         if runtime_root:
-            roots.append(Path(runtime_root))
+            rp = Path(runtime_root)
+            if rp not in roots:
+                roots.append(rp)
         if _path_under_roots(path, *roots):
             return path
     return default

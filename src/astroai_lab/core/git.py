@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,7 +58,5 @@ def git_init_and_commit(target: Path, message: str = "Initial commit") -> None:
     if not (target / ".git").exists():
         run(["git", "init", "-q"], cwd=target)
     run(["git", "add", "-A"], cwd=target)
-    try:
+    with contextlib.suppress(LabError):
         run(["git", "commit", "-m", message, "--quiet"], cwd=target)
-    except LabError:
-        pass

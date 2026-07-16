@@ -100,25 +100,22 @@ def _vault_gms_member(
     if gms is None:
         return None
     names = {g.casefold() for g in gms.groups}
-    for group in (read_group, write_group):
-        if group and group.casefold() in names:
-            return True
-    return False
+    return any(group and group.casefold() in names for group in (read_group, write_group))
 
 
-def _node_used_bytes(client, uri: str, props: dict) -> int | None:
+def _node_used_bytes(client, uri: str, props: dict) -> int:
     used = _int_prop(props, "length")
     if used is not None:
         return used
     try:
         size = client.size(uri)
-    except Exception:
+    except Exception:  # noqa: BLE001 — vos.Client.size() can raise arbitrary transport errors
         logger.debug("vault size lookup failed for %s", uri, exc_info=True)
-        return None
+        return 0
     try:
         return int(size)
     except (TypeError, ValueError):
-        return None
+        return 0
 
 
 def vault_node_status(
@@ -130,7 +127,7 @@ def vault_node_status(
     uri = f"{VAULT_SCHEME}:/{name}"
     try:
         node = client.get_node(uri)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — vos.Client.get_node() transport; NotFound handled below
         err_name = type(exc).__name__
         if err_name in {"NotFoundException", "NodeNotFound"}:
             return VaultNodeStatus(
@@ -173,7 +170,7 @@ def _discover_vault_names(client, gms: GmsGroups | None) -> list[str]:
     discovered: list[str] = []
     try:
         root = client.get_node(f"{VAULT_SCHEME}:/", limit=500)
-    except Exception:
+    except Exception:  # noqa: BLE001 — vos.Client.get_node("/") listing; no VOSpace available is not fatal
         logger.debug("vault root listing failed", exc_info=True)
         return []
     for child in getattr(root, "nodes", []) or []:
@@ -225,7 +222,7 @@ def vault_statuses(
 
     try:
         client, auth = _vos_client()
-    except Exception:
+    except Exception:  # noqa: BLE001 — vos.Client() auth init; status shows "unavailable" gracefully
         logger.debug("vos client init failed", exc_info=True)
         return None
 

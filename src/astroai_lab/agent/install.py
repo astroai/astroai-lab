@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import platform
 import shutil
@@ -71,10 +72,8 @@ def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
 def _link_into_local_bin(src: Path, name: str) -> None:
     if not src.is_file():
         return
-    try:
+    with contextlib.suppress(OSError):
         src.chmod(src.stat().st_mode | 0o111)
-    except OSError:
-        pass
     dst = _bin_dir() / name
     try:
         if src.resolve() == dst.resolve():
@@ -126,10 +125,8 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
     if found is None:
         raise LabError(f"Binary {binary} not found in {asset}")
     shutil.copy2(found, _bin_dir() / binary)
-    try:
+    with contextlib.suppress(OSError):
         (_bin_dir() / binary).chmod((_bin_dir() / binary).stat().st_mode | 0o111)
-    except OSError:
-        pass
     archive.unlink(missing_ok=True)
 
 
@@ -192,10 +189,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         src = _bin_dir() / binary
         if src.is_file():
             src.rename(_bin_dir() / "codex")
-        try:
+        with contextlib.suppress(OSError):
             (_bin_dir() / "codex").chmod((_bin_dir() / "codex").stat().st_mode | 0o111)
-        except OSError:
-            pass
         _verify_cmd("codex")
     elif name == "copilot":
         env = {"PREFIX": str(_npm_prefix()), "CI": "1"}

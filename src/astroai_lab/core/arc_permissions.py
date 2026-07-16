@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from astroai_lab.core.cadc_auth import cadc_cli_auth_args
+from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run_capture
 
 
@@ -59,7 +60,7 @@ def read_acl_groups(path: Path) -> list[AclGroupEntry]:
         return []
     try:
         out = run_capture(["getfacl", "-p", str(path)])
-    except Exception:
+    except LabError:
         return []
     _, groups = parse_getfacl_output(out)
     return groups
@@ -86,7 +87,7 @@ def list_gms_groups() -> GmsGroups | None:
     cmd = ["cadc-groups", "list", "-q", *auth]
     try:
         out = run_capture(cmd)
-    except Exception:
+    except LabError:
         return None
     groups = [line.strip() for line in out.splitlines() if line.strip()]
     return GmsGroups(groups=sorted(groups, key=str.lower), source=" ".join(cmd))

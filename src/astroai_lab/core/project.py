@@ -35,16 +35,14 @@ def require_project(directory: Path) -> ProjectKind:
 def install_project(directory: Path, *, bootstrap_lock: bool = False, quiet: bool = False) -> None:
     kind = require_project(directory)
     if kind == ProjectKind.PIXI:
-        if bootstrap_lock:
-            if not _run_pixi_install(directory, allow_fail=True):
-                (directory / "pixi.lock").unlink(missing_ok=True)
-                run(["pixi", "lock"], cwd=directory, quiet=quiet)
+        if bootstrap_lock and not _run_pixi_install(directory, allow_fail=True):
+            (directory / "pixi.lock").unlink(missing_ok=True)
+            run(["pixi", "lock"], cwd=directory, quiet=quiet)
         run(["pixi", "install"], cwd=directory, quiet=quiet)
     else:
-        if bootstrap_lock:
-            if not _run_uv_sync(directory, allow_fail=True):
-                (directory / "uv.lock").unlink(missing_ok=True)
-                run(["uv", "lock"], cwd=directory, quiet=quiet)
+        if bootstrap_lock and not _run_uv_sync(directory, allow_fail=True):
+            (directory / "uv.lock").unlink(missing_ok=True)
+            run(["uv", "lock"], cwd=directory, quiet=quiet)
         run(["uv", "sync"], cwd=directory, quiet=quiet)
 
 
@@ -118,7 +116,7 @@ def save_env(name: str, save_dir: Path, source: Path, *, full: bool = False) -> 
 
         try:
             tar_zst(source / env_dir, packed, arcname=env_dir)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — re-raised as user-facing LabError; any tar/zstd failure qualifies
             raise LabError("Failed to compress environment pack") from exc
 
     return save_dir
@@ -228,9 +226,9 @@ def restore_env(save_dir: Path, target: Path) -> None:
         try:
             subprocess.run(["tar", "-xf", "-"], cwd=target, stdin=zstd.stdout, check=True)
         finally:
-            if zstd.stdout:
-                zstd.stdout.close()
-            zstd.wait()
+            # communicate() drains remaining output and waits — avoids deadlock
+            # when tar fails mid-stream and the zstd pipe is still open.
+            zstd.communicate()
             if zstd.returncode not in (0, None):
                 raise LabError("Failed to decompress full environment pack")
     else:

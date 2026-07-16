@@ -54,12 +54,11 @@ def test_project_gms_member_matches_name_or_acl() -> None:
 def test_read_acl_groups_uses_getfacl(tmp_path: Path) -> None:
     proj = tmp_path / "proj"
     proj.mkdir()
-    with patch("astroai_lab.core.arc_permissions.shutil.which", return_value="getfacl"):
-        with patch(
-            "astroai_lab.core.arc_permissions.run_capture",
-            return_value="group:team:rwx\nmask::rwx",
-        ):
-            groups = read_acl_groups(proj)
+    with patch("astroai_lab.core.arc_permissions.shutil.which", return_value="getfacl"), patch(
+        "astroai_lab.core.arc_permissions.run_capture",
+        return_value="group:team:rwx\nmask::rwx",
+    ):
+        groups = read_acl_groups(proj)
     assert groups == [AclGroupEntry(name="team", perms="rwx")]
 
 

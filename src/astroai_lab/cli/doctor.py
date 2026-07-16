@@ -10,6 +10,7 @@ from astroai_lab import ui
 from astroai_lab.cli.context import get_opts
 from astroai_lab.core.home_hygiene import check_home_cache_hygiene
 from astroai_lab.core.paths import quota_used_pct, resolve_paths
+from astroai_lab.errors import LabError
 from astroai_lab.shell.session_env import resolve_session_env
 
 doctor_app = typer.Typer(help="Full session diagnostic.", invoke_without_command=True)
@@ -45,7 +46,7 @@ def doctor_cmd(
             from astroai_lab.utils.subprocess import run_capture
 
             canfar_auth = run_capture(["canfar", "auth", "show"])
-        except Exception:
+        except LabError:
             canfar_auth = "Not authenticated"
 
     gpu = None
@@ -54,7 +55,7 @@ def doctor_cmd(
             from astroai_lab.utils.subprocess import run_capture
 
             gpu = run_capture(["nvidia-smi", "-L"]).strip() or "present"
-        except Exception:
+        except LabError:
             gpu = "nvidia-smi failed"
 
     hygiene = check_home_cache_hygiene(
