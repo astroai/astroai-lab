@@ -110,7 +110,7 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
     _require("gh")
     _require("curl")
     run_capture(["gh", "auth", "status"])
-    tmp = Path(os.environ.get("TMPDIR", "/tmp"))
+    tmp = Path(os.environ.get("TMPDIR", "").strip() or "/tmp")
     tmp.mkdir(parents=True, exist_ok=True)
     run(["gh", "release", "download", "-R", repo, "-p", asset, "-D", str(tmp)])
     archive = tmp / asset

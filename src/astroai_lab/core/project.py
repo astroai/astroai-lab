@@ -101,7 +101,7 @@ def save_env(name: str, save_dir: Path, source: Path, *, full: bool = False) -> 
         kind=kind,
         saved_at=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         saved_from=str(source.resolve()),
-        user=os.environ.get("USER", "unknown"),
+        user=os.environ.get("USER", "").strip() or "unknown",
         full=full,
     )
     write_manifest(save_dir / "manifest.json", manifest)

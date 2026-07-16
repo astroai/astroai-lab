@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.agent.free_models import (
@@ -16,6 +14,7 @@ from astroai_lab.agent.free_models import (
     free_models_guide,
 )
 from astroai_lab.errors import LabError
+from astroai_lab.utils.json_utils import merge_dicts, read_json, write_json
 
 
 @dataclass(frozen=True)
@@ -24,25 +23,6 @@ class SourceUpdateResult:
     repo: str
     status: str
     detail: str = ""
-
-
-def _merge_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    out = dict(base)
-    for key, val in overlay.items():
-        if isinstance(val, dict) and isinstance(out.get(key), dict):
-            out[key] = _merge_dicts(out[key], val)
-        else:
-            out[key] = val
-    return out
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
 def install_file(src: Path, dst: Path, *, force: bool, dry_run: bool) -> bool:
@@ -85,12 +65,12 @@ def merge_mcp_servers(src_json: Path, dst_json: Path, *, force: bool, dry_run: b
         return
     if dry_run:
         return
-    merged = _merge_dicts(_read_json(dst_json), _read_json(src_json))
-    servers = _merge_dicts(
+    merged = merge_dicts(read_json(dst_json), read_json(src_json))
+    servers = merge_dicts(
         merged.get("mcpServers", {}),
-        _read_json(src_json).get("mcpServers", {}),
+        read_json(src_json).get("mcpServers", {}),
     )
-    _write_json(dst_json, {"mcpServers": servers})
+    write_json(dst_json, {"mcpServers": servers})
 
 
 def merge_claude_json(src_mcp: Path, dst: Path, *, force: bool, dry_run: bool) -> None:
@@ -101,10 +81,10 @@ def merge_claude_json(src_mcp: Path, dst: Path, *, force: bool, dry_run: bool) -
         return
     if dry_run:
         return
-    data = _read_json(dst)
-    overlay = _read_json(src_mcp)
-    data["mcpServers"] = _merge_dicts(data.get("mcpServers", {}), overlay.get("mcpServers", {}))
-    _write_json(dst, data)
+    data = read_json(dst)
+    overlay = read_json(src_mcp)
+    data["mcpServers"] = merge_dicts(data.get("mcpServers", {}), overlay.get("mcpServers", {}))
+    write_json(dst, data)
 
 
 def merge_opencode_mcp(src: Path, dst: Path, *, force: bool, dry_run: bool) -> None:
@@ -115,11 +95,11 @@ def merge_opencode_mcp(src: Path, dst: Path, *, force: bool, dry_run: bool) -> N
         return
     if dry_run:
         return
-    data = _read_json(dst)
-    overlay = _read_json(src)
-    data["mcp"] = _merge_dicts(data.get("mcp", {}), overlay.get("mcp", {}))
-    data["lsp"] = _merge_dicts(data.get("lsp", {}), overlay.get("lsp", {}))
-    _write_json(dst, data)
+    data = read_json(dst)
+    overlay = read_json(src)
+    data["mcp"] = merge_dicts(data.get("mcp", {}), overlay.get("mcp", {}))
+    data["lsp"] = merge_dicts(data.get("lsp", {}), overlay.get("lsp", {}))
+    write_json(dst, data)
 
 
 def _toml_get(data: dict[str, Any], *keys: str) -> Any:
@@ -291,7 +271,7 @@ def list_github_sources(root: Path | None = None) -> list[dict[str, str]]:
     sources = (root or bundle_root()) / "skills-sources.json"
     if not sources.is_file():
         return []
-    data = _read_json(sources)
+    data = read_json(sources)
     rows: list[dict[str, str]] = []
     for item in data.get("upstream_skills", []):
         rows.append(
@@ -384,7 +364,7 @@ def install_upstream_skills(root: Path, home: Path, *, force: bool, dry_run: boo
 def default_bundle_names(root: Path) -> list[str]:
     manifest = root / "manifest.json"
     if manifest.is_file():
-        data = _read_json(manifest)
+        data = read_json(manifest)
         return list(data.get("bundles", {}).get("all", {}).get("includes", []))
     return ["cursor", "claude", "opencode", "goose", "codex", "copilot", "cli"]
 
@@ -581,7 +561,7 @@ def write_stamp(home: Path, mode: str, *, dry_run: bool) -> None:
 def verify_setup(home: Path) -> list[str]:
     issues: list[str] = []
     mcp = home / ".cursor" / "mcp.json"
-    if not mcp.is_file() or not _read_json(mcp).get("mcpServers"):
+    if not mcp.is_file() or not read_json(mcp).get("mcpServers"):
         issues.append("MCP not configured (~/.cursor/mcp.json)")
     skill = home / ".cursor" / "skills" / "astroai-lab-workflow" / "SKILL.md"
     if not skill.is_file():
@@ -596,7 +576,7 @@ def list_bundles() -> dict[str, str]:
     manifest = bundle_root() / "manifest.json"
     if not manifest.is_file():
         return {}
-    data = _read_json(manifest)
+    data = read_json(manifest)
     return {k: v.get("description", "") for k, v in data.get("bundles", {}).items()}
 
 

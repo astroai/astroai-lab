@@ -18,6 +18,7 @@ from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.errors import LabError
+from astroai_lab.utils.json_utils import merge_dicts, read_json, write_json
 
 OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
 OPENROUTER_DOCS = "https://openrouter.ai/docs/guides/routing/provider-selection#free-model-routing"
@@ -52,22 +53,15 @@ def list_presets() -> dict[str, dict[str, str]]:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    write_json(path, data)
 
 
 def _merge_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    out = dict(base)
-    for key, val in overlay.items():
-        if isinstance(val, dict) and isinstance(out.get(key), dict):
-            out[key] = _merge_dicts(out[key], val)
-        else:
-            out[key] = val
-    return out
+    return merge_dicts(base, overlay)
 
 
 def _openrouter_model(model: str) -> str:
@@ -75,7 +69,10 @@ def _openrouter_model(model: str) -> str:
 
 
 def _openrouter_key() -> str | None:
-    return os.environ.get(OPENROUTER_KEY_ENV) or os.environ.get("OPENROUTER_KEY")
+    return (
+        os.environ.get(OPENROUTER_KEY_ENV, "").strip()
+        or os.environ.get("OPENROUTER_KEY", "").strip()
+    )
 
 
 def _template(name: str) -> Path:

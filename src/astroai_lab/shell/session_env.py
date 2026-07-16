@@ -180,7 +180,7 @@ class SessionEnv:
             "XDG_CACHE_HOME": str(self.xdg_cache_home),
             "XDG_CONFIG_HOME": str(self.xdg_config_home),
             "XDG_DATA_HOME": str(self.xdg_data_home),
-            "UV_LINK_MODE": os.environ.get("UV_LINK_MODE", "copy"),
+            "UV_LINK_MODE": os.environ.get("UV_LINK_MODE", "").strip() or "copy",
             "PIP_DISABLE_PIP_VERSION_CHECK": "1",
         }
         if self.tmp_scratch_dir is not None:
