@@ -65,7 +65,13 @@ def test_tools_json(lab_home: Path) -> None:
     assert any(t["name"] == "git" for t in data["tools"])
 
 
-def test_check_json(lab_home: Path) -> None:
+@patch("astroai_lab.core.tools.quota_used_pct")
+def test_check_json(mock_quota: MagicMock, lab_home: Path) -> None:
+    # Hardware-state isolation: CI/test runners can sit on tmpfs, overlayfs,
+    # or shared hosts where `statvfs(~)` reports percentages anywhere from
+    # 0% to 100% regardless of the real disk situation. Pin the quota reading
+    # so the check-pass/fail outcome is deterministic.
+    mock_quota.return_value = 50
     result = runner.invoke(app, ["check", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
