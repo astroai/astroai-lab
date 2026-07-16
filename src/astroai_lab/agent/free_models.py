@@ -9,7 +9,6 @@ Community patterns (2026):
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
@@ -78,8 +77,7 @@ def apply_kilo(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
         return True
     data = read_json(_template("kilo.jsonc"))
     data["model"] = PRESETS[preset]["kilo"]
-    cfg.parent.mkdir(parents=True, exist_ok=True)
-    cfg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    write_json(cfg, data)
     return True
 
 

@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.agent.free_models import (
@@ -198,7 +199,7 @@ def _merge_marimo_openrouter(cfg: Path, *, force: bool, dry_run: bool) -> None:
         # Section missing — append at end
         sep = "\n\n" if text.rstrip() else "\n"
         cfg.write_text(
-            f"{text.rstrip()}{sep}[ai.openrouter]\napi_key = \"{key}\"\n",
+            f'{text.rstrip()}{sep}[ai.openrouter]\napi_key = "{key}"\n',
             encoding="utf-8",
         )
 
