@@ -29,7 +29,8 @@ Notebook path: Science Portal → **notebook** image →
 `astroai-lab kernel ensure` if the kernel is missing.
 
 Marimo path: Science Portal → **marimo** image →
-`TMP_SRC_DIR/notebooks/starter.py` (or `astroai-lab notebook starter marimo`).
+`TMP_SRC_DIR/notebooks/starter.py` opens by default
+(or `astroai-lab notebook starter marimo`).
 
 ## Storage tiers
 

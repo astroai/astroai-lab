@@ -20,6 +20,11 @@ def test_notebook_starter_marimo(tmp_path) -> None:
     text = (tmp_path / "starter.py").read_text()
     assert "import marimo" in text
     assert "astroai-lab" in text
+    assert "<div" not in text
+    assert "Session status" in text
+    assert "vospace_controls" in text or "VOSpaceUI" in text
+    assert "Open an existing project" in text
+    assert 'check_output(["astroai-lab", "doctor"' not in text
 
 
 def test_notebook_starter_unknown(tmp_path) -> None:

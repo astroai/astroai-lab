@@ -56,12 +56,14 @@ flowchart TB
 
 1. Open the [Science Portal](https://www.canfar.net/science-portal) → launch **notebook** or **marimo** (pick a GPU node only if you need a GPU).
 2. **Jupyter:** open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) and select the AstroAI kernel (`astroai-lab kernel ensure` if needed).
-3. **Marimo:** the session opens under `TMP_SRC_DIR/notebooks` with `starter.py` seeded; or run `astroai-lab notebook starter marimo`.
+3. **Marimo:** the session opens `TMP_SRC_DIR/notebooks/starter.py` (seeded once); or run `astroai-lab notebook starter marimo`.
 4. Run `astroai-lab doctor` — caches should resolve under `/scratch`, not `$HOME`.
 5. Keep long-lived results with `astroai-lab data sync … /arc/projects/…` or `vcp` to VOSpace.
 6. Later: `astroai-lab init` / `clone` plus pixi or uv for project environments.
 
-VOSpace: use **`vls` / `vcp`** from the image. There is no separate `astroai-lab` VOSpace wrapper.
+VOSpace: use **`vls` / `vcp`** from the image (or the interim Vault widget in the
+marimo starter). Native marimo **Remote Storage** for Vault waits on `vos`
+fsspec support. There is no separate `astroai-lab` VOSpace wrapper.
 
 ---
 

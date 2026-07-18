@@ -78,7 +78,10 @@ def notebook_starter(
     shutil.copy2(src, out)
     ui.print_ok(f"Wrote {out}")
     if name == "marimo":
-        ui.print_hint("Open it in the marimo session (TMP_SRC_DIR/notebooks).")
+        ui.print_hint(
+            "Opens by default in the marimo session (TMP_SRC_DIR/notebooks/starter.py). "
+            "Existing projects: File → Open under TMP_SRC_DIR."
+        )
     else:
         ui.print_hint(
             "Open it in Jupyter and select the AstroAI kernel (`astroai-lab kernel ensure`)."
