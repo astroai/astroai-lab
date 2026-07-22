@@ -81,11 +81,29 @@ def apply_kilo(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
     return True
 
 
+def _remove_astroai_block(text: str, marker: str) -> str:
+    """Remove a previous AstroAI config block identified by marker comment."""
+    lines = text.splitlines(keepends=True)
+    result: list[str] = []
+    skip = False
+    for line in lines:
+        if marker in line:
+            skip = True
+            continue
+        if skip and (line.startswith("#") or line.strip() == ""):
+            continue
+        if skip:
+            skip = False
+        result.append(line)
+    return "".join(result)
+
+
 def apply_goose(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
     cfg = home / ".config" / "goose" / "config.yaml"
     model = PRESETS[preset]["openrouter"]
+    marker = "# AstroAI lab free models"
     block = (
-        "# AstroAI lab free models — set OPENROUTER_API_KEY (openrouter.ai/keys)\n"
+        f"{marker} — set OPENROUTER_API_KEY (openrouter.ai/keys)\n"
         f"GOOSE_PROVIDER: openrouter\n"
         f"GOOSE_MODEL: {model}\n"
     )
@@ -93,9 +111,11 @@ def apply_goose(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
         text = cfg.read_text(encoding="utf-8")
         if "GOOSE_PROVIDER:" in text and "GOOSE_MODEL:" in text:
             return False
-        block = text.rstrip() + "\n\n" + block
+        cleaned = _remove_astroai_block(text, marker)
+        block = cleaned.rstrip() + "\n\n" + block
     elif cfg.is_file():
-        block = cfg.read_text(encoding="utf-8").rstrip() + "\n\n" + block
+        cleaned = _remove_astroai_block(cfg.read_text(encoding="utf-8"), marker)
+        block = cleaned.rstrip() + "\n\n" + block
     if dry_run:
         return True
     cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -129,8 +149,9 @@ def apply_opencode(home: Path, preset: str, *, force: bool, dry_run: bool) -> bo
 def apply_codex(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
     cfg = home / ".codex" / "config.toml"
     model = PRESETS[preset]["openrouter"]
+    marker = "# AstroAI lab free models (OpenRouter)"
     snippet = (
-        "\n# AstroAI lab free models (OpenRouter)\n"
+        f"\n{marker}\n"
         f'model = "{model}"\n'
         'model_provider = "openrouter"\n\n'
         "[model_providers.openrouter]\n"
@@ -142,9 +163,11 @@ def apply_codex(home: Path, preset: str, *, force: bool, dry_run: bool) -> bool:
         text = cfg.read_text(encoding="utf-8")
         if 'model_provider = "openrouter"' in text:
             return False
-        snippet = text.rstrip() + "\n" + snippet
+        cleaned = _remove_astroai_block(text, marker)
+        snippet = cleaned.rstrip() + "\n" + snippet
     elif cfg.is_file():
-        snippet = cfg.read_text(encoding="utf-8").rstrip() + "\n" + snippet
+        cleaned = _remove_astroai_block(cfg.read_text(encoding="utf-8"), marker)
+        snippet = cleaned.rstrip() + "\n" + snippet
     else:
         snippet = snippet.lstrip("\n")
     if dry_run:

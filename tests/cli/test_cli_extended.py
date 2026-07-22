@@ -266,6 +266,42 @@ def test_config_show_human(lab_env: Path) -> None:
     assert "default_pm" in result.output
 
 
+def test_agent_status_human(lab_env: Path) -> None:
+    result = runner.invoke(app, ["agent", "status"])
+    assert result.exit_code == 0
+    assert "Binary" in result.output or "binary" in result.output.lower()
+
+
+def test_agent_status_json(lab_env: Path) -> None:
+    result = runner.invoke(app, ["--json", "agent", "status"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert isinstance(data, list)
+    assert len(data) > 0
+    assert "agent" in data[0]
+
+
+def test_push_both_fail_exits_nonzero(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = lab_env / "failpush"
+    _pixi(project)
+    monkeypatch.chdir(project)
+    with patch("astroai_lab.core.git.git_status", side_effect=Exception("no git")):
+        with patch("astroai_lab.cli.init_clone_env.detect_project", return_value=False):
+            result = runner.invoke(app, ["--yes", "push"])
+    assert result.exit_code == 1
+
+
+def test_push_git_check_failure_continues(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = lab_env / "gitfail"
+    _pixi(project)
+    monkeypatch.chdir(project)
+    with patch("astroai_lab.core.git.git_status", side_effect=FileNotFoundError("git")):
+        with patch("astroai_lab.cli.init_clone_env.detect_project", return_value=False):
+            result = runner.invoke(app, ["--yes", "push"])
+    assert result.exit_code == 1
+    assert "skipping" in result.output.lower() or "git" in result.output.lower()
+
+
 def test_banner_with_project(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = lab_env / "active"
     _pixi(project)

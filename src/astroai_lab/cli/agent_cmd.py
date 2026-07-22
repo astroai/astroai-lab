@@ -72,18 +72,58 @@ def agent_update_cmd(ctx: typer.Context) -> None:
     _run_agent_sync(ctx)
 
 
-@agent_app.command("sync")
+@agent_app.command("sync", hidden=True)
 def agent_sync_cmd(ctx: typer.Context) -> None:
-    """Explicitly refresh all coding agents, MCP servers, rules, and GitHub skills.
-
-    Reinstalls every agent bundle with --force, pulls upstream GitHub skill
-    sources, and verifies the result.
-
-    Examples:
-        astroai-lab agent sync
-        astroai-lab agent sync --dry-run
-    """
+    """Alias for ``agent update``."""
     _run_agent_sync(ctx)
+
+
+@agent_app.command("status")
+def agent_status_cmd(ctx: typer.Context) -> None:
+    """Show which agents are installed, configured, and have issues."""
+    import shutil
+
+    opts = get_opts(ctx)
+    home = Path.home()
+    agents = [
+        ("opencode", "opencode", home / ".config" / "opencode" / "opencode.json"),
+        ("claude", "claude", home / ".claude.json"),
+        ("goose", "goose", home / ".config" / "goose" / "config.yaml"),
+        ("kilo", "kilo", home / ".config" / "kilo" / "kilo.jsonc"),
+        ("codex", "codex", home / ".codex" / "config.toml"),
+        ("copilot", "copilot", home / ".copilot" / "mcp-config.json"),
+        ("cline", "cline", home / ".config" / "canfar" / "lab" / "cline-free.md"),
+    ]
+    rows = []
+    for name, binary, config_path in agents:
+        installed = shutil.which(binary) is not None
+        has_config = config_path.is_file()
+        rows.append(
+            {
+                "agent": name,
+                "binary": installed,
+                "config": has_config,
+                "config_path": str(config_path),
+            }
+        )
+    if opts.json:
+        ui.print_json(rows)
+        return
+    ui.print_hint("  Agent        Binary    Config")
+    ui.print_hint("  ─────────    ───────   ──────")
+    for row in rows:
+        b = "✓" if row["binary"] else "✗"
+        c = "✓" if row["config"] else "—"
+        ui.print_hint(f"  {row['agent']:<12} {b:<9} {c}")
+    issues = agent_setup_mod.verify_setup(home)
+    if issues:
+        ui.print_hint("")
+        for issue in issues:
+            ui.print_warn(f"  {issue}")
+    stamp = home / ".astroai" / "lab" / "agent-setup-stamp"
+    if stamp.is_file():
+        ui.print_hint("")
+        ui.print_hint(f"  Last setup: {stamp.read_text().strip()}")
 
 
 def _run_agent_sync(ctx: typer.Context) -> None:

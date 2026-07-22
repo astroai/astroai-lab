@@ -150,7 +150,7 @@ def register(app: typer.Typer) -> None:
         try:
             require_project(cwd)
             save_env(save_name, save_dir, cwd, full=full)
-        except LabError as exc:
+        except (LabError, OSError) as exc:
             ui.print_error(str(exc))
             raise typer.Exit(1) from exc
         ui.print_ok(f"Saved '{save_name}' -> {save_dir} ({format_dir_size(save_dir)})")
@@ -173,6 +173,11 @@ def register(app: typer.Typer) -> None:
         opts = get_opts(ctx)
         paths = resolve_paths()
         dest = target or paths.work_dir / name
+        if dest.exists() and any(dest.iterdir()):
+            ui.print_warn(f"Target exists and is not empty: {dest}")
+            if not opts.yes:
+                ui.print_hint("  Use --yes to overwrite, or choose a different target.")
+                raise typer.Exit(1)
         try:
             save_dir = resolve_save_dir(name, paths.save_dir, from_path)
             with ui.progress_task("Restoring environment...", quiet=opts.quiet):
@@ -228,7 +233,14 @@ def register(app: typer.Typer) -> None:
         paths = resolve_paths()
         cwd = Path.cwd()
         pushed = saved = False
-        git = git_status(cwd)
+
+        try:
+            git = git_status(cwd)
+        except (LabError, FileNotFoundError, OSError) as exc:
+            ui.print_warn(f"Git check failed: {exc}")
+            from astroai_lab.core.git import GitStatus
+
+            git = GitStatus(in_repo=False, branch=None, remote=None, uncommitted=False)
 
         if git.in_repo:
             if git.uncommitted:
@@ -263,3 +275,4 @@ def register(app: typer.Typer) -> None:
             ui.print_json({"pushed": pushed, "saved": saved, "work_dir": str(paths.work_dir)})
         elif not (pushed or saved):
             ui.print_warn(f"{paths.work_dir} is ephemeral — nothing archived.")
+            raise typer.Exit(1)

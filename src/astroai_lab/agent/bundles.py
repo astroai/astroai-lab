@@ -66,11 +66,9 @@ def merge_mcp_servers(src_json: Path, dst_json: Path, *, force: bool, dry_run: b
         return
     if dry_run:
         return
-    merged = merge_dicts(read_json(dst_json), read_json(src_json))
-    servers = merge_dicts(
-        merged.get("mcpServers", {}),
-        read_json(src_json).get("mcpServers", {}),
-    )
+    src_data = read_json(src_json)
+    dst_data = read_json(dst_json)
+    servers = merge_dicts(dst_data.get("mcpServers", {}), src_data.get("mcpServers", {}))
     write_json(dst_json, {"mcpServers": servers})
 
 
@@ -558,12 +556,28 @@ def write_stamp(home: Path, mode: str, *, dry_run: bool) -> None:
 
 def verify_setup(home: Path) -> list[str]:
     issues: list[str] = []
+    # Cursor
     mcp = home / ".cursor" / "mcp.json"
     if not mcp.is_file() or not read_json(mcp).get("mcpServers"):
-        issues.append("MCP not configured (~/.cursor/mcp.json)")
+        issues.append("Cursor MCP not configured (~/.cursor/mcp.json)")
     skill = home / ".cursor" / "skills" / "astroai-lab-workflow" / "SKILL.md"
     if not skill.is_file():
-        issues.append("astroai-lab-workflow skill missing")
+        issues.append("Cursor astroai-lab-workflow skill missing")
+    # Claude
+    claude = home / ".claude.json"
+    if claude.is_file() and not read_json(claude).get("mcpServers"):
+        issues.append("Claude MCP empty (~/.claude.json)")
+    # OpenCode
+    oc = home / ".config" / "opencode" / "opencode.json"
+    if oc.is_file() and not read_json(oc).get("mcp"):
+        issues.append("OpenCode MCP empty (~/.config/opencode/opencode.json)")
+    # Goose
+    goose_cfg = home / ".config" / "goose" / "config.yaml"
+    if goose_cfg.is_file():
+        text = goose_cfg.read_text(encoding="utf-8")
+        if "GOOSE_PROVIDER:" not in text or "GOOSE_MODEL:" not in text:
+            issues.append("Goose provider not fully configured (~/.config/goose/config.yaml)")
+    # Marimo
     marimo = home / ".marimo.toml"
     if marimo.is_file() and "openrouter" not in marimo.read_text(encoding="utf-8"):
         issues.append("marimo.toml missing OpenRouter config — run: astroai-lab agent setup marimo")
@@ -592,9 +606,22 @@ def agent_setup(
     if mode == "project":
         names = ["project"]
     ensure_agent_dirs(home, dry_run=dry_run)
+    succeeded: list[str] = []
+    failed: list[tuple[str, str]] = []
     for name in names:
-        run_bundle(name, root, home, project_dir, force=force, dry_run=dry_run)
-    write_stamp(home, mode, dry_run=dry_run)
+        try:
+            run_bundle(name, root, home, project_dir, force=force, dry_run=dry_run)
+            succeeded.append(name)
+        except Exception as exc:  # noqa: BLE001 — catch any bundle failure for partial success
+            failed.append((name, str(exc)))
+    if failed and not dry_run:
+        summary = "; ".join(f"{n}: {e}" for n, e in failed)
+        raise LabError(
+            f"Partial setup — {len(succeeded)}/{len(names)} bundles OK, "
+            f"{len(failed)} failed: {summary}"
+        )
+    if not dry_run:
+        write_stamp(home, mode, dry_run=False)
 
 
 def agent_sync(*, dry_run: bool = False) -> list[SourceUpdateResult]:

@@ -78,6 +78,19 @@ def save_env(name: str, save_dir: Path, source: Path, *, full: bool = False) -> 
     kind = require_project(source)
     save_dir.mkdir(parents=True, exist_ok=True)
 
+    # Pre-flight: warn if disk is nearly full.
+    try:
+        disk = shutil.disk_usage(save_dir)
+        if disk.free < 100 * 1024 * 1024:  # < 100 MB
+            raise LabError(
+                f"Low disk space ({disk.free // 1024 // 1024}MB free) — save may fail",
+                hint="Free space on /arc or use a different --to path",
+            )
+    except LabError:
+        raise
+    except OSError:
+        pass  # non-POSIX; skip check
+
     if kind == ProjectKind.PIXI:
         shutil.copy2(source / "pixi.toml", save_dir / "pixi.toml")
         if (source / "pixi.lock").is_file():
