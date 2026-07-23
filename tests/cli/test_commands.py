@@ -59,6 +59,45 @@ def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -
     assert data["heartbeat_present"] is True
     assert data["state"]["phase"] == "Running"
 
+    # Human-readable path (non-json).
+    result = runner.invoke(app, ["ray", "status"])
+    assert result.exit_code == 0
+    assert "test-cluster" in result.output
+    assert "Running" in result.output
+
+    # Missing state → hint.
+    empty = lab_home / ".astroai" / "ray" / "clusters" / "empty"
+    empty.mkdir(parents=True)
+    monkeypatch.setenv("RAY_CLUSTER_ID", "empty")
+    result = runner.invoke(app, ["ray", "status"])
+    assert result.exit_code == 0
+    assert "No cluster state" in result.output or "hint" in result.output.lower() or "launch" in result.output.lower()
+
+
+def test_backup_cli_status_and_run(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    work = lab_home / "work"
+    (work / "a.py").write_text("x\n")
+    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
+    monkeypatch.delenv("skaha_sessionid", raising=False)
+    get_settings.cache_clear()
+
+    result = runner.invoke(app, ["--json", "backup", "status"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "enabled" in data
+    assert "interval" in data
+
+    with patch("astroai_lab.core.backup.quota_used_pct", return_value=10):
+        with patch("astroai_lab.core.backup.run", return_value=None):
+            result = runner.invoke(app, ["--json", "backup", "run"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data.get("ok") is True or "dest" in data
+
+    result = runner.invoke(app, ["--json", "backup", "stop"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["stopped"] is False
+
 
 def test_doctor_json(lab_home: Path) -> None:
     result = runner.invoke(app, ["--json", "doctor"])

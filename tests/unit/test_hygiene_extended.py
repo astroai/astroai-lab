@@ -54,14 +54,30 @@ def test_apply_clean_deletes(tmp_path: Path) -> None:
 
 
 def test_collect_cache_targets_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cache = tmp_path / "pip-cache"
+    from astroai_lab.config.settings import get_settings
+
+    # PIP_CACHE_DIR is only honored when it lives under the session work/scratch roots.
+    work = tmp_path / "work"
+    work.mkdir()
+    cache = work / "pip-cache"
     cache.mkdir()
     (cache / "wheel").write_text("x")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
+    monkeypatch.delenv("TMP_SRC_DIR", raising=False)
+    monkeypatch.delenv("TMP_SCRATCH_DIR", raising=False)
+    monkeypatch.delenv("ASTROAI_LAB_SCRATCH_DIR", raising=False)
+    monkeypatch.delenv("ASTROAI_LAB_DEFAULT_SCRATCH_DIR", raising=False)
     monkeypatch.setenv("PIP_CACHE_DIR", str(cache))
-    targets = collect_cache_targets(
-        pip=True, uv_cache=False, npm=False, pixi=False, conda=False, hf=False
-    )
+    get_settings.cache_clear()
+    # Avoid host /scratch if present — force no scratch mount.
+    with patch("astroai_lab.config.settings.LabSettings.resolve_scratch_dir", return_value=None):
+        targets = collect_cache_targets(
+            pip=True, uv_cache=False, npm=False, pixi=False, conda=False, hf=False
+        )
     assert len(targets) == 1
+    assert targets[0].path == cache
 
 
 def test_prune_uv_cache_dry_run() -> None:
