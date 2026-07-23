@@ -45,6 +45,7 @@ GUIDE_TEXT = """
 [bold]Data[/bold]
   astroai-lab data stage SRC [DST]  /arc → scratch (fast I/O)
   astroai-lab data sync SRC DST     scratch → /arc
+  astroai-lab backup run|status     hourly /srcdir → ~/.astroai/lab/backups/
 
 [bold]Hygiene[/bold]
   astroai-lab clean home --all-safe --dry-run

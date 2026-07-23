@@ -16,6 +16,12 @@ class PushSettings(BaseModel):
     require_clean_git: bool = False
 
 
+class BackupSettings(BaseModel):
+    enabled: bool = True
+    interval: int = 3600
+    dir: Path | None = None
+
+
 class LabSettings(BaseSettings):
     """Session workbench settings (ASTROAI_LAB_* env vars + optional config.yaml)."""
 
@@ -32,6 +38,7 @@ class LabSettings(BaseSettings):
     default_pm: Literal["pixi", "uv"] = "pixi"
     clone_from_env: str | None = None
     push: PushSettings = Field(default_factory=PushSettings)
+    backup: BackupSettings = Field(default_factory=BackupSettings)
 
     def resolve_work_dir(self) -> Path:
         for raw in (

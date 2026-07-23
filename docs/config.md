@@ -11,6 +11,9 @@ clone_from_env: ml-base   # default --from-env name
 push:
   auto_save: true
   require_clean_git: false
+backup:
+  enabled: true
+  interval: 3600          # seconds; min 60
 ```
 
 Environment variables override YAML (prefix **`ASTROAI_LAB_`**):
@@ -24,6 +27,9 @@ Environment variables override YAML (prefix **`ASTROAI_LAB_`**):
 | `ASTROAI_LAB_CLONE_FROM_ENV` | `clone_from_env` |
 | `ASTROAI_LAB_PUSH__AUTO_SAVE` | `push.auto_save` |
 | `ASTROAI_LAB_PUSH__REQUIRE_CLEAN_GIT` | `push.require_clean_git` |
+| `ASTROAI_LAB_BACKUP_ENABLED` | `backup.enabled` |
+| `ASTROAI_LAB_BACKUP_INTERVAL` | `backup.interval` |
+| `ASTROAI_LAB_BACKUP_DIR` | `backup.dir` |
 
 Inspect current settings:
 

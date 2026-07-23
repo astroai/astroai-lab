@@ -150,6 +150,23 @@ astroai-lab data stage /arc/path --dry-run
 astroai-lab data sync /scratch/out /arc/path --yes
 ```
 
+### `astroai-lab backup run|start|stop|status|restore`
+
+Hourly (default) rsync of the ephemeral work directory (`TMP_SRC_DIR` / `/srcdir`)
+to `~/.astroai/lab/backups/<skaha_sessionid>/` on `/arc/home`. Session startup
+starts the daemon automatically (`astroai-lab backup start`).
+
+```bash
+astroai-lab backup status
+astroai-lab backup run
+astroai-lab backup start --interval 21600   # every 6 hours
+astroai-lab backup stop
+astroai-lab backup restore --yes
+```
+
+Env: `ASTROAI_LAB_BACKUP_ENABLED`, `ASTROAI_LAB_BACKUP_INTERVAL` (seconds),
+`ASTROAI_LAB_BACKUP_DIR`. Skips when home quota is ≥90% unless `--yes`.
+
 ### `astroai-lab clean home|cache`
 
 Prune caches and home clutter. Pass **`--dry-run`** to preview; destructive runs need explicit category flags (`--all-safe` or individual toggles).

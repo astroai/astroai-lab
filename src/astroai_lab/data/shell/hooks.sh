@@ -103,6 +103,38 @@ __astroai_lab_quota_reminder() {
         "${_color}" "${_used_pct}" "${_level}" '\033[0m'
 }
 
+__astroai_lab_backup_reminder() {
+    local _state _status _interval=21600 _now _last _since_last
+
+    [[ -t 1 ]] || return 0
+    _state="$(__astroai_lab_state_dir)"
+    _status="${_state}/backup-status.json"
+    [[ -f "${_status}" ]] || return 0
+
+    printf -v _now '%(%s)T' -1
+    _last=0
+    [[ -f "${_state}/last-backup-reminder" ]] && _last="$(cat "${_state}/last-backup-reminder" 2>/dev/null)" || true
+    _since_last=$(( _now - _last ))
+    (( _since_last >= _interval )) || return 0
+
+    if ! command -v jq >/dev/null 2>&1; then
+        return 0
+    fi
+    local _ok _skipped _msg
+    _ok="$(jq -r '.ok // empty' "${_status}" 2>/dev/null)" || return 0
+    _skipped="$(jq -r '.skipped // false' "${_status}" 2>/dev/null)"
+    _msg="$(jq -r '.message // empty' "${_status}" 2>/dev/null)"
+    [[ "${_ok}" == "true" ]] && return 0
+
+    mkdir -p "${_state}"
+    printf '%s' "${_now}" > "${_state}/last-backup-reminder"
+    if [[ "${_skipped}" == "true" ]]; then
+        printf '\n  \033[1;33m⚠  work backup skipped — %s\033[0m\n  → astroai-lab clean home --all-safe  or  ASTROAI_LAB_BACKUP_INTERVAL\n\n' "${_msg}"
+    else
+        printf '\n  \033[1;33m⚠  work backup failed — %s\033[0m\n  → astroai-lab backup status\n\n' "${_msg}"
+    fi
+}
+
 __astroai_lab_auto_archive() {
     local _root _hash _marker _log _state
 
@@ -142,8 +174,8 @@ fi
 
 if [[ -t 1 ]]; then
     if [[ -z "${PROMPT_COMMAND:-}" ]]; then
-        PROMPT_COMMAND="__astroai_lab_scratch_reminder; __astroai_lab_quota_reminder"
+        PROMPT_COMMAND="__astroai_lab_scratch_reminder; __astroai_lab_quota_reminder; __astroai_lab_backup_reminder"
     else
-        PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_lab_scratch_reminder; __astroai_lab_quota_reminder"
+        PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_lab_scratch_reminder; __astroai_lab_quota_reminder; __astroai_lab_backup_reminder"
     fi
 fi

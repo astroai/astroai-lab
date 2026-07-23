@@ -148,6 +148,14 @@ astroai-lab data stage /arc/projects/mygroup/raw   # → scratch
 astroai-lab data sync /scratch/results /arc/projects/mygroup/results
 ```
 
+Hourly backup of the work directory to `/arc/home`:
+
+```bash
+astroai-lab backup status
+astroai-lab backup run                 # one-shot
+# daemon starts automatically in AstroAI sessions
+```
+
 ---
 
 ## Working with `canfar` and CADC

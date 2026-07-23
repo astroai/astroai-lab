@@ -10,6 +10,7 @@ from astroai_lab import __version__
 from astroai_lab.cli import init_clone_env
 from astroai_lab.cli import status as status_mod
 from astroai_lab.cli.agent_cmd import agent_app
+from astroai_lab.cli.backup import backup_app
 from astroai_lab.cli.banner import show_banner
 from astroai_lab.cli.clean import clean_app
 from astroai_lab.cli.config import config_app
@@ -39,6 +40,7 @@ register_paths(app)
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(env_app, name="env")
 app.add_typer(data_app, name="data")
+app.add_typer(backup_app, name="backup")
 app.add_typer(clean_app, name="clean")
 app.add_typer(config_app, name="config")
 app.add_typer(workspace_app, name="workspace")
@@ -46,7 +48,6 @@ app.add_typer(kernel_app, name="kernel")
 app.add_typer(agent_app, name="agent")
 app.add_typer(project_app, name="project")
 app.add_typer(notebook_app, name="notebook")
-
 
 @app.callback()
 def main(
