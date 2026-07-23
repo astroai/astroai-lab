@@ -167,6 +167,20 @@ astroai-lab backup restore --yes
 Env: `ASTROAI_LAB_BACKUP_ENABLED`, `ASTROAI_LAB_BACKUP_INTERVAL` (seconds),
 `ASTROAI_LAB_BACKUP_DIR`. Skips when home quota is ≥90% unless `--yes`.
 
+### `astroai-lab ray guide|status`
+
+CANFAR Ray cheat sheet and local manager cluster status.
+
+```bash
+astroai-lab ray guide
+astroai-lab ray status
+astroai-lab --json ray status
+canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:<tag>
+```
+
+`/scratch` is session-private (per pod). Share data via `/arc/home` or
+`/arc/projects`. See container [RAY.md](https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md).
+
 ### `astroai-lab clean home|cache`
 
 Prune caches and home clutter. Pass **`--dry-run`** to preview; destructive runs need explicit category flags (`--all-safe` or individual toggles).

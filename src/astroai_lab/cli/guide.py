@@ -46,6 +46,12 @@ GUIDE_TEXT = """
   astroai-lab data stage SRC [DST]  /arc → scratch (fast I/O)
   astroai-lab data sync SRC DST     scratch → /arc
   astroai-lab backup run|status     hourly /srcdir → ~/.astroai/lab/backups/
+  Note: /scratch is session-private; other sessions only see /arc
+
+[bold]Ray[/bold]
+  astroai-lab ray guide             launch cheat sheet
+  astroai-lab ray status            manager cluster state (in ray-manager)
+  canfar create contributed images.canfar.net/astroai/ray-manager:<tag>
 
 [bold]Hygiene[/bold]
   astroai-lab clean home --all-safe --dry-run

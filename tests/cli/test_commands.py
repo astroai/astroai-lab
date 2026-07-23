@@ -41,6 +41,25 @@ def test_guide_command() -> None:
     assert "Session loop" in result.output
 
 
+def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    result = runner.invoke(app, ["ray", "guide"])
+    assert result.exit_code == 0
+    assert "ray-manager" in result.output
+
+    monkeypatch.setenv("RAY_CLUSTER_ID", "test-cluster")
+    state = lab_home / ".astroai" / "ray" / "clusters" / "test-cluster"
+    state.mkdir(parents=True)
+    (state / "manager-heartbeat").touch()
+    (state / "state.json").write_text('{"phase": "Running"}')
+
+    result = runner.invoke(app, ["--json", "ray", "status"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["cluster_id"] == "test-cluster"
+    assert data["heartbeat_present"] is True
+    assert data["state"]["phase"] == "Running"
+
+
 def test_doctor_json(lab_home: Path) -> None:
     result = runner.invoke(app, ["--json", "doctor"])
     assert result.exit_code == 0

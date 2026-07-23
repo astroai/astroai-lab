@@ -23,6 +23,7 @@ from astroai_lab.cli.kernel import kernel_app
 from astroai_lab.cli.notebook_cmd import notebook_app
 from astroai_lab.cli.paths_cmd import register as register_paths
 from astroai_lab.cli.project import project_app
+from astroai_lab.cli.ray_cmd import ray_app
 from astroai_lab.cli.workspace import workspace_app
 
 app = typer.Typer(
@@ -48,6 +49,7 @@ app.add_typer(kernel_app, name="kernel")
 app.add_typer(agent_app, name="agent")
 app.add_typer(project_app, name="project")
 app.add_typer(notebook_app, name="notebook")
+app.add_typer(ray_app, name="ray")
 
 @app.callback()
 def main(
