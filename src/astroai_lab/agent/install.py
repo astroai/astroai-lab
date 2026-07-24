@@ -97,15 +97,44 @@ def _session_environ(extra: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
+    from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
+
     _require("curl")
     merged = _session_environ(env)
-    script = subprocess.run(
-        ["curl", "-fsSL", url],
-        capture_output=True,
-        check=True,
-        env=merged,
-    ).stdout
-    subprocess.run(["bash"], input=script, check=True, env=merged)
+    # Keep curl + bash within INSTALL_TIMEOUT_SEC total (including curl's +5 slack).
+    total = max(60, INSTALL_TIMEOUT_SEC)
+    curl_budget = max(20, (total - 5) // 3)
+    bash_budget = max(30, total - curl_budget - 5)
+    try:
+        script = subprocess.run(
+            ["curl", "-fsSL", "--max-time", str(curl_budget), url],
+            capture_output=True,
+            check=True,
+            env=merged,
+            timeout=curl_budget + 5,
+        ).stdout
+        subprocess.run(
+            ["bash"],
+            input=script,
+            check=True,
+            env=merged,
+            timeout=bash_budget,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise LabError(
+            f"Install timed out after {total}s fetching {url}",
+            hint="Retry later or raise ASTROAI_LAB_AGENT_INSTALL_TIMEOUT",
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        detail = (
+            (exc.stderr or b"").decode(errors="replace").strip()
+            if isinstance(exc.stderr, bytes)
+            else (exc.stderr or "")
+        )
+        raise LabError(
+            f"Install failed for {url}" + (f": {detail}" if detail else ""),
+            hint="Check network / auth, then retry",
+        ) from exc
 
 
 def _link_into_local_bin(src: Path, name: str) -> None:
@@ -174,16 +203,19 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent install  (or agent list)")
     if dry_run:
         return
+    from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
+
     resolve_session_env(ensure=True)
     _ensure_bin_dir()
     arch = platform.machine()
+    npm_timeout = INSTALL_TIMEOUT_SEC
 
     if name == "node":
         _require("pixi")
         session = resolve_session_env(ensure=False)
         pixi_bin = session.pixi_home / "bin"
         bin_dir = _bin_dir()
-        run(["pixi", "global", "install", "nodejs"], env=_session_environ())
+        run(["pixi", "global", "install", "nodejs"], env=_session_environ(), timeout=npm_timeout)
         for cmd in ("node", "npm", "npx"):
             src = pixi_bin / cmd
             if src.is_file():
@@ -213,7 +245,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("opencode", extra_paths=[opencode_src])
     elif name == "codex":
         _require("gh")
-        run_capture(["gh", "auth", "status"])
+        run_capture(["gh", "auth", "status"], timeout=30)
         asset = f"codex-{arch}-unknown-linux-musl.tar.gz"
         if arch not in ("x86_64", "aarch64"):
             raise LabError(f"Unsupported architecture: {arch}")
@@ -221,6 +253,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         run(
             ["gh", "release", "download", "-R", "openai/codex", "-p", asset, "-D", str(tmp)],
             env=_session_environ(),
+            timeout=npm_timeout,
         )
         with tarfile.open(tmp / asset, "r:gz") as tf:
             tf.extractall(_bin_dir())
@@ -233,7 +266,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("codex")
     elif name == "copilot":
         env = {"PREFIX": str(_npm_prefix()), "CI": "1"}
-        with contextlib.suppress(subprocess.CalledProcessError):
+        with contextlib.suppress(subprocess.CalledProcessError, LabError):
             _curl_pipe_bash("https://gh.io/copilot-install", env=env)
         copilot_bin = _npm_prefix() / "bin" / "copilot"
         if not copilot_bin.is_file() and shutil.which("copilot") is None:
@@ -248,6 +281,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
                     "@github/copilot@latest",
                 ],
                 env=_session_environ(),
+                timeout=npm_timeout,
             )
             copilot_bin = _npm_prefix() / "bin" / "copilot"
         _link_into_local_bin(copilot_bin, "copilot")
@@ -261,13 +295,14 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("goose")
     elif name == "kilo":
         env = {"XDG_BIN_DIR": str(_bin_dir())}
-        with contextlib.suppress(subprocess.CalledProcessError):
+        with contextlib.suppress(subprocess.CalledProcessError, LabError):
             _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
         if shutil.which("kilo") is None and not (_bin_dir() / "kilo").is_file():
             _require("npm")
             run(
                 ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli@latest"],
                 env=_session_environ(),
+                timeout=npm_timeout,
             )
         _verify_cmd("kilo")
     elif name == "cline":
@@ -275,11 +310,12 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         run(
             ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "cline@latest"],
             env=_session_environ(),
+            timeout=npm_timeout,
         )
         _verify_cmd("cline")
     elif name == "qoder":
         env = {"XDG_BIN_DIR": str(_bin_dir())}
-        with contextlib.suppress(subprocess.CalledProcessError):
+        with contextlib.suppress(subprocess.CalledProcessError, LabError):
             _curl_pipe_bash("https://qoder.com/install", env=env)
         qoder_src = _bin_dir() / "qodercli"
         if not qoder_src.is_file():
@@ -300,6 +336,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
                     "@qoder-ai/qodercli@latest",
                 ],
                 env=_session_environ(),
+                timeout=npm_timeout,
             )
             npm_bin = _npm_prefix() / "bin" / "qodercli"
             _link_into_local_bin(npm_bin, "qodercli")
@@ -315,11 +352,16 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         run(
             ["npm", "install", "-g", "--prefix", str(_npm_prefix()), pkg],
             env=_session_environ(),
+            timeout=npm_timeout,
         )
         _verify_cmd(name if name != "pi" else "pi")
     elif name == "swival":
         _require("uv")
-        run(["uv", "tool", "install", "--force", "swival"], env=_session_environ())
+        run(
+            ["uv", "tool", "install", "--force", "swival"],
+            env=_session_environ(),
+            timeout=npm_timeout,
+        )
         _verify_cmd("swival")
     elif name == "ast-grep":
         if arch not in ("x86_64", "aarch64"):
@@ -335,7 +377,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         tag = "v1.19.0"
         try:
             tag_raw = run_capture(
-                ["gh", "release", "view", "-R", "sharkdp/hyperfine", "--json", "tagName"]
+                ["gh", "release", "view", "-R", "sharkdp/hyperfine", "--json", "tagName"],
+                timeout=60,
             )
             import json
 

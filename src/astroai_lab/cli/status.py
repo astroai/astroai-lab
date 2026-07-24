@@ -7,6 +7,7 @@ import typer
 from astroai_lab import ui
 from astroai_lab.cli.context import merge_opts
 from astroai_lab.core.paths import resolve_paths
+from astroai_lab.core.session_resources import collect_resources
 from astroai_lab.core.storage import (
     arc_project_dict,
     arc_project_statuses,
@@ -58,6 +59,7 @@ def register(app: typer.Typer) -> None:
                     seen_quota_labels.add(q.label)
         home_rows = home_breakdown(paths.home)
         procs = top_cpu_processes()
+        resources = collect_resources()
 
         canfar_auth = None
         canfar_sessions = None
@@ -74,6 +76,7 @@ def register(app: typer.Typer) -> None:
                 {
                     "quotas": [q.__dict__ for q in quotas],
                     "home": home_rows,
+                    "resources": resources.to_dict(),
                     "arc_project": (arc_project_dict(active_project) if active_project else None),
                     "arc_projects": [arc_project_dict(p) for p in arc_projects],
                     "gms_groups": ({"groups": gms.groups, "source": gms.source} if gms else None),
@@ -94,4 +97,5 @@ def register(app: typer.Typer) -> None:
                 canfar_sessions=canfar_sessions,
                 gms_groups=gms,
                 vault=vault,
+                resources=resources.to_dict(),
             )

@@ -226,13 +226,24 @@ def upstream_cache_path(home: Path, repo: str) -> Path:
 
 
 def _git_run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        args,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    from astroai_lab.agent.setup_state import GIT_TIMEOUT_SEC
+
+    try:
+        return subprocess.run(
+            args,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=GIT_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=124,
+            stdout="",
+            stderr=f"git timed out after {GIT_TIMEOUT_SEC}s: {exc}",
+        )
 
 
 def _clone_upstream_repo(
@@ -564,19 +575,9 @@ def ensure_agent_dirs(home: Path, *, dry_run: bool) -> None:
 def write_stamp(home: Path, mode: str, *, dry_run: bool) -> None:
     if dry_run:
         return
-    root = bundle_root()
-    ver = "unknown"
-    version_file = root / "VERSION"
-    if version_file.is_file():
-        ver = version_file.read_text(encoding="utf-8").strip()
-    from datetime import datetime, timezone
+    from astroai_lab.agent.setup_state import record_setup_ok
 
-    stamp = home / ".astroai" / "lab" / "agent-setup-stamp"
-    stamp.parent.mkdir(parents=True, exist_ok=True)
-    stamp.write_text(
-        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") + f" bundle={ver} mode={mode}\n",
-        encoding="utf-8",
-    )
+    record_setup_ok(home, mode=mode)
 
 
 def _rel_home(path: Path, home: Path) -> str:
@@ -805,6 +806,38 @@ def list_bundles() -> dict[str, str]:
     return {k: v.get("description", "") for k, v in data.get("bundles", {}).items()}
 
 
+@dataclass(frozen=True)
+class SetupResult:
+    """Structured result for agent setup (wizard / --json)."""
+
+    ok: bool
+    partial: bool
+    mode: str
+    actions: tuple[str, ...]
+    errors: tuple[str, ...]
+    warnings: tuple[str, ...]
+    stamp: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "partial": self.partial,
+            "mode": self.mode,
+            "actions": list(self.actions),
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
+            "stamp": self.stamp,
+        }
+
+    @property
+    def exit_code(self) -> int:
+        if self.ok and not self.partial:
+            return 0
+        if self.partial or self.actions:
+            return 2
+        return 1
+
+
 def agent_setup(
     *,
     mode: str = "install",
@@ -812,42 +845,149 @@ def agent_setup(
     project_dir: Path | None = None,
     force: bool = False,
     dry_run: bool = False,
-) -> None:
+    use_lock: bool = True,
+    verify: bool = True,
+) -> SetupResult:
+    from astroai_lab.agent.setup_state import (
+        agent_setup_lock,
+        record_setup_failed,
+        record_setup_ok,
+        stamp_path,
+    )
+    from astroai_lab.core.paths import quota_used_pct
+
     root = bundle_root()
     home = Path.home()
     names = bundles or default_bundle_names(root)
     if mode == "project":
         names = ["project"]
-    ensure_agent_dirs(home, dry_run=dry_run)
-    succeeded: list[str] = []
-    failed: list[tuple[str, str]] = []
-    for name in names:
-        try:
-            run_bundle(name, root, home, project_dir, force=force, dry_run=dry_run)
-            succeeded.append(name)
-        except Exception as exc:  # noqa: BLE001 — catch any bundle failure for partial success
-            failed.append((name, str(exc)))
-    if failed and not dry_run:
-        summary = "; ".join(f"{n}: {e}" for n, e in failed)
+        verify = False  # project mode does not install home agent configs
+
+    warnings: list[str] = []
+    quota = quota_used_pct(home)
+    if quota is not None and quota >= 98 and not force:
         raise LabError(
-            f"Partial setup — {len(succeeded)}/{len(names)} bundles OK, "
-            f"{len(failed)} failed: {summary}"
+            f"Home quota {quota}% — refusing agent setup",
+            hint="Free space with `astroai-lab clean home` or pass --force",
         )
-    if not dry_run:
-        write_stamp(home, mode, dry_run=False)
+    if quota is not None and quota >= 90:
+        warnings.append(f"Home quota {quota}% — agent configs may fill /arc/home")
+
+    def _run() -> SetupResult:
+        ensure_agent_dirs(home, dry_run=dry_run)
+        succeeded: list[str] = []
+        failed: list[tuple[str, str]] = []
+        for name in names:
+            try:
+                run_bundle(name, root, home, project_dir, force=force, dry_run=dry_run)
+                succeeded.append(name)
+            except Exception as exc:  # noqa: BLE001 — partial success
+                failed.append((name, str(exc)))
+
+        actions = [f"bundle:{n}" for n in succeeded]
+        errors = [f"{n}: {e}" for n, e in failed]
+        partial = bool(succeeded) and bool(failed)
+        ok = bool(succeeded) and not failed
+
+        if not dry_run and ok and verify and mode != "project":
+            issues = verify_setup(home)
+            if issues:
+                detail = "verify: " + "; ".join(issues)[:480]
+                errors.append(detail)
+                partial = True
+                ok = False
+
+        if not dry_run and mode != "project":
+            if ok:
+                record_setup_ok(home, mode=mode)
+            else:
+                detail = "; ".join(errors) if errors else "no bundles succeeded"
+                from astroai_lab.agent.setup_state import lab_state_dir
+                from datetime import datetime, timezone
+
+                state = lab_state_dir(home)
+                state.mkdir(parents=True, exist_ok=True)
+                ver = "unknown"
+                version_file = root / "VERSION"
+                if version_file.is_file():
+                    ver = version_file.read_text(encoding="utf-8").strip()
+                stamp_path(home).write_text(
+                    datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    + f" bundle={ver} mode={mode}\n",
+                    encoding="utf-8",
+                )
+                record_setup_failed(
+                    home,
+                    exit_code=2 if (partial or succeeded) else 1,
+                    detail=detail[:500],
+                )
+
+        stamp = None
+        sp = stamp_path(home)
+        if sp.is_file():
+            stamp = sp.read_text(encoding="utf-8").strip()
+
+        return SetupResult(
+            ok=ok,
+            partial=partial,
+            mode=mode,
+            actions=tuple(actions),
+            errors=tuple(errors),
+            warnings=tuple(warnings),
+            stamp=stamp,
+        )
+
+    if dry_run or not use_lock:
+        return _run()
+    with agent_setup_lock(home):
+        return _run()
 
 
 def agent_sync(*, dry_run: bool = False) -> list[SourceUpdateResult]:
     """Refresh all agent MCP, rules, skills, configs, and GitHub skill sources."""
+    from astroai_lab.agent.setup_state import (
+        agent_setup_lock,
+        record_setup_failed,
+        record_setup_ok,
+    )
+
     root = bundle_root()
     home = Path.home()
     names = default_bundle_names(root)
-    ensure_agent_dirs(home, dry_run=dry_run)
-    for name in names:
-        run_bundle(name, root, home, None, force=True, dry_run=dry_run)
-    results = update_all_github_sources(home, force=True, dry_run=dry_run)
-    write_stamp(home, "sync", dry_run=dry_run)
-    return results
+
+    def _run() -> list[SourceUpdateResult]:
+        ensure_agent_dirs(home, dry_run=dry_run)
+        for name in names:
+            run_bundle(name, root, home, None, force=True, dry_run=dry_run)
+        results = update_all_github_sources(home, force=True, dry_run=dry_run)
+        if dry_run:
+            return results
+        failures = [r for r in results if r.status == "failed"]
+        if failures:
+            detail = "; ".join(f"{r.name}: {r.detail}" for r in failures)[:500]
+            record_setup_failed(home, exit_code=2, detail=detail)
+            # Keep last-attempt stamp without clearing the failed marker.
+            stamp_path = home / ".astroai" / "lab" / "agent-setup-stamp"
+            stamp_path.parent.mkdir(parents=True, exist_ok=True)
+            from datetime import datetime, timezone
+
+            ver = "unknown"
+            version_file = root / "VERSION"
+            if version_file.is_file():
+                ver = version_file.read_text(encoding="utf-8").strip()
+            stamp_path.write_text(
+                datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                + f" bundle={ver} mode=sync\n",
+                encoding="utf-8",
+            )
+        else:
+            record_setup_ok(home, mode="sync")
+        return results
+
+    if dry_run:
+        return _run()
+    with agent_setup_lock(home):
+        return _run()
 
 
 def agent_verify() -> None:

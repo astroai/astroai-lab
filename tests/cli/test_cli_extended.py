@@ -276,9 +276,13 @@ def test_agent_status_json(lab_env: Path) -> None:
     result = runner.invoke(app, ["--json", "agent", "status"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert isinstance(data, list)
-    assert len(data) > 0
-    assert "agent" in data[0]
+    assert isinstance(data, dict)
+    assert "agents" in data
+    assert isinstance(data["agents"], list)
+    assert len(data["agents"]) > 0
+    assert "agent" in data["agents"][0]
+    assert "ok" in data
+    assert "issues" in data
 
 
 def test_push_both_fail_exits_nonzero(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:

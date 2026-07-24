@@ -61,7 +61,29 @@ __astroai_lab_scratch_reminder() {
 __astroai_lab_quota_used_pct() {
     local path="${1:-}"
     [[ -d "${path}" ]] || return 0
-    df "${path}" 2>/dev/null | awk 'NR>1 {used=$3; size=$2; if(size>0) printf "%.0f", (used/size)*100; else print 0}'
+    # Prefer Ceph directory quota xattrs on /arc (CANFAR); rbytes can lag briefly.
+    if command -v getfattr >/dev/null 2>&1; then
+        local _cur="${path}" _max _used _i
+        for _i in 1 2 3 4 5 6; do
+            _max="$(getfattr --only-values -n ceph.quota.max_bytes "${_cur}" 2>/dev/null || true)"
+            _max="${_max//[!0-9]/}"
+            if [[ -n "${_max}" && "${_max}" -gt 0 ]]; then
+                _used="$(getfattr --only-values -n ceph.dir.rbytes "${_cur}" 2>/dev/null || true)"
+                _used="${_used//[!0-9]/}"
+                if [[ -n "${_used}" ]]; then
+                    awk -v u="${_used}" -v t="${_max}" 'BEGIN { if (t>0) printf "%.0f", (u/t)*100; else print 0 }'
+                    return 0
+                fi
+                break
+            fi
+            [[ "${_cur}" == "/" ]] && break
+            _cur="$(dirname "${_cur}")"
+        done
+    fi
+    df "${path}" 2>/dev/null | awk 'NR>1 {
+        # df Use% column already uses avail-based accounting
+        pct=$5; gsub(/%/, "", pct); print pct
+    }'
 }
 
 __astroai_lab_quota_reminder() {

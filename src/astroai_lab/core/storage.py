@@ -15,7 +15,7 @@ from astroai_lab.core.arc_permissions import (
     project_gms_member,
     read_acl_groups,
 )
-from astroai_lab.core.paths import quota_used_pct
+from astroai_lab.core.disk_usage import disk_usage
 from astroai_lab.core.session_common import find_arc_project_root
 from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run
@@ -35,18 +35,16 @@ class QuotaLine:
 def df_line(path: Path, label: str, *, current: bool = False) -> QuotaLine | None:
     if not path.is_dir():
         return None
-    try:
-        usage = shutil.disk_usage(path)
-    except OSError:
+    info = disk_usage(path)
+    if info is None:
         return None
-    pct = quota_used_pct(path) or int((usage.used / usage.total) * 100) if usage.total else 0
     return QuotaLine(
         label=label,
-        path=str(path),
-        used=humanize.naturalsize(usage.used, binary=True),
-        total=humanize.naturalsize(usage.total, binary=True),
-        free=humanize.naturalsize(usage.free, binary=True),
-        pct=pct,
+        path=info.path,
+        used=humanize.naturalsize(info.used_bytes, binary=True),
+        total=humanize.naturalsize(info.total_bytes, binary=True),
+        free=humanize.naturalsize(info.free_bytes, binary=True),
+        pct=info.pct,
         current=current,
     )
 

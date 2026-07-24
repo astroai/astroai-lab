@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 from typing import Annotated
 
@@ -27,6 +26,7 @@ agent_app = typer.Typer(
         "  skills     Cursor skill inventory / refresh upstream\n"
         "  status     binaries + configs at a glance\n"
         "  verify     presence + config syntax checks\n"
+        "  report     one-shot JSON health (wizard)\n"
         "  models     free-tier model presets"
     ),
 )
@@ -62,32 +62,61 @@ def agent_setup_cmd(
         astroai-lab agent setup
         astroai-lab agent setup cursor claude
         astroai-lab agent setup --list
+        astroai-lab --json agent setup
     """
     if list_bundles:
         _print_bundles(get_opts(ctx).json)
         return
     opts = get_opts(ctx)
     try:
-        agent_setup_mod.agent_setup(
+        result = agent_setup_mod.agent_setup(
             mode="install",
             bundles=list(bundle) if bundle else None,
             force=force or opts.yes,
             dry_run=opts.dry_run,
         )
     except LabError as exc:
-        ui.print_error(str(exc))
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "partial": False,
+                    "mode": "install",
+                    "actions": [],
+                    "errors": [str(exc)],
+                    "warnings": [],
+                    "stamp": None,
+                }
+            )
+        else:
+            ui.print_error(str(exc))
         raise typer.Exit(1) from exc
-    if not opts.dry_run:
-        try:
-            agent_setup_mod.agent_verify()
-        except LabError as exc:
-            ui.print_warn(str(exc))
-    ui.print_ok("Agent setup complete")
+
+    if opts.json:
+        ui.print_json(result.to_dict())
+        if result.exit_code:
+            raise typer.Exit(result.exit_code)
+        return
+
+    for w in result.warnings:
+        ui.print_warn(w)
+    for err in result.errors:
+        ui.print_error(err)
+    if result.ok and not result.partial:
+        ui.print_ok("Agent setup complete")
+    elif result.partial:
+        ui.print_warn(
+            f"Partial setup — {len(result.actions)} ok, {len(result.errors)} failed"
+        )
+    else:
+        ui.print_error("Agent setup failed")
     ui.print_hint("  astroai-lab agent install kilo|goose|cline|qoder|opencode")
     ui.print_hint("  astroai-lab agent addons            # curated lean + science addons")
     ui.print_hint("  astroai-lab agent add ponytail      # YAGNI / minimal diffs")
     ui.print_hint("  astroai-lab agent models free")
     ui.print_hint("  astroai-lab init myproject")
+    if result.exit_code:
+        raise typer.Exit(result.exit_code)
 
 
 @agent_app.command("update")
@@ -112,49 +141,31 @@ def agent_sync_cmd(ctx: typer.Context) -> None:
 @agent_app.command("status")
 def agent_status_cmd(ctx: typer.Context) -> None:
     """Show which agents are installed, configured, and have issues."""
+    from astroai_lab.agent.setup_state import build_agent_report, read_setup_state
+
     opts = get_opts(ctx)
     home = Path.home()
-    agents = [
-        ("opencode", "opencode", home / ".config" / "opencode" / "opencode.json"),
-        ("claude", "claude", home / ".claude.json"),
-        ("goose", "goose", home / ".config" / "goose" / "config.yaml"),
-        ("kilo", "kilo", home / ".config" / "kilo" / "kilo.jsonc"),
-        ("codex", "codex", home / ".codex" / "config.toml"),
-        ("copilot", "copilot", home / ".copilot" / "mcp-config.json"),
-        ("cline", "cline", home / ".config" / "canfar" / "lab" / "cline-free.md"),
-        ("qoder", "qodercli", home / ".qoder" / "settings.json"),
-        ("agent", "agent", home / ".cursor" / "mcp.json"),
-    ]
-    rows = []
-    for name, binary, config_path in agents:
-        installed = shutil.which(binary) is not None
-        has_config = config_path.is_file()
-        rows.append(
-            {
-                "agent": name,
-                "binary": installed,
-                "config": has_config,
-                "config_path": str(config_path),
-            }
-        )
+    report = build_agent_report(home)
     if opts.json:
-        ui.print_json(rows)
+        ui.print_json(report)
         return
     ui.print_hint("  Agent        Binary    Config")
     ui.print_hint("  ─────────    ───────   ──────")
-    for row in rows:
+    for row in report["agents"]:
         b = "✓" if row["binary"] else "✗"
         c = "✓" if row["config"] else "—"
         ui.print_hint(f"  {row['agent']:<12} {b:<9} {c}")
-    issues = agent_setup_mod.verify_setup(home)
+    issues = report["issues"]
     if issues:
         ui.print_hint("")
         for issue in issues:
             ui.print_warn(f"  {issue}")
-    stamp = home / ".astroai" / "lab" / "agent-setup-stamp"
-    if stamp.is_file():
+    state = read_setup_state(home)
+    if state.stamp:
         ui.print_hint("")
-        ui.print_hint(f"  Last setup: {stamp.read_text().strip()}")
+        ui.print_hint(f"  Last setup: {state.stamp}")
+    if state.failed:
+        ui.print_warn(f"  Last failure: {state.failed}")
 
 
 def _run_agent_sync(ctx: typer.Context) -> None:
@@ -164,16 +175,28 @@ def _run_agent_sync(ctx: typer.Context) -> None:
     except LabError as exc:
         ui.print_error(str(exc))
         raise typer.Exit(1) from exc
+    failures = [r for r in results if r.status == "failed"]
+    verify_failed = False
     if not opts.dry_run:
         try:
             agent_setup_mod.agent_verify()
         except LabError as exc:
+            verify_failed = True
             ui.print_warn(str(exc))
+            from astroai_lab.agent.setup_state import record_setup_failed
+
+            record_setup_failed(exit_code=2, detail=str(exc)[:500])
     prefix = "would refresh" if opts.dry_run else "refreshed"
     for result in results:
         if result.status == "skipped":
             continue
-        ui.print_ok(f"{prefix} skill {result.name} ({result.repo}: {result.status})")
+        if result.status == "failed":
+            ui.print_error(f"{result.name}: {result.detail}")
+        else:
+            ui.print_ok(f"{prefix} skill {result.name} ({result.repo}: {result.status})")
+    if failures or verify_failed:
+        ui.print_warn("Agent config update finished with issues")
+        raise typer.Exit(2)
     ui.print_ok("Agent config updated")
 
 
@@ -302,18 +325,40 @@ def agent_add_cmd(
         ui.print_error(str(exc))
         raise typer.Exit(1) from exc
     failures = 0
+    actions: list[dict[str, str]] = []
     for result in results:
+        actions.append({"id": result.id, "status": result.status, "detail": result.detail})
         if result.status == "failed":
             failures += 1
-            ui.print_error(f"{result.id}: {result.detail}")
+            if not opts.json:
+                ui.print_error(f"{result.id}: {result.detail}")
+        elif opts.json:
+            continue
         elif result.status == "skipped":
             ui.print_hint(f"  skip {result.id}: {result.detail}")
         elif result.status == "dry-run":
             ui.print_ok(f"would add {result.id} ({result.detail})")
         else:
             ui.print_ok(f"added {result.id} ({result.status}: {result.detail})")
+    if opts.json:
+        ok = failures == 0
+        partial = failures > 0 and failures < len(results)
+        ui.print_json(
+            {
+                "ok": ok,
+                "partial": partial,
+                "actions": actions,
+                "errors": [a["detail"] for a in actions if a["status"] == "failed"],
+                "warnings": [],
+            }
+        )
+        if failures and partial:
+            raise typer.Exit(2)
+        if failures:
+            raise typer.Exit(1)
+        return
     if failures:
-        raise typer.Exit(1)
+        raise typer.Exit(1 if failures == len(results) else 2)
 
 
 skills_app = typer.Typer(help="Cursor skills: inventory and GitHub upstream refresh.")
@@ -379,14 +424,40 @@ def _update_github_skills(ctx: typer.Context) -> None:
         raise typer.Exit(1) from exc
     prefix = "would update" if opts.dry_run else "updated"
     failures = 0
+    actions = []
     for result in results:
+        actions.append(
+            {
+                "name": result.name,
+                "repo": result.repo,
+                "status": result.status,
+                "detail": result.detail,
+            }
+        )
         if result.status == "failed":
             failures += 1
-            ui.print_error(f"{result.name}: {result.detail}")
-        elif result.status != "skipped":
+            if not opts.json:
+                ui.print_error(f"{result.name}: {result.detail}")
+        elif result.status != "skipped" and not opts.json:
             ui.print_ok(f"{prefix} {result.name} ({result.repo}: {result.status})")
+    if opts.json:
+        ok = failures == 0
+        partial = failures > 0 and any(a["status"] != "failed" for a in actions)
+        ui.print_json(
+            {
+                "ok": ok,
+                "partial": partial,
+                "actions": actions,
+                "errors": [a["detail"] for a in actions if a["status"] == "failed"],
+            }
+        )
+        if failures and partial:
+            raise typer.Exit(2)
+        if failures:
+            raise typer.Exit(1)
+        return
     if failures:
-        raise typer.Exit(1)
+        raise typer.Exit(2 if failures < len([a for a in actions if a["status"] != "skipped"]) else 1)
     ui.print_ok("GitHub skill sources refreshed")
 
 
@@ -400,16 +471,39 @@ def agent_project_cmd(
     opts = get_opts(ctx)
     project = path or Path.cwd()
     try:
-        agent_setup_mod.agent_setup(
+        result = agent_setup_mod.agent_setup(
             mode="project",
             project_dir=project.resolve(),
             force=force or opts.yes,
             dry_run=opts.dry_run,
         )
     except LabError as exc:
-        ui.print_error(str(exc))
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "partial": False,
+                    "mode": "project",
+                    "actions": [],
+                    "errors": [str(exc)],
+                    "warnings": [],
+                    "stamp": None,
+                }
+            )
+        else:
+            ui.print_error(str(exc))
         raise typer.Exit(1) from exc
-    ui.print_ok(f"Project templates installed in {project}")
+    if opts.json:
+        ui.print_json(result.to_dict())
+        if result.exit_code:
+            raise typer.Exit(result.exit_code)
+        return
+    if result.ok:
+        ui.print_ok(f"Project templates installed in {project}")
+    else:
+        for err in result.errors:
+            ui.print_error(err)
+        raise typer.Exit(result.exit_code)
 
 
 @agent_app.command("verify")
@@ -419,21 +513,42 @@ def agent_verify_cmd(ctx: typer.Context) -> None:
     Catches common OpenCode/Kilo JSONC mistakes (comments, trailing commas,
     broken braces) without needing to launch the agent.
     """
+    from astroai_lab.agent.setup_state import read_setup_state
+
     opts = get_opts(ctx)
     home = Path.home()
     issues = agent_setup_mod.verify_setup(home)
+    state = read_setup_state(home)
+    payload = {
+        "ok": not issues,
+        "issues": issues,
+        "setup": state.to_dict(),
+    }
     if opts.json:
-        ui.print_json({"ok": not issues, "issues": issues})
+        ui.print_json(payload)
         if issues:
             raise typer.Exit(1)
         return
     if issues:
         ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
         raise typer.Exit(1)
-    stamp = home / ".astroai" / "lab" / "agent-setup-stamp"
-    if stamp.is_file():
-        ui.print_hint(f"  last run: {stamp.read_text().strip()}")
+    if state.stamp:
+        ui.print_hint(f"  last run: {state.stamp}")
     ui.print_ok("Agent setup OK")
+
+
+@agent_app.command("report")
+def agent_report_cmd(ctx: typer.Context) -> None:
+    """One-shot JSON report: stamp, failed marker, verify issues, binaries.
+
+    Intended for the agent wizard / automation (always JSON).
+    """
+    from astroai_lab.agent.setup_state import build_agent_report
+
+    report = build_agent_report()
+    ui.print_json(report)
+    if not report.get("ok"):
+        raise typer.Exit(1)
 
 
 @agent_app.command("list")
@@ -492,8 +607,32 @@ def agent_install_cmd(
     try:
         agent_install.install_tool(tool, dry_run=opts.dry_run)
     except LabError as exc:
-        ui.print_error(str(exc))
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "tool": tool,
+                    "actions": [],
+                    "errors": [str(exc)],
+                    "warnings": [],
+                }
+            )
+        else:
+            ui.print_error(str(exc))
         raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": True,
+                "tool": tool,
+                "actions": [f"install:{tool}"],
+                "errors": [],
+                "warnings": [],
+                "bin_dir": str(user_bin_dir()) if not opts.dry_run else None,
+                "dry_run": opts.dry_run,
+            }
+        )
+        return
     if opts.dry_run:
         ui.print_ok(f"dry-run: would install {tool}")
     else:
@@ -549,8 +688,29 @@ def models_free_cmd(
             dry_run=opts.dry_run,
         )
     except LabError as exc:
-        ui.print_error(str(exc))
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "preset": preset,
+                    "actions": [],
+                    "errors": [str(exc)],
+                }
+            )
+        else:
+            ui.print_error(str(exc))
         raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": True,
+                "preset": preset,
+                "actions": actions,
+                "errors": [],
+                "dry_run": opts.dry_run,
+            }
+        )
+        return
     prefix = "would apply" if opts.dry_run else "applied"
     for line in actions:
         ui.print_ok(f"{prefix}: {line}")

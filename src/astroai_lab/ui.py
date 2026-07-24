@@ -174,8 +174,37 @@ def status_human(
     canfar_sessions: list[str] | None = None,
     gms_groups=None,
     vault=None,
+    resources: dict | None = None,
 ) -> None:
     console.print("[bold]astroai-lab status[/bold]\n")
+    if resources:
+        mem = resources.get("mem_pct")
+        cpu = resources.get("cpu_pct")
+        cg = resources.get("cgroup_mem_pct")
+        home = resources.get("home") or {}
+        scratch = resources.get("scratch") or {}
+        bits = []
+        if cpu is not None:
+            bits.append(f"cpu~{cpu}%")
+        if mem is not None:
+            bits.append(f"ram {mem}%")
+        if cg is not None:
+            bits.append(f"cgroup-mem {cg}%")
+        if home.get("pct") is not None:
+            bits.append(f"home {home['pct']}% ({home.get('source', '?')})")
+        if scratch.get("pct") is not None:
+            bits.append(f"scratch {scratch['pct']}%")
+        gpus = resources.get("gpu") or []
+        if gpus:
+            bits.append(
+                "gpu "
+                + ", ".join(f"{g.get('util_pct', '?')}%" for g in gpus[:2])
+            )
+        if bits:
+            console.print("[bold]Session resources:[/bold] " + " · ".join(bits))
+            for note in resources.get("notes") or []:
+                console.print(f"[dim]  {note}[/dim]")
+            console.print("")
     if canfar_auth:
         console.print(f"[bold]CANFAR Authentication:[/bold] {canfar_auth}\n")
     if gms_groups is not None and gms_groups.groups:

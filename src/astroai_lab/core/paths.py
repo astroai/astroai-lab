@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from astroai_lab.core.disk_usage import disk_usage, quota_used_pct
 from astroai_lab.core.session_common import find_arc_project_root, scratch_cache_root
 from astroai_lab.shell.session_env import resolve_session_env
 
@@ -49,20 +50,6 @@ def resolve_paths() -> SessionPaths:
     )
 
 
-def quota_used_pct(path: Path) -> int | None:
-    if not path.is_dir():
-        return None
-    try:
-        stat = os.statvfs(path)
-    except OSError:
-        return None
-    total = stat.f_blocks * stat.f_frsize
-    if total <= 0:
-        return None
-    used = (stat.f_blocks - stat.f_bfree) * stat.f_frsize
-    return int((used / total) * 100)
-
-
 def workspace_root(work_dir: Path) -> Path:
     return work_dir / ".astroai-lab" / "workspaces"
 
@@ -81,6 +68,7 @@ def runtime_root(work_dir: Path, scratch: Path | None) -> Path:
 
 __all__ = [
     "SessionPaths",
+    "disk_usage",
     "find_arc_project_root",
     "npm_prefix_dir",
     "quota_used_pct",
