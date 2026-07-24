@@ -1,0 +1,403 @@
+{
+  "addons": [
+    {
+      "id": "ponytail",
+      "kind": "bundle",
+      "tags": ["lean", "review"],
+      "summary": "YAGNI ladder — smallest correct change (skills + Cursor rule)",
+      "homepage": "https://github.com/DietrichGebert/ponytail",
+      "install": {
+        "type": "github-bundle",
+        "repo": "DietrichGebert/ponytail",
+        "skills": [
+          "skills/ponytail",
+          "skills/ponytail-review",
+          "skills/ponytail-audit"
+        ],
+        "rules": [".cursor/rules/ponytail.mdc"]
+      }
+    },
+    {
+      "id": "code-simplification",
+      "kind": "skill",
+      "tags": ["lean", "review"],
+      "summary": "Simplify working code without changing behavior",
+      "homepage": "https://github.com/addyosmani/agent-skills",
+      "install": {
+        "type": "github-skill",
+        "repo": "addyosmani/agent-skills",
+        "path": "skills/code-simplification"
+      }
+    },
+    {
+      "id": "code-review-and-quality",
+      "kind": "skill",
+      "tags": ["lean", "review"],
+      "summary": "Five-axis review, small PRs, severity labels",
+      "homepage": "https://github.com/addyosmani/agent-skills",
+      "install": {
+        "type": "github-skill",
+        "repo": "addyosmani/agent-skills",
+        "path": "skills/code-review-and-quality"
+      }
+    },
+    {
+      "id": "test-driven-development",
+      "kind": "skill",
+      "tags": ["lean", "test", "python"],
+      "summary": "Red-green-refactor TDD discipline",
+      "homepage": "https://github.com/addyosmani/agent-skills",
+      "install": {
+        "type": "github-skill",
+        "repo": "addyosmani/agent-skills",
+        "path": "skills/test-driven-development"
+      }
+    },
+    {
+      "id": "incremental-implementation",
+      "kind": "skill",
+      "tags": ["lean"],
+      "summary": "Thin vertical slices — implement, test, verify, commit",
+      "homepage": "https://github.com/addyosmani/agent-skills",
+      "install": {
+        "type": "github-skill",
+        "repo": "addyosmani/agent-skills",
+        "path": "skills/incremental-implementation"
+      }
+    },
+    {
+      "id": "interview-me",
+      "kind": "skill",
+      "tags": ["lean"],
+      "summary": "Clarify requirements one question at a time before coding",
+      "homepage": "https://github.com/addyosmani/agent-skills",
+      "install": {
+        "type": "github-skill",
+        "repo": "addyosmani/agent-skills",
+        "path": "skills/interview-me"
+      }
+    },
+    {
+      "id": "modern-python",
+      "kind": "skill",
+      "tags": ["lean", "python"],
+      "summary": "Modern Python tooling — uv, ruff, ty, pytest (Trail of Bits)",
+      "homepage": "https://github.com/trailofbits/skills",
+      "install": {
+        "type": "github-skill",
+        "repo": "trailofbits/skills",
+        "path": "plugins/modern-python/skills/modern-python"
+      }
+    },
+    {
+      "id": "pytest-skill",
+      "kind": "skill",
+      "tags": ["test", "python"],
+      "summary": "Pytest fixtures, parametrize, and mocking patterns",
+      "homepage": "https://github.com/LambdaTest/agent-skills",
+      "install": {
+        "type": "github-skill",
+        "repo": "LambdaTest/agent-skills",
+        "path": "pytest-skill"
+      }
+    },
+    {
+      "id": "pr-review",
+      "kind": "skill",
+      "tags": ["lean", "review"],
+      "summary": "Pull-request review playbook",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/pr-review"
+      }
+    },
+    {
+      "id": "ast-grep",
+      "kind": "skill",
+      "tags": ["lean", "python"],
+      "summary": "Structural code search/rewrite (skill); pair with CLI tool ast-grep",
+      "homepage": "https://github.com/ast-grep/agent-skill",
+      "install": {
+        "type": "github-skill",
+        "repo": "ast-grep/agent-skill",
+        "path": "ast-grep/skills/ast-grep"
+      }
+    },
+    {
+      "id": "ast-grep-cli",
+      "kind": "tool",
+      "tags": ["lean", "python"],
+      "summary": "ast-grep (sg) binary for structural edits",
+      "install": {
+        "type": "cli-tool",
+        "tool": "ast-grep"
+      }
+    },
+    {
+      "id": "token-efficient",
+      "kind": "rule",
+      "tags": ["lean"],
+      "summary": "Bundled Cursor rule — keep agent replies and diffs concise",
+      "default": true,
+      "install": {
+        "type": "bundled",
+        "note": "Installed by astroai-lab agent setup (cursor rules)"
+      }
+    },
+    {
+      "id": "astroai-lab-workflow",
+      "kind": "skill",
+      "tags": ["science"],
+      "summary": "AstroAI / CANFAR session workflow (bundled)",
+      "default": true,
+      "install": {
+        "type": "bundled",
+        "note": "Installed by astroai-lab agent setup"
+      }
+    },
+    {
+      "id": "polars",
+      "kind": "skill",
+      "tags": ["science", "data", "python"],
+      "summary": "Polars DataFrame workflows for agents",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/polars"
+      }
+    },
+    {
+      "id": "matplotlib-data-visualization",
+      "kind": "skill",
+      "tags": ["science", "data"],
+      "summary": "Matplotlib plotting guidance",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/matplotlib-data-visualization"
+      }
+    },
+    {
+      "id": "pydantic-skills",
+      "kind": "skill",
+      "tags": ["science", "python", "data"],
+      "summary": "Pydantic models without ceremony",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/pydantic-skills"
+      }
+    },
+    {
+      "id": "pydantic-evals",
+      "kind": "skill",
+      "tags": ["science", "python", "test"],
+      "summary": "Pydantic evaluation patterns",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/pydantic-evals"
+      }
+    },
+    {
+      "id": "sqlalchemy",
+      "kind": "skill",
+      "tags": ["science", "data", "python"],
+      "summary": "SQLAlchemy patterns for agents",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/sqlalchemy"
+      }
+    },
+    {
+      "id": "textual",
+      "kind": "skill",
+      "tags": ["python"],
+      "summary": "Textual TUI patterns",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/textual"
+      }
+    },
+    {
+      "id": "typst",
+      "kind": "skill",
+      "tags": ["docs", "science"],
+      "summary": "Typst document authoring",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/typst"
+      }
+    },
+    {
+      "id": "presentation-design",
+      "kind": "skill",
+      "tags": ["docs"],
+      "summary": "Presentation / slide design guidance",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/presentation-design"
+      }
+    },
+    {
+      "id": "conda-forge",
+      "kind": "skill",
+      "tags": ["science", "python"],
+      "summary": "conda-forge packaging guidance",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/conda-forge"
+      }
+    },
+    {
+      "id": "rattler-build",
+      "kind": "skill",
+      "tags": ["science", "python"],
+      "summary": "rattler-build package recipes",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/rattler-build"
+      }
+    },
+    {
+      "id": "gws-cli",
+      "kind": "skill",
+      "tags": ["science"],
+      "summary": "Google Workspace CLI skill",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/gws-cli"
+      }
+    },
+    {
+      "id": "librarian",
+      "kind": "skill",
+      "tags": ["docs", "science"],
+      "summary": "Librarian doc/knowledge skill",
+      "homepage": "https://github.com/pavelzw/skill-forge",
+      "install": {
+        "type": "github-skill",
+        "repo": "pavelzw/skill-forge",
+        "path": "recipes/librarian"
+      }
+    },
+    {
+      "id": "mcp-context7",
+      "kind": "mcp",
+      "tags": ["docs"],
+      "summary": "Live library docs (already in agent setup)",
+      "default": true,
+      "install": {
+        "type": "bundled",
+        "note": "Included in agent setup MCP configs"
+      }
+    },
+    {
+      "id": "mcp-memory",
+      "kind": "mcp",
+      "tags": ["lean"],
+      "summary": "Persistent agent memory (already in agent setup)",
+      "default": true,
+      "install": {
+        "type": "bundled",
+        "note": "Included in agent setup MCP configs"
+      }
+    },
+    {
+      "id": "git-mcp",
+      "kind": "mcp",
+      "tags": ["lean", "review"],
+      "summary": "Local git MCP (uvx mcp-server-git) — no API key",
+      "install": {
+        "type": "mcp-snippet",
+        "server": "git",
+        "cursor": {
+          "command": "uvx",
+          "args": ["mcp-server-git"]
+        },
+        "opencode": {
+          "type": "local",
+          "command": ["uvx", "mcp-server-git"],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "time",
+      "kind": "mcp",
+      "tags": ["lean"],
+      "summary": "Timezone / time MCP — no API key",
+      "install": {
+        "type": "mcp-snippet",
+        "server": "time",
+        "cursor": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-time"]
+        },
+        "opencode": {
+          "type": "local",
+          "command": ["npx", "-y", "@modelcontextprotocol/server-time"],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "sqlite",
+      "kind": "mcp",
+      "tags": ["data", "science"],
+      "summary": "SQLite MCP on scratch DB path — no API key",
+      "install": {
+        "type": "mcp-snippet",
+        "server": "sqlite",
+        "cursor": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@modelcontextprotocol/server-sqlite",
+            "${TMP_SCRATCH_DIR}/astroai-lab-mcp.sqlite"
+          ]
+        },
+        "opencode": {
+          "type": "local",
+          "command": [
+            "npx",
+            "-y",
+            "@modelcontextprotocol/server-sqlite",
+            "${TMP_SCRATCH_DIR}/astroai-lab-mcp.sqlite"
+          ],
+          "enabled": true
+        }
+      }
+    },
+    {
+      "id": "hyperfine",
+      "kind": "tool",
+      "tags": ["lean", "python"],
+      "summary": "CLI benchmarking tool",
+      "install": {
+        "type": "cli-tool",
+        "tool": "hyperfine"
+      }
+    }
+  ]
+}

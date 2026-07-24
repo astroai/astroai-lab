@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from astroai_lab import ui
+from astroai_lab.agent import addons as agent_addons
 from astroai_lab.agent import bundles as agent_setup_mod
 from astroai_lab.agent import free_models as agent_free_models
 from astroai_lab.agent import install as agent_install
@@ -13,16 +15,35 @@ from astroai_lab.cli.context import get_opts
 from astroai_lab.core.paths import user_bin_dir
 from astroai_lab.errors import LabError
 
-agent_app = typer.Typer(help="AI agent setup and tool installation.")
+agent_app = typer.Typer(
+    help=(
+        "AI coding agents: install CLIs, write configs/skills, verify, free models.\n\n"
+        "Quick map:\n"
+        "  list       overview (tools + bundles + skills)\n"
+        "  install    download a CLI binary (kilo, opencode, qoder, …)\n"
+        "  setup      write MCP/rules/skills configs\n"
+        "  addons     curated skills/rules/MCP (lean + science) — not a list of agents\n"
+        "  add        install curated addon(s) by id or --tag\n"
+        "  skills     Cursor skill inventory / refresh upstream\n"
+        "  status     binaries + configs at a glance\n"
+        "  verify     presence + config syntax checks\n"
+        "  models     free-tier model presets"
+    ),
+)
 
 
 @agent_app.callback(invoke_without_command=True)
 def agent_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        ui.print_hint(
-            "Use: `astroai-lab agent setup` | `astroai-lab agent sync` | "
-            "`astroai-lab agent sources update`"
-        )
+        ui.print_hint("AI agents — pick one:")
+        ui.print_hint("  astroai-lab agent list              # tools, bundles, skills overview")
+        ui.print_hint("  astroai-lab agent install [TOOL]    # CLI binaries (omit TOOL to list)")
+        ui.print_hint("  astroai-lab agent setup [BUNDLE…]   # MCP/rules/skills configs")
+        ui.print_hint("  astroai-lab agent addons            # curated lean + science addons")
+        ui.print_hint("  astroai-lab agent add ponytail      # install curated addon(s)")
+        ui.print_hint("  astroai-lab agent skills list       # Cursor skills inventory")
+        ui.print_hint("  astroai-lab agent status|verify     # health check")
+        ui.print_hint("  astroai-lab agent models free       # OpenRouter / Kilo presets")
 
 
 @agent_app.command("setup")
@@ -30,13 +51,21 @@ def agent_setup_cmd(
     ctx: typer.Context,
     bundle: Annotated[list[str] | None, typer.Argument()] = None,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
+    list_bundles: Annotated[
+        bool,
+        typer.Option("--list", "-l", help="List config bundles (not installable CLIs)."),
+    ] = False,
 ) -> None:
-    """Install MCP, rules, and skills for AI coding agents.
+    """Write MCP, rules, and skills configs for AI coding agents.
 
     Examples:
         astroai-lab agent setup
         astroai-lab agent setup cursor claude
+        astroai-lab agent setup --list
     """
+    if list_bundles:
+        _print_bundles(get_opts(ctx).json)
+        return
     opts = get_opts(ctx)
     try:
         agent_setup_mod.agent_setup(
@@ -54,7 +83,9 @@ def agent_setup_cmd(
         except LabError as exc:
             ui.print_warn(str(exc))
     ui.print_ok("Agent setup complete")
-    ui.print_hint("  astroai-lab agent install kilo|goose|cline")
+    ui.print_hint("  astroai-lab agent install kilo|goose|cline|qoder|opencode")
+    ui.print_hint("  astroai-lab agent addons            # curated lean + science addons")
+    ui.print_hint("  astroai-lab agent add ponytail      # YAGNI / minimal diffs")
     ui.print_hint("  astroai-lab agent models free")
     ui.print_hint("  astroai-lab init myproject")
 
@@ -81,8 +112,6 @@ def agent_sync_cmd(ctx: typer.Context) -> None:
 @agent_app.command("status")
 def agent_status_cmd(ctx: typer.Context) -> None:
     """Show which agents are installed, configured, and have issues."""
-    import shutil
-
     opts = get_opts(ctx)
     home = Path.home()
     agents = [
@@ -93,6 +122,8 @@ def agent_status_cmd(ctx: typer.Context) -> None:
         ("codex", "codex", home / ".codex" / "config.toml"),
         ("copilot", "copilot", home / ".copilot" / "mcp-config.json"),
         ("cline", "cline", home / ".config" / "canfar" / "lab" / "cline-free.md"),
+        ("qoder", "qodercli", home / ".qoder" / "settings.json"),
+        ("agent", "agent", home / ".cursor" / "mcp.json"),
     ]
     rows = []
     for name, binary, config_path in agents:
@@ -146,51 +177,200 @@ def _run_agent_sync(ctx: typer.Context) -> None:
     ui.print_ok("Agent config updated")
 
 
-sources_app = typer.Typer(help="GitHub upstream skill sources (see skills-sources.json).")
+def _print_bundles(as_json: bool) -> None:
+    rows = agent_setup_mod.agent_list_bundles()
+    if as_json:
+        ui.print_json(rows)
+        return
+    ui.print_hint("Config bundles — apply with: astroai-lab agent setup [NAME…]")
+    for name, desc in rows.items():
+        ui.print_hint(f"  {name:<14} {desc}")
+
+
+def _print_tools(as_json: bool) -> None:
+    rows = agent_install.list_tools_status()
+    if as_json:
+        ui.print_json(rows)
+        return
+    ui.print_hint("Installable CLIs — install with: astroai-lab agent install NAME")
+    ui.print_hint("  Name         Binary       On PATH   Description")
+    ui.print_hint("  ───────────  ───────────  ────────  ───────────")
+    for row in rows:
+        mark = "✓" if row["installed"] else "—"
+        ui.print_hint(
+            f"  {row['name']:<12} {row['binary']:<12} {mark:<8} {row['description']}"
+        )
+
+
+def _print_skills(as_json: bool, *, home: Path | None = None) -> None:
+    rows = agent_setup_mod.list_skills_inventory(home)
+    if as_json:
+        ui.print_json(rows)
+        return
+    ui.print_hint("Cursor skills (~/.cursor/skills) — refresh: astroai-lab agent skills update")
+    ui.print_hint("  Name                             Source        Status")
+    ui.print_hint("  ───────────────────────────────  ────────────  ──────────")
+    for row in rows:
+        if row["source"] == "pixi-skills":
+            status = "pixi-only"
+        else:
+            status = "installed" if row["installed"] else "missing"
+        detail = row["repo"] or row.get("note") or ""
+        line = f"  {row['name']:<32} {row['source']:<13} {status}"
+        ui.print_hint(line)
+        if detail:
+            ui.print_hint(f"    {detail}")
+
+
+def _print_addons(
+    as_json: bool,
+    *,
+    kind: str | None = None,
+    tag: str | None = None,
+) -> None:
+    rows = agent_addons.list_addons(kind=kind, tag=tag)
+    if as_json:
+        ui.print_json(rows)
+        return
+    ui.print_hint(
+        "Curated addons (skills/rules/MCP/tools) — not a list of agents. "
+        "Install: astroai-lab agent add NAME"
+    )
+    ui.print_hint("  Id                               Kind     Status     Tags / summary")
+    ui.print_hint("  ───────────────────────────────  ───────  ─────────  ──────────────")
+    for row in rows:
+        status = (
+            "default" if row["default"] else ("installed" if row["installed"] else "—")
+        )
+        tags = ",".join(row["tags"]) if row["tags"] else ""
+        ui.print_hint(
+            f"  {row['id']:<32} {row['kind']:<8} {status:<9} {tags}"
+        )
+        if row["summary"]:
+            ui.print_hint(f"    {row['summary']}")
+
+
+@agent_app.command("addons")
+def agent_addons_cmd(
+    ctx: typer.Context,
+    kind: Annotated[
+        str | None,
+        typer.Option("--kind", "-k", help="Filter: skill, bundle, mcp, tool, rule."),
+    ] = None,
+    tag: Annotated[
+        str | None,
+        typer.Option("--tag", "-t", help="Filter tag: lean, science, python, review, …"),
+    ] = None,
+) -> None:
+    """List curated lean-coding and science addons (not a catalog of agents).
+
+    Examples:
+        astroai-lab agent addons
+        astroai-lab agent addons --tag lean
+        astroai-lab agent addons --kind skill
+    """
+    _print_addons(get_opts(ctx).json, kind=kind, tag=tag)
+
+
+@agent_app.command("add")
+def agent_add_cmd(
+    ctx: typer.Context,
+    names: Annotated[list[str] | None, typer.Argument(help="Addon id(s).")] = None,
+    tag: Annotated[
+        str | None,
+        typer.Option("--tag", "-t", help="Install all addons with this tag (skips defaults)."),
+    ] = None,
+    force: Annotated[bool, typer.Option("--force", "-f")] = False,
+) -> None:
+    """Install curated addon(s) by id or tag.
+
+    Examples:
+        astroai-lab agent add ponytail
+        astroai-lab agent add ponytail polars modern-python
+        astroai-lab agent add --tag lean
+        astroai-lab agent add --dry-run git-mcp
+    """
+    opts = get_opts(ctx)
+    try:
+        results = agent_addons.add_addons(
+            list(names) if names else None,
+            tag=tag,
+            force=force or opts.yes,
+            dry_run=opts.dry_run,
+        )
+    except LabError as exc:
+        ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    failures = 0
+    for result in results:
+        if result.status == "failed":
+            failures += 1
+            ui.print_error(f"{result.id}: {result.detail}")
+        elif result.status == "skipped":
+            ui.print_hint(f"  skip {result.id}: {result.detail}")
+        elif result.status == "dry-run":
+            ui.print_ok(f"would add {result.id} ({result.detail})")
+        else:
+            ui.print_ok(f"added {result.id} ({result.status}: {result.detail})")
+    if failures:
+        raise typer.Exit(1)
+
+
+skills_app = typer.Typer(help="Cursor skills: inventory and GitHub upstream refresh.")
+agent_app.add_typer(skills_app, name="skills")
+
+
+@skills_app.callback(invoke_without_command=True)
+def skills_root(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        _print_skills(get_opts(ctx).json)
+
+
+@skills_app.command("list")
+def skills_list_cmd(ctx: typer.Context) -> None:
+    """List bundled, GitHub, pixi-only, and extra Cursor skills."""
+    _print_skills(get_opts(ctx).json)
+
+
+@skills_app.command("update")
+def skills_update_cmd(ctx: typer.Context) -> None:
+    """Pull GitHub upstream skill sources and refresh ~/.cursor/skills copies.
+
+    Examples:
+        astroai-lab agent skills update
+        astroai-lab agent skills update --dry-run
+    """
+    _update_github_skills(ctx)
+
+
+# Keep `sources` as a thin alias so older docs/scripts keep working.
+sources_app = typer.Typer(
+    help="Alias for `agent skills` (GitHub upstream skill sources).",
+    hidden=False,
+)
 agent_app.add_typer(sources_app, name="sources")
 
 
 @sources_app.callback(invoke_without_command=True)
 def sources_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        ui.print_hint("Use: `astroai-lab agent sources list` | `astroai-lab agent sources update`")
+        ui.print_hint("Prefer: `astroai-lab agent skills list` | `astroai-lab agent skills update`")
+        ui.print_hint("(sources is an alias for skills)")
 
 
 @sources_app.command("list")
 def sources_list_cmd(ctx: typer.Context) -> None:
-    """List configured GitHub skill sources and local cache paths."""
-    opts = get_opts(ctx)
-    home = Path.home()
-    rows = []
-    for item in agent_setup_mod.list_github_sources():
-        cache = agent_setup_mod.upstream_cache_path(home, item["repo"])
-        installed = home / ".cursor" / "skills" / item["name"] / "SKILL.md"
-        rows.append(
-            {
-                **item,
-                "cache": str(cache),
-                "cached": (cache / ".git").is_dir(),
-                "installed": installed.is_file(),
-            }
-        )
-    if opts.json:
-        ui.print_json(rows)
-        return
-    for row in rows:
-        state = "installed" if row["installed"] else "missing"
-        cache_state = "cached" if row["cached"] else "not cached"
-        ui.print_hint(f"  {row['name']:<28} {row['repo']}  ({state}, {cache_state})")
-        ui.print_hint(f"    {row['homepage']}")
+    """List skill sources (alias for ``agent skills list``)."""
+    _print_skills(get_opts(ctx).json)
 
 
 @sources_app.command("update")
 def sources_update_cmd(ctx: typer.Context) -> None:
-    """Pull all GitHub upstream skill sources and refresh ~/.cursor/skills copies.
+    """Pull GitHub upstream skills (alias for ``agent skills update``)."""
+    _update_github_skills(ctx)
 
-    Examples:
-        astroai-lab agent sources update
-        astroai-lab agent sources update --dry-run
-    """
+
+def _update_github_skills(ctx: typer.Context) -> None:
     opts = get_opts(ctx)
     try:
         results = agent_setup_mod.update_all_github_sources(force=True, dry_run=opts.dry_run)
@@ -233,14 +413,24 @@ def agent_project_cmd(
 
 
 @agent_app.command("verify")
-def agent_verify_cmd() -> None:
-    """Check agent setup status."""
-    try:
-        agent_setup_mod.agent_verify()
-    except LabError as exc:
-        ui.print_error(str(exc))
-        raise typer.Exit(1) from exc
-    stamp = Path.home() / ".astroai" / "lab" / "agent-setup-stamp"
+def agent_verify_cmd(ctx: typer.Context) -> None:
+    """Check agent setup: required files plus JSON/TOML/YAML syntax of configs.
+
+    Catches common OpenCode/Kilo JSONC mistakes (comments, trailing commas,
+    broken braces) without needing to launch the agent.
+    """
+    opts = get_opts(ctx)
+    home = Path.home()
+    issues = agent_setup_mod.verify_setup(home)
+    if opts.json:
+        ui.print_json({"ok": not issues, "issues": issues})
+        if issues:
+            raise typer.Exit(1)
+        return
+    if issues:
+        ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
+        raise typer.Exit(1)
+    stamp = home / ".astroai" / "lab" / "agent-setup-stamp"
     if stamp.is_file():
         ui.print_hint(f"  last run: {stamp.read_text().strip()}")
     ui.print_ok("Agent setup OK")
@@ -248,36 +438,57 @@ def agent_verify_cmd() -> None:
 
 @agent_app.command("list")
 def agent_list_cmd(ctx: typer.Context) -> None:
-    """List available agent config bundles."""
+    """Overview of installable CLIs, config bundles, and Cursor skills.
+
+    Prefer this over guessing between ``install`` / ``setup`` / ``skills``.
+    Curated lean/science recommendations: ``agent addons``.
+    """
     opts = get_opts(ctx)
-    rows = agent_setup_mod.agent_list_bundles()
     if opts.json:
-        ui.print_json(rows)
-    else:
-        for name, desc in rows.items():
-            ui.print_hint(f"  {name}: {desc}")
+        ui.print_json(
+            {
+                "tools": agent_install.list_tools_status(),
+                "bundles": agent_setup_mod.agent_list_bundles(),
+                "skills": agent_setup_mod.list_skills_inventory(),
+                "addons": agent_addons.list_addons(),
+            }
+        )
+        return
+    _print_tools(False)
+    ui.print_hint("")
+    _print_bundles(False)
+    ui.print_hint("")
+    _print_skills(False)
+    ui.print_hint("")
+    ui.print_hint(
+        "Curated addons: `astroai-lab agent addons` · `astroai-lab agent add NAME`"
+    )
 
 
 @agent_app.command("install")
 def agent_install_cmd(
     ctx: typer.Context,
-    tool: Annotated[str | None, typer.Argument(help="Tool name (see --list).")] = None,
-    list_tools: Annotated[bool, typer.Option("--list", "-l", help="List tools.")] = False,
+    tool: Annotated[str | None, typer.Argument(help="Tool name (omit to list).")] = None,
+    list_tools: Annotated[
+        bool,
+        typer.Option("--list", "-l", help="List installable CLIs (same as omitting TOOL)."),
+    ] = False,
 ) -> None:
-    """Install AI coding tools to $ASTROAI_LAB_BIN_DIR (scratch or team project, not $HOME).
+    """Install AI coding CLIs to $ASTROAI_LAB_BIN_DIR (scratch/team, not $HOME).
 
     Examples:
-        astroai-lab agent install claude
+        astroai-lab agent install              # list CLIs
+        astroai-lab agent install kilo
+        astroai-lab agent install qoder
         astroai-lab agent install --list
     """
-    if list_tools:
-        for name, desc in agent_install.list_tools().items():
-            typer.echo(f"  {name:<12} {desc}")
-        return
-    if not tool:
-        ui.print_error("Specify a tool or --list")
-        raise typer.Exit(1)
     opts = get_opts(ctx)
+    if list_tools or not tool:
+        _print_tools(opts.json)
+        if not tool and not list_tools:
+            ui.print_hint("")
+            ui.print_hint("Install one with: astroai-lab agent install NAME")
+        return
     try:
         agent_install.install_tool(tool, dry_run=opts.dry_run)
     except LabError as exc:
@@ -287,7 +498,7 @@ def agent_install_cmd(
         ui.print_ok(f"dry-run: would install {tool}")
     else:
         ui.print_ok(f"Installed {tool} → {user_bin_dir()}")
-        if tool in ("kilo", "goose", "cline", "opencode", "codex"):
+        if tool in ("kilo", "goose", "cline", "opencode", "codex", "qoder"):
             ui.print_hint("  astroai-lab agent models free")
 
 

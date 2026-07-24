@@ -45,7 +45,7 @@ def _tools_human(tools: list[ToolInfo]) -> None:
     missing = [t.name for t in tools if not t.available]
     if missing:
         ui.print_hint(f"  missing: {', '.join(missing)}")
-        ui.print_hint("  agents: `astroai-lab agent install --list`")
+        ui.print_hint("  agents: `astroai-lab agent list`  or  `astroai-lab agent install`")
 
 
 def _check_human(items: list[CheckItem]) -> None:

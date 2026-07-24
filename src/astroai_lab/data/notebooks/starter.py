@@ -278,7 +278,7 @@ astroai-lab push --yes
 
 ```bash
 astroai-lab agent setup             # once per user (also seeds marimo AI)
-astroai-lab agent install kilo      # or goose, claude, opencode, codex
+astroai-lab agent install kilo      # or goose, claude, opencode, codex, qoder
 astroai-lab agent update
 ```
 

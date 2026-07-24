@@ -11,13 +11,16 @@ AstroAI = product images/tools; CANFAR = Science Platform host.
 
 ```bash
 astroai-lab agent setup              # once per user — MCP + skills (persists on /arc)
-astroai-lab agent install kilo       # or: goose, cline, opencode, codex, agent
+astroai-lab agent install kilo       # or: goose, cline, opencode, codex, qoder, agent
 astroai-lab agent models free        # OpenRouter + Kilo free-tier model presets
 gh auth login                       # GitHub for gh + GitHub MCP
 ```
 
-Refresh agent bundles after an image upgrade: `astroai-lab agent sync`
-GitHub upstream skills only: `astroai-lab agent sources update`
+Discover what’s available: `astroai-lab agent list`  
+Curated lean/science addons: `astroai-lab agent addons` · `astroai-lab agent add ponytail`  
+Refresh after an image upgrade: `astroai-lab agent update`  
+GitHub upstream skills only: `astroai-lab agent skills update`  
+Broken agent configs (esp. OpenCode JSON): `astroai-lab agent verify`
 
 ## Daily workflow
 
@@ -79,6 +82,8 @@ astroai-lab paths --json           # resolved work/scratch/cache/save paths
 astroai-lab tools --json           # tools on PATH (+ versions)
 astroai-lab check                  # quick health check
 astroai-lab doctor --json          # full paths, caches, tools on PATH
+astroai-lab agent list             # agent CLIs, config bundles, skills
+astroai-lab agent verify           # configs present + parseable
 astroai-lab clean home --all-safe --dry-run
 less /opt/astroai/USAGE.md
 ```

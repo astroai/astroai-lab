@@ -25,12 +25,19 @@ TOOLS = {
     "goose": "Goose",
     "kilo": "Kilo CLI (@kilocode/cli)",
     "cline": "Cline CLI",
+    "qoder": "Qoder CLI (qodercli)",
     "freebuff": "Freebuff",
     "pi": "Pi Coding Agent",
     "codewhale": "CodeWhale",
     "swival": "Swival",
     "ast-grep": "ast-grep (sg)",
     "hyperfine": "hyperfine",
+}
+
+# CLI binary name when it differs from the install tool key.
+TOOL_BINARIES = {
+    "ast-grep": "sg",
+    "qoder": "qodercli",
 }
 
 
@@ -44,6 +51,38 @@ def _npm_prefix() -> Path:
 
 def list_tools() -> dict[str, str]:
     return dict(TOOLS)
+
+
+def tool_binary(name: str) -> str:
+    return TOOL_BINARIES.get(name, name)
+
+
+def tool_on_path(name: str) -> bool:
+    binary = tool_binary(name)
+    if shutil.which(binary) is not None:
+        return True
+    session = resolve_session_env(ensure=False)
+    candidates = [
+        session.astroai_lab_bin_dir / binary,
+        session.astroai_lab_npm_prefix / "bin" / binary,
+    ]
+    return any(path.is_file() and os.access(path, os.X_OK) for path in candidates)
+
+
+def list_tools_status() -> list[dict[str, object]]:
+    """Installable tools with whether their binary is currently available."""
+    rows: list[dict[str, object]] = []
+    for name, desc in TOOLS.items():
+        binary = tool_binary(name)
+        rows.append(
+            {
+                "name": name,
+                "binary": binary,
+                "description": desc,
+                "installed": tool_on_path(name),
+            }
+        )
+    return rows
 
 
 def _ensure_bin_dir() -> None:
@@ -132,7 +171,7 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
 
 def install_tool(name: str, *, dry_run: bool = False) -> None:
     if name not in TOOLS:
-        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent install --list")
+        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent install  (or agent list)")
     if dry_run:
         return
     resolve_session_env(ensure=True)
@@ -194,10 +233,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("codex")
     elif name == "copilot":
         env = {"PREFIX": str(_npm_prefix()), "CI": "1"}
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             _curl_pipe_bash("https://gh.io/copilot-install", env=env)
-        except subprocess.CalledProcessError:
-            pass  # fall back to npm when gh.io is rate-limited or unavailable
         copilot_bin = _npm_prefix() / "bin" / "copilot"
         if not copilot_bin.is_file() and shutil.which("copilot") is None:
             _require("npm")
@@ -224,10 +261,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _verify_cmd("goose")
     elif name == "kilo":
         env = {"XDG_BIN_DIR": str(_bin_dir())}
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
-        except subprocess.CalledProcessError:
-            pass  # fall back to npm when upstream installer is unavailable
         if shutil.which("kilo") is None and not (_bin_dir() / "kilo").is_file():
             _require("npm")
             run(
@@ -242,6 +277,34 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             env=_session_environ(),
         )
         _verify_cmd("cline")
+    elif name == "qoder":
+        env = {"XDG_BIN_DIR": str(_bin_dir())}
+        with contextlib.suppress(subprocess.CalledProcessError):
+            _curl_pipe_bash("https://qoder.com/install", env=env)
+        qoder_src = _bin_dir() / "qodercli"
+        if not qoder_src.is_file():
+            qoder_src = Path.home() / ".local" / "bin" / "qodercli"
+        if qoder_src.is_file():
+            _link_into_local_bin(qoder_src, "qodercli")
+            # Convenience alias matching the install tool name.
+            _link_into_local_bin(qoder_src, "qoder")
+        if shutil.which("qodercli") is None and not (_bin_dir() / "qodercli").is_file():
+            _require("npm")
+            run(
+                [
+                    "npm",
+                    "install",
+                    "-g",
+                    "--prefix",
+                    str(_npm_prefix()),
+                    "@qoder-ai/qodercli@latest",
+                ],
+                env=_session_environ(),
+            )
+            npm_bin = _npm_prefix() / "bin" / "qodercli"
+            _link_into_local_bin(npm_bin, "qodercli")
+            _link_into_local_bin(npm_bin, "qoder")
+        _verify_cmd("qodercli")
     elif name in ("freebuff", "pi", "codewhale"):
         _require("npm")
         pkg = {

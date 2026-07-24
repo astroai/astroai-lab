@@ -212,9 +212,13 @@ Persists under `/arc` home (MCP, skills, tool binaries):
 
 ```bash
 astroai-lab agent setup
-astroai-lab agent install kilo
+astroai-lab agent install kilo     # or goose, opencode, qoder, …
+astroai-lab agent addons           # curated lean + science skills/MCP
+astroai-lab agent add ponytail     # YAGNI / minimal diffs
 astroai-lab agent models free
-astroai-lab agent update          # after image upgrades
+astroai-lab agent update           # after image upgrades
+astroai-lab agent list             # CLIs + bundles + skills overview
+astroai-lab agent verify           # catch broken JSON/TOML/YAML configs
 ```
 
 See [cli.md](cli.md) for `agent models free --preset long` and per-agent options.

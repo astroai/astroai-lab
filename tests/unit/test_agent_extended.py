@@ -87,6 +87,32 @@ def test_list_github_sources() -> None:
     assert any(s["name"] == "ast-grep" for s in sources)
 
 
+def test_list_skills_inventory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from astroai_lab.agent.bundles import list_skills_inventory
+
+    home = tmp_path / "home"
+    skill = home / ".cursor" / "skills" / "astroai-lab-workflow"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# skill\n")
+    monkeypatch.setenv("HOME", str(home))
+    rows = list_skills_inventory(home)
+    names = {r["name"] for r in rows}
+    assert "astroai-lab-workflow" in names
+    assert "ast-grep" in names
+    workflow = next(r for r in rows if r["name"] == "astroai-lab-workflow")
+    assert workflow["installed"] is True
+    assert workflow["source"] == "bundled"
+
+
+def test_agent_skills_list_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["agent", "skills", "list"])
+    assert result.exit_code == 0
+    assert "ast-grep" in (result.stdout + result.stderr)
+
+
 def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()

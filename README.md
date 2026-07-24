@@ -100,12 +100,14 @@ Optional — once per user on persistent `/arc` home:
 
 ```bash
 astroai-lab agent setup
-astroai-lab agent install kilo       # or goose, cline, opencode, …
+astroai-lab agent install kilo       # or goose, cline, opencode, qoder, …
 astroai-lab agent models free
 gh auth login
 ```
 
-After an image upgrade: `astroai-lab agent update`. Details in [docs/cli.md](docs/cli.md).
+After an image upgrade: `astroai-lab agent update`. Overview: `astroai-lab agent list`.
+Curated addons: `astroai-lab agent addons` · `astroai-lab agent add ponytail`.
+Broken configs: `astroai-lab agent verify`. Details in [docs/cli.md](docs/cli.md).
 
 ## Configuration
 

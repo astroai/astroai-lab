@@ -111,6 +111,7 @@ check_flag_in_help "doctor" "--json" doctor
 check_flag_in_help "env list" "--json" env list
 check_flag_in_help "kernel list" "--json" kernel list
 check_flag_in_help "agent install" "--list" agent install
+check_flag_in_help "agent setup" "--list" agent setup
 check_flag_in_help "agent models" "--preset" agent models free
 
 echo "=== Flag placement (global OR subcommand) ==="
@@ -156,7 +157,12 @@ check_invocation "config path" config path
 check_invocation "env export" env export
 check_invocation "env list" env list
 check_invocation "env list json" env list --json
-check_invocation "agent install list" agent install --list
+check_invocation "agent list" agent list
+check_invocation "agent addons" agent addons
+check_invocation "agent install list" agent install
+check_invocation "agent install list flag" agent install --list
+check_invocation "agent setup list" agent setup --list
+check_invocation "agent skills list" agent skills list
 check_invocation "agent models list" agent models
 check_invocation "clean home dry-run sub" clean home --all-safe --dry-run
 check_invocation "clean home dry-run global" --dry-run clean home --all-safe

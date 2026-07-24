@@ -9,12 +9,14 @@ workbench. AstroAI is the product; CANFAR is the Science Platform.
 
 ```bash
 astroai-lab agent setup          # on /arc — MCP + skills + free-model presets
-astroai-lab agent install kilo   # or goose, cline, opencode, codex, agent
+astroai-lab agent install kilo   # or goose, cline, opencode, codex, qoder, agent
 astroai-lab agent models free    # OpenRouter :free + Kilo auto/free configs
 gh auth login
 ```
 
-Refresh bundles after an image upgrade: `astroai-lab agent sync`
+Refresh bundles after an image upgrade: `astroai-lab agent update`
+Overview / broken configs: `astroai-lab agent list` · `astroai-lab agent verify`
+Curated lean/science addons: `astroai-lab agent addons` · `astroai-lab agent add ponytail`
 
 ## This repo
 

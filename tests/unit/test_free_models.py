@@ -91,9 +91,11 @@ def test_agent_install_list_includes_kilo_cline() -> None:
 
     result = CliRunner().invoke(app, ["agent", "install", "--list"])
     assert result.exit_code == 0
-    assert "kilo" in result.stdout
-    assert "cline" in result.stdout
-    assert "goose" in result.stdout
+    out = result.stdout + result.stderr
+    assert "kilo" in out
+    assert "cline" in out
+    assert "goose" in out
+    assert "qoder" in out
 
 
 def test_apply_free_models_writes(tmp_path: Path) -> None:

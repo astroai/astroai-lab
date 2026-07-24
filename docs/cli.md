@@ -198,25 +198,46 @@ Optional preferences file.
 
 Freeze/restore full project trees (zstd bundles).
 
-### `astroai-lab agent setup|update|sync|sources|project|verify|list|install|models`
+### `astroai-lab agent setup|update|addons|add|skills|project|verify|list|install|models|status`
 
-AI agent MCP, rules, skills, tool installation, and free model presets.
+AI agent MCP, rules, skills, CLI installation, and free model presets.
+
+Mental model:
+
+| Command | What it does |
+|---------|----------------|
+| `agent list` | Overview: installable CLIs, config bundles, Cursor skills |
+| `agent install [TOOL]` | Download a CLI binary (omit TOOL to list) |
+| `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles) |
+| `agent addons` | Curated lean + science addons (skills/rules/MCP) — **not** a list of agents |
+| `agent add NAME…` | Install curated addon(s); `--tag lean` / `--tag science` |
+| `agent skills list` | Cursor skill inventory (bundled / GitHub / pixi / extras) |
+| `agent skills update` | Refresh GitHub upstream skills only |
+| `agent status` | Binaries + configs at a glance |
+| `agent verify` | Presence checks **and** JSON/TOML/YAML syntax of configs |
+| `agent models free` | OpenRouter / Kilo free-tier presets |
 
 ```bash
+astroai-lab agent list
 astroai-lab agent setup
-astroai-lab agent sync              # full refresh: all agents, MCP, skills, GitHub sources
-astroai-lab agent update            # alias for sync
-astroai-lab agent sources update    # GitHub upstream skills only
-astroai-lab agent sources list
-astroai-lab agent project
+astroai-lab agent setup --list
+astroai-lab agent install              # list CLIs
 astroai-lab agent install kilo
-astroai-lab agent install goose
-astroai-lab agent install cline
-astroai-lab agent install --list
-astroai-lab agent models
+astroai-lab agent install qoder
+astroai-lab agent addons               # curated recommendations
+astroai-lab agent addons --tag lean
+astroai-lab agent add ponytail
+astroai-lab agent add polars modern-python
+astroai-lab agent add --tag lean
+astroai-lab agent skills list
+astroai-lab agent skills update
+astroai-lab agent verify
+astroai-lab agent update               # full refresh after image upgrades
 astroai-lab agent models free
 astroai-lab agent models free --preset long
 ```
+
+`agent sources …` remains as an alias for `agent skills …`.
 
 
 ### `astroai-lab kernel`

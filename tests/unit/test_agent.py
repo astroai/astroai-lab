@@ -47,10 +47,53 @@ def test_agent_verify_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert issues
 
 
+def test_agent_verify_opencode_syntax(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from astroai_lab.agent.bundles import verify_config_syntax
+
+    home = tmp_path / "home"
+    oc = home / ".config" / "opencode"
+    oc.mkdir(parents=True)
+    (oc / "opencode.json").write_text("{ mcp: { broken } }\n")  # invalid JSON
+    monkeypatch.setenv("HOME", str(home))
+    issues = verify_config_syntax(home)
+    assert any("syntax error" in i and "opencode" in i for i in issues)
+
+
+def test_agent_verify_jsonc_ok(tmp_path: Path) -> None:
+    from astroai_lab.agent.bundles import verify_config_syntax
+
+    home = tmp_path / "home"
+    oc = home / ".config" / "opencode"
+    oc.mkdir(parents=True)
+    (oc / "opencode.json").write_text(
+        '{\n  // comment\n  "mcp": { "a": {} },\n}\n',
+        encoding="utf-8",
+    )
+    assert verify_config_syntax(home) == []
+
+
 def test_agent_install_list() -> None:
-    result = runner.invoke(app, ["agent", "install", "--list"])
+    result = runner.invoke(app, ["agent", "install"])
     assert result.exit_code == 0
-    assert "claude" in result.stdout
+    out = result.stdout + result.stderr
+    assert "claude" in out
+    assert "qoder" in out
+
+
+def test_agent_list_overview() -> None:
+    result = runner.invoke(app, ["agent", "list"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "Installable CLIs" in out or "kilo" in out
+    assert "Config bundles" in out or "cursor" in out
+    assert "astroai-lab-workflow" in out
+
+
+def test_agent_setup_list() -> None:
+    result = runner.invoke(app, ["agent", "setup", "--list"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "cursor" in out
 
 
 def test_agent_setup_cli_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
