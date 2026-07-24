@@ -50,8 +50,9 @@ GUIDE_TEXT = """
 
 [bold]Ray[/bold]
   astroai-lab ray guide             launch cheat sheet
-  astroai-lab ray status            manager cluster state (in ray-manager)
+  astroai-lab ray status            heartbeats under ~/.astroai/ray/clusters/ (any session)
   canfar create contributed images.canfar.net/astroai/ray-manager:<tag>
+  openresearch/openworker hub: /astroai-agents/ (Agents · CANFAR · Ray)
 
 [bold]Hygiene[/bold]
   astroai-lab clean home --all-safe --dry-run

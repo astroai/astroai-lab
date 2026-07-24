@@ -52,12 +52,20 @@ def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -
     (state / "manager-heartbeat").touch()
     (state / "state.json").write_text('{"phase": "Running"}')
 
+    other = lab_home / ".astroai" / "ray" / "clusters" / "mgr-other"
+    other.mkdir(parents=True)
+    (other / "manager-heartbeat").touch()
+
     result = runner.invoke(app, ["--json", "ray", "status"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["cluster_id"] == "test-cluster"
     assert data["heartbeat_present"] is True
     assert data["state"]["phase"] == "Running"
+    assert data["phase"] == "Running"
+    assert len(data["clusters"]) >= 2
+    assert "launch_command" in data
+    assert "ray-manager:" in data["launch_command"]
 
     # Human-readable path (non-json).
     result = runner.invoke(app, ["ray", "status"])
@@ -65,13 +73,19 @@ def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -
     assert "test-cluster" in result.output
     assert "Running" in result.output
 
-    # Missing state → hint.
+    # Missing heartbeat → launch hint.
     empty = lab_home / ".astroai" / "ray" / "clusters" / "empty"
     empty.mkdir(parents=True)
     monkeypatch.setenv("RAY_CLUSTER_ID", "empty")
-    result = runner.invoke(app, ["ray", "status"])
+    # Remove other heartbeats so scan finds none active for preferred empty.
+    (state / "manager-heartbeat").unlink()
+    (other / "manager-heartbeat").unlink()
+    result = runner.invoke(app, ["--json", "ray", "status"])
     assert result.exit_code == 0
-    assert "No cluster state" in result.output or "hint" in result.output.lower() or "launch" in result.output.lower()
+    data = json.loads(result.stdout)
+    assert data["heartbeat_present"] is False
+    assert "hint" in data
+    assert "launch" in data["hint"].lower() or "ray-manager" in data["hint"].lower()
 
 
 def test_backup_cli_status_and_run(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
