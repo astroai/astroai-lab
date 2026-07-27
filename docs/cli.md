@@ -198,23 +198,27 @@ Optional preferences file.
 
 Freeze/restore full project trees (zstd bundles).
 
-### `astroai-lab agent setup|update|addons|add|skills|project|verify|list|install|models|status`
+### `astroai-lab agent setup|update|addons|add|awesome|skills|project|verify|fix|clean|interact|list|install|models|status`
 
-AI agent MCP, rules, skills, CLI installation, and free model presets.
+AI agent MCP, rules, skills, CLI installation, Awesome catalog, auto-fix, state clean, and free model presets.
 
 Mental model:
 
 | Command | What it does |
 |---------|----------------|
+| `agent awesome` | Curated Awesome catalog (agents, skills, rules, MCPs, container UIs) |
 | `agent list` | Overview: installable CLIs, config bundles, Cursor skills |
 | `agent install [TOOL]` | Download a CLI binary (omit TOOL to list) |
 | `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles) |
-| `agent addons` | Curated lean + science addons (skills/rules/MCP) — **not** a list of agents |
+| `agent addons` | Curated lean + science addons (skills/rules/MCP) |
 | `agent add NAME…` | Install curated addon(s); `--tag lean` / `--tag science` |
 | `agent skills list` | Cursor skill inventory (bundled / GitHub / pixi / extras) |
 | `agent skills update` | Refresh GitHub upstream skills only |
 | `agent status` | Binaries + configs at a glance |
-| `agent verify` | Presence checks **and** JSON/TOML/YAML syntax of configs |
+| `agent verify` | Presence checks **and** JSON/TOML/YAML syntax of configs (use `--fix` to auto-repair) |
+| `agent fix` | Auto-repair syntax errors, missing directories, and stale locks |
+| `agent clean` | Clean stale locks, failed markers, empty configs, and setup logs |
+| `agent interact` | Inspect active container UI endpoints, open ports, and active agent CLIs |
 | `agent models free` | OpenRouter / Kilo free-tier presets |
 
 ```bash

@@ -8,8 +8,12 @@ import typer
 from astroai_lab import ui
 from astroai_lab.agent import addons as agent_addons
 from astroai_lab.agent import bundles as agent_setup_mod
+from astroai_lab.agent import catalog as agent_catalog_mod
+from astroai_lab.agent import clean_agent as agent_clean_mod
+from astroai_lab.agent import fix as agent_fix_mod
 from astroai_lab.agent import free_models as agent_free_models
 from astroai_lab.agent import install as agent_install
+from astroai_lab.agent import interact as agent_interact_mod
 from astroai_lab.cli.context import get_opts
 from astroai_lab.core.paths import user_bin_dir
 from astroai_lab.errors import LabError
@@ -18,14 +22,18 @@ agent_app = typer.Typer(
     help=(
         "AI coding agents: install CLIs, write configs/skills, verify, free models.\n\n"
         "Quick map:\n"
+        "  catalog    curated catalog (agents + skills + MCPs + container UIs)\n"
         "  list       overview (tools + bundles + skills)\n"
         "  install    download a CLI binary (kilo, opencode, qoder, …)\n"
         "  setup      write MCP/rules/skills configs\n"
-        "  addons     curated skills/rules/MCP (lean + science) — not a list of agents\n"
+        "  addons     curated skills/rules/MCP (lean + science)\n"
         "  add        install curated addon(s) by id or --tag\n"
         "  skills     Cursor skill inventory / refresh upstream\n"
         "  status     binaries + configs at a glance\n"
-        "  verify     presence + config syntax checks\n"
+        "  verify     presence + config syntax checks (with --fix)\n"
+        "  fix        auto-repair setup state, locks, & config syntax\n"
+        "  clean      remove stale locks, failed markers, & empty configs\n"
+        "  interact   inspect active container UI endpoints & agent CLI status\n"
         "  report     one-shot JSON health (wizard)\n"
         "  models     free-tier model presets"
     ),
@@ -36,13 +44,16 @@ agent_app = typer.Typer(
 def agent_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         ui.print_hint("AI agents — pick one:")
+        ui.print_hint("  astroai-lab agent catalog           # curated AI tools & container catalog")
         ui.print_hint("  astroai-lab agent list              # tools, bundles, skills overview")
         ui.print_hint("  astroai-lab agent install [TOOL]    # CLI binaries (omit TOOL to list)")
         ui.print_hint("  astroai-lab agent setup [BUNDLE…]   # MCP/rules/skills configs")
         ui.print_hint("  astroai-lab agent addons            # curated lean + science addons")
         ui.print_hint("  astroai-lab agent add ponytail      # install curated addon(s)")
         ui.print_hint("  astroai-lab agent skills list       # Cursor skills inventory")
-        ui.print_hint("  astroai-lab agent status|verify     # health check")
+        ui.print_hint("  astroai-lab agent status|verify     # health check (or agent verify --fix)")
+        ui.print_hint("  astroai-lab agent fix|clean         # auto-repair or clean stale state")
+        ui.print_hint("  astroai-lab agent interact          # active container UIs & endpoints")
         ui.print_hint("  astroai-lab agent models free       # OpenRouter / Kilo presets")
 
 
@@ -506,8 +517,126 @@ def agent_project_cmd(
         raise typer.Exit(result.exit_code)
 
 
+@agent_app.command("catalog")
+@agent_app.command("directory", hidden=True)
+@agent_app.command("awesome", hidden=True)
+def agent_catalog_cmd(
+    ctx: typer.Context,
+    kind: Annotated[
+        str | None,
+        typer.Option("--kind", "-k", help="Filter: agent, skill, rule, mcp, tool, container."),
+    ] = None,
+    tag: Annotated[
+        str | None,
+        typer.Option("--tag", "-t", help="Filter tag: lean, science, python, review, open, ui, ..."),
+    ] = None,
+    search: Annotated[
+        str | None,
+        typer.Option("--search", "-s", help="Search text in catalog."),
+    ] = None,
+) -> None:
+    """Curated Catalog & Directory of agents, skills, rules, MCP servers, tools & containers."""
+    opts = get_opts(ctx)
+    items = agent_catalog_mod.list_agent_catalog(kind=kind, tag=tag, query=search)
+    if opts.json:
+        ui.print_json(items)
+        return
+    ui.print_hint("AstroAI Agent & Container Catalog (Agents, Skills, Rules, MCPs, UIs)")
+    ui.print_hint("  Id                               Kind       Status     Summary")
+    ui.print_hint("  ───────────────────────────────  ─────────  ─────────  ──────────────────────────")
+    for item in items:
+        status = "installed" if item["installed"] else "available"
+        ui.print_hint(
+            f"  {item['id']:<32} {item['kind']:<10} {status:<10} {item['summary']}"
+        )
+        if item.get("install_command"):
+            ui.print_hint(f"    > {item['install_command']}")
+
+
+@agent_app.command("clean")
+def agent_clean_cmd(
+    ctx: typer.Context,
+    stale_locks: Annotated[bool, typer.Option("--stale-locks", help="Remove stale lock files.")] = True,
+    failed: Annotated[bool, typer.Option("--failed", help="Clear failed setup marker.")] = True,
+    empty_configs: Annotated[bool, typer.Option("--empty-configs", help="Remove empty config files.")] = True,
+    logs: Annotated[bool, typer.Option("--logs", help="Remove setup log file.")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show actions without executing.")] = False,
+) -> None:
+    """Clean stale setup locks, failed state markers, empty configs, and logs."""
+    from astroai_lab.cli.context import merge_opts
+
+    opts = merge_opts(ctx, dry_run=dry_run)
+    results = agent_clean_mod.clean_agent_state(
+        stale_locks=stale_locks,
+        failed_marker=failed,
+        empty_configs=empty_configs,
+        logs=logs,
+        dry_run=opts.dry_run,
+    )
+    if opts.json:
+        ui.print_json([r.__dict__ for r in results])
+        return
+    if not results:
+        ui.print_ok("Agent state clean — no stale locks or broken markers found")
+        return
+    for r in results:
+        prefix = "would remove" if opts.dry_run else "removed"
+        ui.print_ok(f"  {r.target}: {prefix} ({r.detail})")
+
+
+@agent_app.command("fix")
+def agent_fix_cmd(
+    ctx: typer.Context,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show actions without executing.")] = False,
+) -> None:
+    """Auto-repair syntax errors, stale locks, and missing directory structures in agent setup."""
+    from astroai_lab.cli.context import merge_opts
+
+    opts = merge_opts(ctx, dry_run=dry_run)
+    results = agent_fix_mod.fix_agent_setup(dry_run=opts.dry_run)
+    if opts.json:
+        ui.print_json([r.__dict__ for r in results])
+        return
+    fixed_count = sum(1 for r in results if r.fixed)
+    prefix = "would fix" if opts.dry_run else "repaired"
+    for r in results:
+        if r.fixed:
+            ui.print_ok(f"  {r.target}: {prefix} — {r.detail}")
+        else:
+            ui.print_warn(f"  {r.target}: {r.detail}")
+    if fixed_count:
+        ui.print_ok(f"Agent setup fix complete ({fixed_count} item(s) {prefix})")
+    else:
+        ui.print_ok("Agent setup already healthy")
+
+
+@agent_app.command("interact")
+@agent_app.command("access", hidden=True)
+def agent_interact_cmd(ctx: typer.Context) -> None:
+    """Inspect active container UI endpoints, web services, and agent CLI status."""
+    opts = get_opts(ctx)
+    info = agent_interact_mod.inspect_interact_endpoints()
+    if opts.json:
+        ui.print_json(info)
+        return
+    ui.print_hint(f"Interactive Session Diagnostics ({info['session_kind'].upper()})")
+    ui.print_hint("  Active Agent CLIs: " + (", ".join(info['installed_agents']) if info['installed_agents'] else "None"))
+    ui.print_hint("")
+    ui.print_hint("Endpoints & Access Points:")
+    for ep in info["endpoints"]:
+        mark = "✓ ONLINE" if ep["active"] else "— OFFLINE"
+        ui.print_hint(f"  [{mark}] {ep['name']} ({ep['url_hint']})")
+        ui.print_hint(f"          {ep['description']}")
+
+
 @agent_app.command("verify")
-def agent_verify_cmd(ctx: typer.Context) -> None:
+def agent_verify_cmd(
+    ctx: typer.Context,
+    auto_fix: Annotated[
+        bool,
+        typer.Option("--fix", "-f", help="Auto-repair missing directories, stale locks, or syntax errors."),
+    ] = False,
+) -> None:
     """Check agent setup: required files plus JSON/TOML/YAML syntax of configs.
 
     Catches common OpenCode/Kilo JSONC mistakes (comments, trailing commas,
@@ -517,6 +646,10 @@ def agent_verify_cmd(ctx: typer.Context) -> None:
 
     opts = get_opts(ctx)
     home = Path.home()
+
+    if auto_fix:
+        agent_fix_mod.fix_agent_setup(dry_run=opts.dry_run)
+
     issues = agent_setup_mod.verify_setup(home)
     state = read_setup_state(home)
     payload = {
@@ -531,6 +664,7 @@ def agent_verify_cmd(ctx: typer.Context) -> None:
         return
     if issues:
         ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
+        ui.print_hint("Tip: Run `astroai-lab agent fix` or `astroai-lab agent verify --fix` to auto-repair.")
         raise typer.Exit(1)
     if state.stamp:
         ui.print_hint(f"  last run: {state.stamp}")
