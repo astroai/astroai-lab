@@ -176,6 +176,8 @@ astroai-lab ray guide
 astroai-lab ray status
 astroai-lab --json ray status
 canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:<tag>
+# on the manager after workers join:
+astroai-workload run train.py --cpus 2 --memory 8GiB
 ```
 
 `/scratch` is session-private (per pod). Share data via `/arc/home` or

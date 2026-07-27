@@ -29,6 +29,13 @@ RAY_GUIDE = """
   Dashboard: connectURL/dashboard/
   astroai-lab ray status
 
+[bold]Submit Jobs[/bold]
+  astroai-workload run train.py --cpus 2 --memory 8GiB
+  astroai-workload status <run-id>
+  astroai-workload logs <run-id>
+  astroai-workload list
+  (baked into ray-manager; Jobs API is local on the manager)
+
 [bold]Workers[/bold]
   Manager launches headless ray-worker images (do not register workers in the portal).
   Optional env restore on workers: ASTROAI_LAB_RESUME=<save>

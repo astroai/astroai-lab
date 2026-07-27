@@ -241,5 +241,5 @@ See [cli.md](cli.md) for `agent models free --preset long` and per-agent options
 
 - [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md) — images, portal session types
 - [Ray on AstroAI](https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md) — distributed clusters
-- [astroai-workload](https://github.com/astroai/astroai-workload) — submit Ray Jobs from Python
+- [astroai-workload](https://github.com/astroai/astroai-workload) — submit Ray Jobs (`astroai-workload run`) on ray-manager
 - [CANFAR client docs](https://opencadc.github.io/canfar/)
