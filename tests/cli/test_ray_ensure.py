@@ -279,3 +279,212 @@ def test_ensure_workers_short_circuits_failed_preflight(monkeypatch) -> None:  #
     out = re.ensure_workers("https://example/", preflight_timeout=60, create_timeout=60)
     assert out.get("preflight_fallback") is True
     assert out.get("joined_workers") == 1
+
+
+def test_active_canfar_server_env_and_auth_show(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    monkeypatch.setenv("CANFAR_ACTIVE_SERVER", "staging")
+    assert re.active_canfar_server() == "staging"
+    monkeypatch.delenv("CANFAR_ACTIVE_SERVER")
+    monkeypatch.setenv("ACTIVE_SERVER", "canfar")
+    assert re.active_canfar_server() == "canfar"
+    monkeypatch.delenv("ACTIVE_SERVER")
+    monkeypatch.setattr(re.shutil, "which", lambda _n: "/usr/bin/canfar")
+    monkeypatch.setattr(
+        re,
+        "_run",
+        lambda *_a, **_k: (0, "Server   staging\n", ""),
+    )
+    assert re.active_canfar_server() == "staging"
+
+
+def test_manager_image_and_parse_helpers(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    monkeypatch.setenv("ASTROAI_REGISTRY", "images.example")
+    monkeypatch.setenv("ASTROAI_OWNER", "org")
+    monkeypatch.setenv("RAY_IMAGE_TAG", "26.07")
+    assert re.manager_image() == "images.example/org/ray-manager:26.07"
+    assert re._parse_json_blob("") is None
+    assert re._parse_json_blob("noise {\"a\": 1}") == {"a": 1}
+    assert re._parse_json_blob("[1, 2]") == [1, 2]
+
+
+def test_canfar_sessions_and_create_manager(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    monkeypatch.setattr(re.shutil, "which", lambda _n: "/usr/bin/canfar")
+    monkeypatch.setattr(
+        re,
+        "_run",
+        lambda cmd, *, timeout: (
+            0,
+            json.dumps(
+                [
+                    {
+                        "id": "m1",
+                        "name": "astroai-compute",
+                        "status": "Running",
+                        "connectURL": "https://x/session/contrib/m1",
+                        "image": "images.canfar.net/astroai/ray-manager:26.07",
+                    }
+                ]
+            ),
+            "",
+        )
+        if "ps" in cmd
+        else (0, "Created session ID: m1\n", ""),
+    )
+    monkeypatch.setattr(re.time, "sleep", lambda _s: None)
+    rows = re.canfar_sessions()
+    assert len(rows) == 1
+    created = re.create_manager_session(name="astroai-compute")
+    assert created["id"] == "m1"
+    assert created["connectURL"].endswith("/")
+
+
+def test_wait_manager_running_and_ready(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    seq = [
+        [
+            {
+                "id": "m1",
+                "name": "astroai-compute",
+                "status": "Pending",
+                "connectURL": "",
+                "image": "x/ray-manager:t",
+            }
+        ],
+        [
+            {
+                "id": "m1",
+                "name": "astroai-compute",
+                "status": "Running",
+                "connectURL": "https://x/session/contrib/m1/",
+                "image": "x/ray-manager:t",
+            }
+        ],
+    ]
+    i = {"n": 0}
+
+    def fake_sessions(timeout=30):
+        n = min(i["n"], len(seq) - 1)
+        i["n"] += 1
+        return seq[n]
+
+    monkeypatch.setattr(re, "canfar_sessions", fake_sessions)
+    monkeypatch.setattr(re.time, "sleep", lambda _s: None)
+    out = re.wait_manager_running("m1", timeout_seconds=30, poll_seconds=0)
+    assert out["status"] == "Running"
+    assert out["connectURL"].endswith("/")
+
+    ready_i = {"n": 0}
+
+    def fake_http(method, url, body=None, timeout=120.0):
+        ready_i["n"] += 1
+        if ready_i["n"] == 1:
+            return 503, {"ready": False}
+        return 200, {"ready": True}
+
+    monkeypatch.setattr(re, "http_json", fake_http)
+    assert re.wait_manager_ready("https://x/", timeout_seconds=30)["ready"] is True
+
+
+def test_persist_and_read_connect_url(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = re.persist_connect_url("https://x/session/contrib/a", cluster_id="c1")
+    assert path.is_file()
+    assert re.read_persisted_connect_url() == "https://x/session/contrib/a/"
+
+
+def test_ensure_compute_reuses_running_manager(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr(re.shutil, "which", lambda _n: "/usr/bin/canfar")
+    monkeypatch.setattr(
+        re,
+        "canfar_sessions",
+        lambda timeout=30: [
+            {
+                "id": "m1",
+                "name": "astroai-compute",
+                "status": "Running",
+                "connectURL": "https://ws.example/session/contrib/m1/",
+                "image": "images.canfar.net/astroai/ray-manager:26.07",
+            }
+        ],
+    )
+    monkeypatch.setattr(re, "wait_manager_ready", lambda *_a, **_k: {"ready": True})
+    monkeypatch.setattr(
+        re,
+        "ensure_workers",
+        lambda *_a, **_k: {"already_ready": True, "joined_workers": 2},
+    )
+    monkeypatch.setattr(re.time, "sleep", lambda _s: None)
+    out = re.ensure_compute(workers=1)
+    assert out["ok"] is True
+    assert out["steps"][0] == "reuse_manager"
+    assert out["orx"]["default_backend"] == "ray"
+    assert "2 worker" in out["user_message"]
+
+
+def test_ensure_compute_persisted_only(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr(re, "canfar_sessions", lambda timeout=30: [])
+    monkeypatch.setattr(
+        re, "read_persisted_connect_url", lambda: "https://ws.example/session/contrib/old/"
+    )
+    monkeypatch.setattr(re, "wait_manager_ready", lambda *_a, **_k: {"ready": True})
+    monkeypatch.setattr(re, "ensure_workers", lambda *_a, **_k: {"joined_workers": 0})
+    out = re.ensure_compute(create_manager=False, workers=0)
+    assert out["ok"] is True
+    assert "persisted_connect_url" in out["steps"]
+    assert out["orx"]["address"].endswith("/dashboard")
+
+
+def test_ensure_workers_already_ready(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+
+    monkeypatch.setattr(
+        re,
+        "manager_status",
+        lambda _u: {
+            "phase": "Running",
+            "joined_workers": 3,
+            "workers": [{"ray_joined": True, "phase": "Ray Healthy"}],
+            "http_status": 200,
+        },
+    )
+    out = re.ensure_workers("https://example/")
+    assert out["already_ready"] is True
+    assert out["joined_workers"] == 3
+
+
+def test_http_json_handles_http_error(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from astroai_lab.cli import ray_ensure as re
+    import urllib.error
+
+    class FakeFP:
+        def read(self):
+            return b'{"error":"nope"}'
+
+        def close(self) -> None:
+            return None
+
+    def boom(*_a, **_k):
+        raise urllib.error.HTTPError("http://x", 400, "bad", hdrs=None, fp=FakeFP())  # type: ignore[arg-type]
+
+    monkeypatch.setattr(re.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(re, "_ssl_context", lambda: None)
+    code, body = re.http_json("GET", "http://x")
+    assert code == 400
+    assert body["error"] == "nope"

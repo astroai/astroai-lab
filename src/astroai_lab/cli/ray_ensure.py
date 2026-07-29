@@ -174,7 +174,7 @@ def create_manager_session(
         raise RuntimeError("canfar CLI not on PATH — run canfar login in webterm first")
     image = manager_image()
     # Skaha rejects env/cmd/args on contributed sessions. Server alignment is
-    # done by writing /arc/home ~/.canfar (see bootstrap-canfar-registry.sh /
+    # done via $HOME/.canfar on /arc/home/<user> (bootstrap-canfar-registry.sh /
     # active_canfar_server consumers), not via create -e.
     cmd = [
         "canfar",
