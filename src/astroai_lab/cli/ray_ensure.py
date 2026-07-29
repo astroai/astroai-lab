@@ -322,6 +322,47 @@ def read_persisted_connect_url() -> str | None:
     return candidates[0][1]
 
 
+def read_orx_compute_config() -> dict[str, Any]:
+    """What OpenResearch will actually use (ray.json / settings / env)."""
+    cfg = _orx_config_dir()
+    ray_path = cfg / "ray.json"
+    settings_path = cfg / "settings.json"
+    address = (
+        os.environ.get("ASTROAI_RAY_JOBS_ADDRESS")
+        or os.environ.get("RAY_DASHBOARD_URL")
+        or ""
+    ).strip().rstrip("/")
+    source = "env" if address else None
+    if ray_path.is_file():
+        try:
+            loaded = json.loads(ray_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                file_addr = str(loaded.get("address") or "").strip().rstrip("/")
+                if file_addr:
+                    address = file_addr
+                    source = "ray.json"
+        except (OSError, json.JSONDecodeError):
+            pass
+    default_backend: str | None = None
+    if settings_path.is_file():
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            if isinstance(settings, dict):
+                raw = settings.get("defaultBackend")
+                if isinstance(raw, str) and raw.strip():
+                    default_backend = raw.strip()
+        except (OSError, json.JSONDecodeError):
+            pass
+    return {
+        "address": address or None,
+        "address_source": source,
+        "default_backend": default_backend,
+        "wired": bool(address),
+        "ray_json": str(ray_path) if ray_path.is_file() else None,
+        "settings_json": str(settings_path) if settings_path.is_file() else None,
+    }
+
+
 def wire_orx(
     *,
     jobs_address: str,
@@ -362,10 +403,33 @@ def wire_orx(
 
 def manager_status(connect_url: str) -> dict[str, Any]:
     code, payload = http_json("GET", connect_url.rstrip("/") + "/api/v1/status", timeout=30)
-    if isinstance(payload, dict):
-        payload = {**payload, "http_status": code}
-        return payload
-    return {"http_status": code, "error": payload}
+    if not isinstance(payload, dict):
+        return {"http_status": code, "error": payload}
+    # Normalize: manager API nests phase under `cluster`, but exposes
+    # `workers` / `joined_workers` / `preflight` at the top level.
+    cluster = payload.get("cluster") if isinstance(payload.get("cluster"), dict) else {}
+    phase = str(payload.get("phase") or cluster.get("phase") or "")
+    workers = payload.get("workers")
+    if not isinstance(workers, list):
+        workers = cluster.get("workers") if isinstance(cluster.get("workers"), list) else []
+    joined = payload.get("joined_workers")
+    if joined is None:
+        joined = sum(
+            1
+            for w in workers
+            if isinstance(w, dict)
+            and (
+                w.get("ray_joined")
+                or w.get("phase") in {"Joined", "Ray Healthy"}
+            )
+        )
+    return {
+        **payload,
+        "http_status": code,
+        "phase": phase,
+        "workers": workers,
+        "joined_workers": int(joined or 0),
+    }
 
 
 def ensure_workers(
@@ -390,16 +454,11 @@ def ensure_workers(
 
     status = manager_status(connect_url)
     phase = str(status.get("phase") or "")
-    workers = status.get("workers") or []
-    joined = [
-        w
-        for w in workers
-        if isinstance(w, dict) and (w.get("ray_joined") or w.get("phase") == "Joined")
-    ]
-    if phase in {"Running", "Degraded"} and joined:
+    joined_n = int(status.get("joined_workers") or 0)
+    if phase in {"Running", "Degraded"} and joined_n > 0:
         result["cluster"] = status
         result["already_ready"] = True
-        result["joined_workers"] = len(joined)
+        result["joined_workers"] = joined_n
         return result
 
     require_preflight = not skip_preflight
@@ -417,12 +476,17 @@ def ensure_workers(
         while time.time() < deadline:
             st = manager_status(connect_url)
             last_pf = st.get("preflight")
-            if isinstance(last_pf, dict) and last_pf.get("passed"):
-                passed = True
+            op = st.get("operation")
+            op_busy = (
+                isinstance(op, dict)
+                and op.get("running")
+                and op.get("kind") == "preflight"
+            )
+            # PreflightReport.as_dict() has `passed` but no `done` flag — treat a
+            # settled operation + present passed bool as finished.
+            if isinstance(last_pf, dict) and "passed" in last_pf and not op_busy:
+                passed = bool(last_pf.get("passed"))
                 break
-            if isinstance(last_pf, dict) and last_pf.get("passed") is False and last_pf.get("done"):
-                break
-            # Also check active operation finished with failure via status message
             time.sleep(5)
         result["preflight"] = last_pf
         if not passed:
@@ -449,16 +513,23 @@ def ensure_workers(
         timeout=60,
     )
     result["create_accepted"] = {"http_status": code, "body": created}
-    if code not in {200, 202} and code != 400:
-        # Non-async fallback
+    # 400 often means "cluster already active" — poll instead of failing hard.
+    # 409 means another operation is in progress — also poll.
+    if code not in {200, 202, 400, 409}:
         code, created = http_json(
             "POST",
             f"{base}/api/v1/cluster/create",
             body=body,
             timeout=create_timeout,
         )
-        result["cluster"] = created if isinstance(created, dict) else {"raw": created}
-        result["create_http_status"] = code
+        if isinstance(created, dict):
+            result["cluster"] = manager_status(connect_url)
+            result["create_http_status"] = code
+            result["joined_workers"] = int(result["cluster"].get("joined_workers") or 0)
+        else:
+            result["cluster"] = {"raw": created}
+            result["create_http_status"] = code
+            result["joined_workers"] = 0
         return result
 
     # Poll until Running/Degraded/Failed or timeout
@@ -467,18 +538,18 @@ def ensure_workers(
     while time.time() < deadline:
         last_st = manager_status(connect_url)
         phase = str(last_st.get("phase") or "")
-        if phase in {"Running", "Degraded", "Failed", "Stopped", "Error"}:
-            break
+        op = last_st.get("operation")
+        op_busy = isinstance(op, dict) and op.get("running")
+        if phase in {"Running", "Degraded", "Failed", "Stopped", "Error", "Idle"}:
+            # Idle right after accept means create hasn't started yet — keep waiting
+            # unless create was rejected (400) and nothing is happening.
+            if phase == "Idle" and code == 400 and not op_busy:
+                break
+            if phase != "Idle":
+                break
         time.sleep(5)
     result["cluster"] = last_st
-    workers = last_st.get("workers") or []
-    result["joined_workers"] = len(
-        [
-            w
-            for w in workers
-            if isinstance(w, dict) and (w.get("ray_joined") or w.get("phase") == "Joined")
-        ]
-    )
+    result["joined_workers"] = int(last_st.get("joined_workers") or 0)
     return result
 
 
@@ -521,16 +592,36 @@ def ensure_compute(
     elif pending and create_manager:
         row = pending[0]
         out["steps"].append("wait_pending_manager")
-        manager = wait_manager_running(_session_id(row))
-        manager["reused"] = True
+        try:
+            manager = wait_manager_running(_session_id(row))
+            manager["reused"] = True
+        except Exception as exc:  # noqa: BLE001
+            out["user_message"] = f"Waiting for pending manager failed: {exc}"
+            out["error"] = str(exc)
+            return out
     elif create_manager:
+        if shutil.which("canfar") is None:
+            out["user_message"] = (
+                "canfar CLI not on PATH — open webterm on this home, run "
+                "`canfar login`, then click Start batch compute again."
+            )
+            out["error"] = "canfar_not_found"
+            return out
         out["steps"].append("create_manager")
-        created = create_manager_session(name=manager_name)
-        sid = created.get("id") or ""
-        if not sid:
-            raise RuntimeError("canfar create did not return a session id")
-        manager = wait_manager_running(sid)
-        manager["reused"] = False
+        try:
+            created = create_manager_session(name=manager_name)
+            sid = created.get("id") or ""
+            if not sid:
+                raise RuntimeError("canfar create did not return a session id")
+            manager = wait_manager_running(sid)
+            manager["reused"] = False
+        except Exception as exc:  # noqa: BLE001
+            out["user_message"] = (
+                f"Could not start batch-compute manager: {exc}. "
+                "Check canfar login and quota, then retry."
+            )
+            out["error"] = str(exc)
+            return out
     else:
         # Discover from persisted connect-url only
         url = read_persisted_connect_url()
@@ -546,14 +637,27 @@ def ensure_compute(
     assert manager is not None
     connect = str(manager.get("connectURL") or "").strip()
     if not connect:
-        raise RuntimeError("Manager has no connect URL yet")
+        out["user_message"] = (
+            "Manager session exists but has no Connect URL yet — wait a minute and retry Start."
+        )
+        out["error"] = "missing_connect_url"
+        out["manager"] = manager
+        return out
     if not connect.endswith("/"):
         connect += "/"
     manager["connectURL"] = connect
     out["manager"] = manager
 
     out["steps"].append("wait_readyz")
-    wait_manager_ready(connect)
+    try:
+        wait_manager_ready(connect)
+    except Exception as exc:  # noqa: BLE001
+        out["user_message"] = (
+            f"Manager session is up but its UI is not ready yet: {exc}. "
+            "Wait a minute and click Start again."
+        )
+        out["error"] = str(exc)
+        return out
     persist_connect_url(connect)
 
     jobs = jobs_url_from_connect(connect)

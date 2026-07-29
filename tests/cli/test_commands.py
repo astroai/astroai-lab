@@ -42,6 +42,13 @@ def test_guide_command() -> None:
 
 
 def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ASTROAI_RAY_JOBS_ADDRESS", raising=False)
+    monkeypatch.delenv("RAY_DASHBOARD_URL", raising=False)
+    monkeypatch.delenv("RAY_ADDRESS", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(lab_home / ".config"))
+    # Isolate from the developer machine's live canfar sessions / prior wires.
+    monkeypatch.setattr("astroai_lab.cli.ray_cmd.canfar_sessions", lambda: [])
+    monkeypatch.setattr("astroai_lab.cli.ray_cmd.read_persisted_connect_url", lambda: None)
     result = runner.invoke(app, ["ray", "guide"])
     assert result.exit_code == 0
     assert "ray-manager" in result.output
@@ -65,8 +72,12 @@ def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -
     assert data["phase"] == "Running"
     assert len(data["clusters"]) >= 2
     assert "launch_command" in data
-    assert "ray-manager:" in data["launch_command"]
-
+    assert "ray ensure" in data["launch_command"]
+    # Heartbeat alone is not a live Running manager / wired Jobs URL.
+    assert data.get("compute_ready") is False
+    assert data.get("manager_running") is False
+    assert not data.get("connect_url")
+    assert data.get("hint")
     # Human-readable path (non-json).
     result = runner.invoke(app, ["ray", "status"])
     assert result.exit_code == 0
@@ -85,7 +96,8 @@ def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -
     data = json.loads(result.stdout)
     assert data["heartbeat_present"] is False
     assert "hint" in data
-    assert "launch" in data["hint"].lower() or "ray-manager" in data["hint"].lower()
+    hint = data["hint"].lower()
+    assert "ensure" in hint or "start batch" in hint or "ray-manager" in hint
 
 
 def test_backup_cli_status_and_run(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -22,6 +22,7 @@ from astroai_lab.cli.ray_ensure import (
     ensure_compute,
     wire_orx,
     jobs_url_from_connect,
+    read_orx_compute_config,
     read_persisted_connect_url,
     find_manager_sessions,
     canfar_sessions,
@@ -132,11 +133,19 @@ def collect_ray_status(*, state_dir: Path | None = None) -> dict[str, Any]:
         (m for m in managers if _session_status(m) == "Running" and _session_connect_url(m)),
         None,
     )
+    pending_mgr = next((m for m in managers if _session_status(m) == "Pending"), None)
     jobs_from_mgr = (
         jobs_url_from_connect(_session_connect_url(running_mgr)) if running_mgr else None
     )
     persisted = read_persisted_connect_url()
     jobs_from_persisted = jobs_url_from_connect(persisted) if persisted else None
+    orx = read_orx_compute_config()
+    # Discoverable Jobs URL (manager exists) ≠ wired into OpenResearch.
+    discoverable = jobs_from_mgr or (jobs_from_persisted if running_mgr else None)
+    wired_address = orx.get("address")
+    # Live connect URL only from a Running canfar session — never from stale
+    # heartbeat files alone (shared /arc/home can keep old manager-heartbeat).
+    live_connect = (_session_connect_url(running_mgr) if running_mgr else None) or None
     payload: dict[str, Any] = {
         "cluster_id": (primary or {}).get("cluster_id") or preferred,
         "state_dir": (primary or {}).get("state_dir"),
@@ -146,15 +155,17 @@ def collect_ray_status(*, state_dir: Path | None = None) -> dict[str, Any]:
         "state": (primary or {}).get("state"),
         "phase": (primary or {}).get("phase"),
         "clusters": clusters,
-        "ray_address": (
-            os.environ.get("ASTROAI_RAY_JOBS_ADDRESS")
-            or os.environ.get("RAY_ADDRESS")
-            or jobs_from_mgr
-            or jobs_from_persisted
-        ),
-        "connect_url": (running_mgr and _session_connect_url(running_mgr))
-        or (primary or {}).get("connect_url")
-        or persisted,
+        # Jobs URL OpenResearch is configured to use (ray.json / env only).
+        "ray_address": wired_address,
+        "orx": orx,
+        "orx_wired": bool(wired_address),
+        "orx_default_backend": orx.get("default_backend"),
+        # Manager may exist even when orx is not wired yet.
+        "jobs_address_discoverable": discoverable,
+        "manager_running": bool(running_mgr),
+        "manager_pending": bool(pending_mgr),
+        "connect_url": live_connect,
+        "persisted_connect_url": persisted,
         "manager_sessions": [
             {
                 "id": m.get("id"),
@@ -173,13 +184,37 @@ def collect_ray_status(*, state_dir: Path | None = None) -> dict[str, Any]:
     }
     if primary and primary.get("state_error"):
         payload["state_error"] = primary["state_error"]
-    if not any(c.get("heartbeat_present") for c in clusters) and not running_mgr:
+    if wired_address and orx.get("default_backend") not in {None, "ray"}:
         payload["hint"] = (
-            "No batch-compute manager yet — run `astroai-lab ray ensure` "
-            "or use Start batch compute in the AstroAI hub."
+            f"OpenResearch default compute is {orx.get('default_backend')!r}, "
+            "not batch — Start batch compute will set defaultBackend=ray."
         )
-    # Ready for OpenResearch when we have a Jobs address we can name.
-    payload["compute_ready"] = bool(payload.get("ray_address") or payload.get("connect_url"))
+    elif running_mgr and not wired_address:
+        payload["hint"] = (
+            "Manager is running but OpenResearch is not wired — click Start batch compute."
+        )
+    elif pending_mgr:
+        payload["hint"] = "Manager session is still Pending — wait or click Start to wait+wire."
+    elif (
+        not running_mgr
+        and (
+            (primary or {}).get("heartbeat_present")
+            or persisted
+        )
+    ):
+        age = (primary or {}).get("heartbeat_age_seconds")
+        age_s = f" (heartbeat age {age}s)" if age is not None else ""
+        payload["hint"] = (
+            f"Stale manager leftovers on this home{age_s} — no Running session. "
+            "Click Start batch compute to launch a fresh one."
+        )
+    elif not any(c.get("heartbeat_present") for c in clusters) and not running_mgr:
+        payload["hint"] = (
+            "No batch-compute manager yet — click Start batch compute "
+            "(or run `astroai-lab ray ensure`)."
+        )
+    # Ready means OpenResearch can submit Jobs without localhost fallback.
+    payload["compute_ready"] = bool(wired_address)
     return payload
 
 
@@ -290,6 +325,8 @@ def ray_ensure_cmd(
 
     if opts.json:
         ui.print_json(payload)
+        if not payload.get("ok"):
+            raise typer.Exit(1)
         return
 
     if payload.get("user_message"):
