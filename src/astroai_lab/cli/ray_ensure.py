@@ -146,6 +146,23 @@ def find_manager_sessions(sessions: list[dict[str, Any]] | None = None) -> list[
     return out
 
 
+def active_canfar_server() -> str:
+    """Return the canfar CLI's active server name (e.g. staging, canfar)."""
+    forced = (os.environ.get("CANFAR_ACTIVE_SERVER") or os.environ.get("ACTIVE_SERVER") or "").strip()
+    if forced:
+        return forced
+    if shutil.which("canfar") is None:
+        return ""
+    rc, out, err = _run(["canfar", "auth", "show"], timeout=30)
+    text = (out or "") + "\n" + (err or "")
+    for line in text.splitlines():
+        if "Server" in line:
+            parts = line.split()
+            if parts:
+                return parts[-1].strip()
+    return ""
+
+
 def create_manager_session(
     *,
     name: str = DEFAULT_MANAGER_NAME,
@@ -156,6 +173,9 @@ def create_manager_session(
     if shutil.which("canfar") is None:
         raise RuntimeError("canfar CLI not on PATH — run canfar login in webterm first")
     image = manager_image()
+    # Skaha rejects env/cmd/args on contributed sessions. Server alignment is
+    # done by writing /arc/home ~/.canfar (see bootstrap-canfar-registry.sh /
+    # active_canfar_server consumers), not via create -e.
     cmd = [
         "canfar",
         "create",
@@ -168,6 +188,7 @@ def create_manager_session(
         "contributed",
         image,
     ]
+    server = active_canfar_server()
     rc, out, err = _run(cmd, timeout=timeout)
     text = (out or "") + "\n" + (err or "")
     if rc != 0:
@@ -182,6 +203,7 @@ def create_manager_session(
                 "status": _session_status(row),
                 "connectURL": _session_connect_url(row),
                 "create_output": text.strip(),
+                "active_server": server or None,
             }
     m = re.search(r"ID:\s*([a-z0-9]+)", text, re.I)
     sid = m.group(1) if m else ""
@@ -191,6 +213,7 @@ def create_manager_session(
         "status": "Pending",
         "connectURL": "",
         "create_output": text.strip(),
+        "active_server": server or None,
     }
 
 
