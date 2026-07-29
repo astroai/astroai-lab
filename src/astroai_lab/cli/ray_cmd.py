@@ -14,40 +14,46 @@ from astroai_lab import ui
 from astroai_lab.cli.context import get_opts
 from astroai_lab.utils.console import console
 
-ray_app = typer.Typer(help="Ray on CANFAR — status and launch cheat sheet.")
+ray_app = typer.Typer(help="Batch compute on CANFAR (Ray under the hood).")
+
+from astroai_lab.cli.ray_ensure import (
+    DEFAULT_WORKER_GPU,
+    DEFAULT_WORKERS,
+    ensure_compute,
+    wire_orx,
+    jobs_url_from_connect,
+    read_persisted_connect_url,
+    find_manager_sessions,
+    canfar_sessions,
+    _session_connect_url,
+    _session_status,
+)
 
 RAY_GUIDE = """
-[bold]Ray on AstroAI (CANFAR)[/bold]
+[bold]Batch compute on AstroAI (CANFAR)[/bold]
 
-[bold]Launch manager[/bold]
-  Portal → ray-manager
+[bold]One-click (recommended)[/bold]
+  OpenResearch / OpenWorker → AstroAI hub → [bold]Start batch compute[/bold]
   or:
-  canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:<tag>
+  astroai-lab ray ensure
 
-[bold]Inside the manager session[/bold]
-  Open Connect URL → control panel at /
+That launches a manager session, starts workers, and wires OpenResearch to use
+it automatically (`orx exp run` with no --backend once defaulted).
+
+[bold]Manual[/bold]
+  canfar create --name astroai-compute contributed images.canfar.net/astroai/ray-manager:<tag>
+  Open Connect URL → preflight → create cluster
   Dashboard: connectURL/dashboard/
-  astroai-lab ray status
 
 [bold]Submit Jobs[/bold]
-  astroai-workload run train.py --cpus 2 --memory 8GiB
-  astroai-workload status <run-id>
-  astroai-workload logs <run-id>
-  astroai-workload list
-  (baked into ray-manager; Jobs API is local on the manager)
-
-[bold]Workers[/bold]
-  Manager launches headless ray-worker images (do not register workers in the portal).
-  Optional env restore on workers: ASTROAI_LAB_RESUME=<save>
-  Saves live on /arc (e.g. ~/.astroai/lab/saves or /arc/projects/<group>/env-saves).
+  From OpenResearch: just run experiments (default compute = CANFAR batch).
+  CLI: astroai-workload run train.py --cpus 2
 
 [bold]Storage[/bold]
-  /scratch is private to each pod — not shared across manager/workers/interactive sessions.
-  Put shared code/data/env saves on /arc/home or /arc/projects.
+  /scratch is private to each pod — put shared I/O on /arc.
 
-[bold]Resources[/bold]
-  Manager memory ≥8 GiB recommended (Jobs + Dashboard).
-  Docs: https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md
+[bold]Docs[/bold]
+  https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md
 """
 
 
@@ -87,6 +93,12 @@ def _read_cluster(root: Path) -> dict[str, Any]:
                 entry["phase"] = state.get("phase") or state.get("status")
         except (OSError, json.JSONDecodeError) as exc:
             entry["state_error"] = str(exc)
+    connect = root / "connect-url"
+    if connect.is_file():
+        try:
+            entry["connect_url"] = connect.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
     return entry
 
 
@@ -115,6 +127,16 @@ def collect_ray_status(*, state_dir: Path | None = None) -> dict[str, Any]:
             primary = clusters[0]
 
     tag = os.environ.get("RAY_IMAGE_TAG") or os.environ.get("BUILD_TAG") or "26.07"
+    managers = find_manager_sessions(canfar_sessions())
+    running_mgr = next(
+        (m for m in managers if _session_status(m) == "Running" and _session_connect_url(m)),
+        None,
+    )
+    jobs_from_mgr = (
+        jobs_url_from_connect(_session_connect_url(running_mgr)) if running_mgr else None
+    )
+    persisted = read_persisted_connect_url()
+    jobs_from_persisted = jobs_url_from_connect(persisted) if persisted else None
     payload: dict[str, Any] = {
         "cluster_id": (primary or {}).get("cluster_id") or preferred,
         "state_dir": (primary or {}).get("state_dir"),
@@ -124,31 +146,46 @@ def collect_ray_status(*, state_dir: Path | None = None) -> dict[str, Any]:
         "state": (primary or {}).get("state"),
         "phase": (primary or {}).get("phase"),
         "clusters": clusters,
-        "ray_address": os.environ.get("ASTROAI_RAY_JOBS_ADDRESS")
-        or os.environ.get("RAY_ADDRESS"),
+        "ray_address": (
+            os.environ.get("ASTROAI_RAY_JOBS_ADDRESS")
+            or os.environ.get("RAY_ADDRESS")
+            or jobs_from_mgr
+            or jobs_from_persisted
+        ),
+        "connect_url": (running_mgr and _session_connect_url(running_mgr))
+        or (primary or {}).get("connect_url")
+        or persisted,
+        "manager_sessions": [
+            {
+                "id": m.get("id"),
+                "name": m.get("name"),
+                "status": m.get("status"),
+                "connectURL": _session_connect_url(m),
+            }
+            for m in managers
+        ],
         "ray_image_tag": tag,
         "ray_version_expected": os.environ.get("RAY_VERSION_EXPECTED"),
-        "launch_command": (
-            "canfar create --name raymgr --cpu 2 --memory 8 contributed "
-            f"images.canfar.net/astroai/ray-manager:{tag}"
-        ),
+        "launch_command": "astroai-lab ray ensure",
         "scratch_note": (
             "/scratch is private to each pod — put shared Jobs I/O on /arc/home or /arc/projects."
         ),
     }
     if primary and primary.get("state_error"):
         payload["state_error"] = primary["state_error"]
-    if not any(c.get("heartbeat_present") for c in clusters):
+    if not any(c.get("heartbeat_present") for c in clusters) and not running_mgr:
         payload["hint"] = (
-            "No manager heartbeat under ~/.astroai/ray/clusters/ — "
-            "launch ray-manager (Portal or launch_command) to create a cluster."
+            "No batch-compute manager yet — run `astroai-lab ray ensure` "
+            "or use Start batch compute in the AstroAI hub."
         )
+    # Ready for OpenResearch when we have a Jobs address we can name.
+    payload["compute_ready"] = bool(payload.get("ray_address") or payload.get("connect_url"))
     return payload
 
 
 @ray_app.command("guide")
 def ray_guide() -> None:
-    """Print Ray launch cheat sheet for CANFAR."""
+    """Print batch-compute launch cheat sheet for CANFAR."""
     console.print(RAY_GUIDE)
 
 
@@ -160,7 +197,7 @@ def ray_status(
         typer.Option("--state-dir", help="Cluster state directory override."),
     ] = None,
 ) -> None:
-    """Show Ray manager cluster status from shared home heartbeats.
+    """Show batch-compute / Ray manager status from shared home heartbeats.
 
     Scans ``~/.astroai/ray/clusters/*/`` so openresearch/openworker sessions can
     see a manager started in another session on the same ``/arc/home``.
@@ -183,6 +220,8 @@ def ray_status(
         ui.print_info(f"heartbeat_age: {payload['heartbeat_age_seconds']}s")
     if payload.get("phase"):
         ui.print_info(f"phase: {payload['phase']}")
+    if payload.get("connect_url"):
+        ui.print_info(f"manager: {payload['connect_url']}")
     if payload.get("ray_address"):
         ui.print_info(f"jobs_api: {payload['ray_address']}")
     if payload.get("ray_image_tag"):
@@ -201,4 +240,97 @@ def ray_status(
         )
     if payload.get("hint"):
         ui.print_hint(str(payload["hint"]))
-    ui.print_hint(f"launch: {payload['launch_command']}")
+    ui.print_hint(f"ensure: {payload['launch_command']}")
+
+
+@ray_app.command("ensure")
+def ray_ensure_cmd(
+    ctx: typer.Context,
+    workers: Annotated[
+        int,
+        typer.Option("--workers", help="Headless workers to start (0 = manager only)."),
+    ] = DEFAULT_WORKERS,
+    gpus: Annotated[
+        int,
+        typer.Option("--gpus", help="GPUs per worker."),
+    ] = DEFAULT_WORKER_GPU,
+    skip_preflight: Annotated[
+        bool,
+        typer.Option("--skip-preflight", help="Skip network preflight (workers may not join)."),
+    ] = False,
+    no_create: Annotated[
+        bool,
+        typer.Option("--no-create", help="Do not create a manager; only reuse/wire."),
+    ] = False,
+    no_wire: Annotated[
+        bool,
+        typer.Option("--no-wire", help="Do not write OpenResearch Ray settings."),
+    ] = False,
+) -> None:
+    """Start batch compute and wire OpenResearch to use it.
+
+    Creates a ray-manager CANFAR session if needed, starts workers (best effort),
+    and sets OpenResearch default compute to ``ray`` against that Jobs URL.
+    """
+    opts = get_opts(ctx)
+    try:
+        payload = ensure_compute(
+            workers=workers,
+            worker_gpus=gpus,
+            skip_preflight=skip_preflight,
+            create_manager=not no_create,
+            wire=not no_wire,
+        )
+    except Exception as exc:  # noqa: BLE001
+        if opts.json:
+            ui.print_json({"ok": False, "error": str(exc)})
+        else:
+            ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+
+    if opts.json:
+        ui.print_json(payload)
+        return
+
+    if payload.get("user_message"):
+        if payload.get("ok"):
+            ui.print_ok(str(payload["user_message"]))
+        else:
+            ui.print_hint(str(payload["user_message"]))
+    if payload.get("jobs_address"):
+        ui.print_info(f"jobs_api: {payload['jobs_address']}")
+    if payload.get("manager", {}).get("connectURL"):
+        ui.print_info(f"manager: {payload['manager']['connectURL']}")
+    if not payload.get("ok"):
+        raise typer.Exit(1)
+
+
+@ray_app.command("wire-orx")
+def ray_wire_orx(
+    ctx: typer.Context,
+    address: Annotated[
+        str | None,
+        typer.Option("--address", help="Jobs / Dashboard base URL override."),
+    ] = None,
+) -> None:
+    """Write OpenResearch Ray settings from the current manager (or --address)."""
+    opts = get_opts(ctx)
+    jobs = (address or "").strip().rstrip("/")
+    if not jobs:
+        connect = read_persisted_connect_url()
+        if not connect:
+            managers = find_manager_sessions(canfar_sessions())
+            running = [
+                m for m in managers if _session_status(m) == "Running" and _session_connect_url(m)
+            ]
+            if running:
+                connect = _session_connect_url(running[0])
+        if not connect:
+            ui.print_error("No manager URL found — pass --address or run ray ensure first")
+            raise typer.Exit(1)
+        jobs = jobs_url_from_connect(connect)
+    payload = wire_orx(jobs_address=jobs, make_default=True)
+    if opts.json:
+        ui.print_json(payload)
+        return
+    ui.print_ok(f"OpenResearch default compute → ray ({payload['address']})")
