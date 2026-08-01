@@ -5,6 +5,13 @@ cd "$(dirname "$0")/.."
 CLI=(uv run astroai-lab)
 FAIL=0
 
+# Under GITHUB_ACTIONS=true, typer/rich colorizes --help output and splits
+# option text with ANSI SGR codes (e.g. "-" + ESC + "-json" + ESC), so a
+# literal grep of "--json" finds nothing. Strip SGR sequences first.
+strip_ansi() {
+    sed $'s/\x1b\[[0-9;]*m//g'
+}
+
 check_help_ok() {
     local label="$1"
     shift
@@ -21,7 +28,7 @@ check_flag_in_help() {
     local flag="$2"
     shift 2
     local out
-    out=$("${CLI[@]}" "$@" --help 2>&1) || true
+    out=$("${CLI[@]}" "$@" --help 2>&1 | strip_ansi) || true
     if grep -qF -- "$flag" <<< "$out"; then
         echo "  ok  flag $flag in $label"
     else
@@ -77,7 +84,7 @@ for grp in env config kernel agent; do
 done
 
 echo "=== Global flags in main help ==="
-MAIN=$("${CLI[@]}" --help 2>&1)
+MAIN=$("${CLI[@]}" --help 2>&1 | strip_ansi)
 for flag in "--json" "--yes" "--dry-run" "--quiet" "--version"; do
     if grep -qF -- "$flag" <<< "$MAIN"; then
         echo "  ok  global $flag"
