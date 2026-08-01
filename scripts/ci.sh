@@ -24,7 +24,10 @@ echo "==> ty check"
 env -u CONDA_PREFIX uv run ty check src/astroai_lab
 
 echo "==> CLI audit"
-bash scripts/audit-cli-help.sh
+# GITHUB_ACTIONS=true makes typer/rich emit ANSI SGR codes in --help output,
+# exactly as on ubuntu-latest runners. This exercises the audit script's
+# strip_ansi path locally so the local gate matches the remote CI gate.
+GITHUB_ACTIONS=true bash scripts/audit-cli-help.sh
 
 echo "==> pytest"
 uv run pytest -q
