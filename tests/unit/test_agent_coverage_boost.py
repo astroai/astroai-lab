@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from astroai_lab.agent.bundles import SetupResult, agent_setup
 from astroai_lab.agent.setup_state import (
-    agent_setup_lock,
     append_setup_log,
     dump_json,
     read_setup_state,
@@ -32,9 +30,7 @@ def test_append_setup_log_and_dump_json(tmp_path: Path, monkeypatch: pytest.Monk
     assert dump_json({"a": 1}).startswith("{")
 
 
-def test_agent_setup_records_ok(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_agent_setup_records_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
@@ -166,9 +162,7 @@ def test_resources_cgroup_and_gpu(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     assert snap.gpu[0]["name"] == "TestGPU"
 
 
-def test_agent_sync_ok_and_partial(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_agent_sync_ok_and_partial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from astroai_lab.agent.bundles import SourceUpdateResult, agent_sync
 
     home = tmp_path / "home"
@@ -266,9 +260,7 @@ def test_status_json_has_resources(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert "home" in data["resources"]
 
 
-def test_agent_setup_quota_refuse(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_agent_setup_quota_refuse(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))

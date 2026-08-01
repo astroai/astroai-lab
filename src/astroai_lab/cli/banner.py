@@ -61,17 +61,15 @@ def show_banner(*, json_output: bool = False) -> None:
         else:
             ui.print_hint(f"  team:    {active_arc.path} [{active_arc.access}]")
     if home_pct is not None and home_pct >= 80:
-        ui.print_warn(
-            f"  home quota: {home_pct}% — `astroai-lab clean home --all-safe` to free space"
-        )
+        ui.print_warn(f"  home quota: {home_pct}% — see `astroai-lab status` for details")
     if git.in_repo and git.uncommitted:
         ui.print_warn("  uncommitted changes — `git add -A && git commit -m 'session work'`")
     if project_kind:
         ui.print_hint(f"  project: {project_kind.value} in {cwd.name}")
-        ui.print_hint("  next: `astroai-lab save`  ·  `astroai-lab push` before closing")
+        ui.print_hint("  next: `astroai-lab save` before closing")
     else:
         ui.print_hint("  notebook path: `astroai-lab kernel ensure` then open starter.ipynb")
         ui.print_hint(
             "  project path:  `astroai-lab init mylab`  ·  `astroai-lab clone owner/repo`"
         )
-    ui.print_hint("  help: `astroai-lab guide`  ·  hygiene: `astroai-lab doctor`")
+    ui.print_hint("  help: `astroai-lab help`  ·  overview: `astroai-lab status`")

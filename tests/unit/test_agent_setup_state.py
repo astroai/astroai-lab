@@ -52,9 +52,8 @@ def test_agent_setup_lock_contention(tmp_path: Path, monkeypatch: pytest.MonkeyP
     t = threading.Thread(target=holder)
     t.start()
     assert held.wait(timeout=2)
-    with pytest.raises(LabError, match="already running"):
-        with agent_setup_lock(home, timeout=0.5):
-            pass
+    with pytest.raises(LabError, match="already running"), agent_setup_lock(home, timeout=0.5):
+        pass
     release.set()
     t.join(timeout=2)
 
@@ -123,9 +122,7 @@ def test_agent_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert build_agent_report(home)["ok"] is False
 
 
-def test_agent_report_includes_resources(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_agent_report_includes_resources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))

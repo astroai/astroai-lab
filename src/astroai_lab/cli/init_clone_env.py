@@ -9,9 +9,9 @@ import typer
 from astroai_lab import ui
 from astroai_lab.cli.context import get_opts, merge_opts
 from astroai_lab.config.settings import get_settings
-from astroai_lab.core.git import git_init_and_commit, git_push, git_status
+from astroai_lab.core.git import git_init_and_commit
 from astroai_lab.core.paths import resolve_paths
-from astroai_lab.core.project import detect_project, format_dir_size, require_project, save_env
+from astroai_lab.core.project import format_dir_size, require_project, save_env
 from astroai_lab.errors import LabError
 
 
@@ -63,16 +63,6 @@ def register(app: typer.Typer) -> None:
             astroai-lab init mylab
             astroai-lab init mylab --uv
         """
-        _init_impl(ctx, name, uv_project, no_git, no_gh)
-
-    @app.command("project-new", hidden=True)
-    def project_new_alias(
-        ctx: typer.Context,
-        name: Annotated[str, typer.Argument()],
-        uv_project: Annotated[bool, typer.Option("--uv")] = False,
-        no_git: Annotated[bool, typer.Option("--no-git")] = False,
-        no_gh: Annotated[bool, typer.Option("--no-gh")] = False,
-    ) -> None:
         _init_impl(ctx, name, uv_project, no_git, no_gh)
 
     @app.command()
@@ -211,68 +201,3 @@ def register(app: typer.Typer) -> None:
             ui.print_json(rows)
         else:
             ui.env_list_table(rows)
-
-    @app.command()
-    def push(
-        ctx: typer.Context,
-        name: Annotated[str | None, typer.Option("--name", help="Env save name.")] = None,
-        yes: Annotated[
-            bool, typer.Option("--yes", "-y", help="Non-interactive; skip confirmations.")
-        ] = False,
-    ) -> None:
-        """End-of-session archive: git push + env save.
-
-        Examples:
-            astroai-lab push
-            astroai-lab push --yes
-            astroai-lab --yes push
-            astroai-lab push --name mylab
-        """
-        opts = merge_opts(ctx, yes=yes)
-        settings = get_settings()
-        paths = resolve_paths()
-        cwd = Path.cwd()
-        pushed = saved = False
-
-        try:
-            git = git_status(cwd)
-        except (LabError, FileNotFoundError, OSError) as exc:
-            ui.print_warn(f"Git check failed: {exc}")
-            from astroai_lab.core.git import GitStatus
-
-            git = GitStatus(in_repo=False, branch=None, remote=None, uncommitted=False)
-
-        if git.in_repo:
-            if git.uncommitted:
-                ui.print_warn("Uncommitted changes detected.")
-                ui.print_hint("  `git add -A && git commit -m 'session work'`")
-                if settings.push.require_clean_git and not opts.yes:
-                    raise typer.Exit(1)
-            try:
-                with ui.progress_task("Pushing to origin...", quiet=opts.quiet):
-                    git_push(cwd)
-                pushed = True
-                ui.print_ok("git push done")
-            except LabError as exc:
-                ui.print_error(str(exc))
-        else:
-            ui.print_hint("Not in a git repo — skipping push.")
-
-        if detect_project(cwd) and settings.push.auto_save:
-            save_name = name or cwd.name
-            save_dir = paths.save_dir / save_name
-            try:
-                require_project(cwd)
-                save_env(save_name, save_dir, cwd)
-                saved = True
-                ui.print_ok(f"env saved: {save_name} ({format_dir_size(save_dir)})")
-            except LabError as exc:
-                ui.print_error(str(exc))
-        elif not detect_project(cwd):
-            ui.print_hint("No pixi/uv project — skipping env save.")
-
-        if opts.json:
-            ui.print_json({"pushed": pushed, "saved": saved, "work_dir": str(paths.work_dir)})
-        elif not (pushed or saved):
-            ui.print_warn(f"{paths.work_dir} is ephemeral — nothing archived.")
-            raise typer.Exit(1)

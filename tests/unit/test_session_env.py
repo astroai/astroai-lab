@@ -24,16 +24,22 @@ def test_user_tag_numeric_uid_when_passwd_missing(monkeypatch: pytest.MonkeyPatc
     assert session_common.user_tag() == str(os.getuid())
 
 
-def test_resolve_session_env_prefers_scratch_bin(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _scratch_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+    """Point WORK/SCRATCH at tmp_path subdirs; return (work, scratch)."""
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     work = tmp_path / "srcdir"
     work.mkdir()
-    monkeypatch.setenv("TMP_SRC_DIR", str(work))
-    monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
+    monkeypatch.setenv("WORK", str(work))
+    monkeypatch.setenv("SCRATCH", str(scratch))
     monkeypatch.delenv("ASTROAI_LAB_BIN_DIR", raising=False)
+    return work, scratch
+
+
+def test_resolve_session_env_prefers_scratch_bin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work, scratch = _scratch_session(tmp_path, monkeypatch)
     for var in (
         "UV_CACHE_DIR",
         "PIP_CACHE_DIR",
@@ -51,12 +57,7 @@ def test_resolve_session_env_prefers_scratch_bin(
 
 
 def test_scratch_overrides_image_build_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
-    work = tmp_path / "srcdir"
-    work.mkdir()
-    monkeypatch.setenv("TMP_SRC_DIR", str(work))
-    monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
+    work, scratch = _scratch_session(tmp_path, monkeypatch)
     monkeypatch.setenv("PIXI_CACHE_DIR", "/usr/local/share/pixi/cache")
     monkeypatch.setenv("UV_PYTHON_INSTALL_DIR", "/usr/local/share/uv/python")
     monkeypatch.setenv("PIXI_HOME", "/usr/local/share/pixi")
@@ -68,16 +69,51 @@ def test_scratch_overrides_image_build_env(tmp_path: Path, monkeypatch: pytest.M
     assert env.pixi_home == env.astroai_lab_runtime_root / "pixi"
 
 
+def test_resolve_session_env_honors_scratch_backed_cache_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pre-existing cache vars pointing under scratch are kept, not redirected.
+
+    Complement to test_scratch_overrides_image_build_env: a cache var that a
+    user already set to a scratch-backed location must survive resolution,
+    while a stray system-prefix value is still redirected to the session cache.
+    """
+    work, scratch = _scratch_session(tmp_path, monkeypatch)
+
+    custom_uv = scratch / "custom-uv"
+    custom_uv.mkdir()
+    custom_pip = scratch / "custom-pip"
+    custom_pip.mkdir()
+    custom_xdg = scratch / "xdg-cache"
+    custom_xdg.mkdir()
+    monkeypatch.setenv("UV_CACHE_DIR", str(custom_uv))
+    monkeypatch.setenv("PIP_CACHE_DIR", str(custom_pip))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(custom_xdg))
+    # A stray system-prefix value (not under work or scratch) is redirected.
+    monkeypatch.setenv("PIXI_CACHE_DIR", "/usr/local/share/pixi/cache")
+
+    env = resolve_session_env(ensure=False)
+    cache_root = scratch_cache_root(work, scratch)
+    # Pre-existing scratch-backed locations are honored verbatim.
+    assert env.uv_cache_dir == custom_uv
+    assert env.pip_cache_dir == custom_pip
+    assert env.xdg_cache_home == custom_xdg
+    # The system-prefix value is redirected to the session cache default.
+    assert env.pixi_cache_dir == cache_root / "pixi"
+
+
 def test_export_shell_includes_astroai_lab_vars(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    monkeypatch.setenv("TMP_SRC_DIR", str(work))
-    monkeypatch.delenv("TMP_SCRATCH_DIR", raising=False)
+    monkeypatch.setenv("WORK", str(work))
+    monkeypatch.delenv("SCRATCH", raising=False)
 
     out = export_shell(ensure=False)
     assert "export ASTROAI_LAB_BIN_DIR=" in out
     assert "export ASTROAI_LAB_RUNTIME_ROOT=" in out
-    assert "export TMP_SRC_DIR=" in out
+    assert "export WORK=" in out
+    # NOTE: no "SCRATCH absent" assertion — a writable /scratch on the host is
+    # the canonical scratch default and is legitimately exported when unset.
     assert "CANFAR_LAB_" not in out

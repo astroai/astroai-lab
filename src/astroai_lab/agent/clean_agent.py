@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from astroai_lab.agent.setup_state import (
     failed_path,
     lock_path,
     log_path,
-    stamp_path,
 )
-from astroai_lab.utils.json_utils import read_jsonc
 
 
 @dataclass(frozen=True)
@@ -85,11 +82,15 @@ def clean_agent_state(
                 content = cfg.read_text(encoding="utf-8", errors="replace").strip()
                 if not content or content == "{}" or content == "[]":
                     if dry_run:
-                        results.append(CleanResult(cfg.name, "would_remove", f"Empty config at {cfg}"))
+                        results.append(
+                            CleanResult(cfg.name, "would_remove", f"Empty config at {cfg}")
+                        )
                     else:
                         try:
                             cfg.unlink()
-                            results.append(CleanResult(cfg.name, "removed", f"Removed empty config at {cfg}"))
+                            results.append(
+                                CleanResult(cfg.name, "removed", f"Removed empty config at {cfg}")
+                            )
                         except OSError as exc:
                             results.append(CleanResult(cfg.name, "error", str(exc)))
 

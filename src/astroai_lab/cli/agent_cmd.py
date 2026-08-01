@@ -44,23 +44,81 @@ agent_app = typer.Typer(
 def agent_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         ui.print_hint("AI agents — pick one:")
-        ui.print_hint("  astroai-lab agent catalog           # curated AI tools & container catalog")
+        ui.print_hint(
+            "  astroai-lab agent catalog           # curated AI tools & container catalog"
+        )
         ui.print_hint("  astroai-lab agent list              # tools, bundles, skills overview")
         ui.print_hint("  astroai-lab agent install [TOOL]    # CLI binaries (omit TOOL to list)")
         ui.print_hint("  astroai-lab agent setup [BUNDLE…]   # MCP/rules/skills configs")
         ui.print_hint("  astroai-lab agent addons            # curated lean + science addons")
         ui.print_hint("  astroai-lab agent add ponytail      # install curated addon(s)")
         ui.print_hint("  astroai-lab agent skills list       # Cursor skills inventory")
-        ui.print_hint("  astroai-lab agent status|verify     # health check (or agent verify --fix)")
+        ui.print_hint(
+            "  astroai-lab agent status|verify     # health check (or agent verify --fix)"
+        )
         ui.print_hint("  astroai-lab agent fix|clean         # auto-repair or clean stale state")
         ui.print_hint("  astroai-lab agent interact          # active container UIs & endpoints")
         ui.print_hint("  astroai-lab agent models free       # OpenRouter / Kilo presets")
 
 
+# ---------------------------------------------------------------------------
+# Shell-completion callables for option/argument values. Each matches typer's
+# autocompletion signature (ctx, incomplete) -> list[str]; failures degrade to
+# empty completions so tab-completion never crashes the CLI.
+# ---------------------------------------------------------------------------
+
+
+def _preset_completer(ctx, incomplete: str) -> list[str]:
+    """Offer free-model preset names (`agent models free --preset`)."""
+    return [n for n in agent_free_models.list_presets() if n.startswith(incomplete or "")]
+
+
+def _tool_completer(ctx, incomplete: str) -> list[str]:
+    """Offer installable CLI names (`agent install NAME`)."""
+    incomplete = incomplete or ""
+    try:
+        names = [str(row["name"]) for row in agent_install.list_tools_status()]
+    except Exception:  # noqa: BLE001 — completion must never crash the CLI
+        return []
+    return [n for n in names if n.startswith(incomplete)]
+
+
+def _bundle_completer(ctx, incomplete: str) -> list[str]:
+    """Offer config bundle names (`agent setup NAME`)."""
+    incomplete = incomplete or ""
+    try:
+        names = list(agent_setup_mod.agent_list_bundles())
+    except Exception:  # noqa: BLE001 — completion must never crash the CLI
+        return []
+    return [n for n in names if n.startswith(incomplete)]
+
+
+def _addon_completer(ctx, incomplete: str) -> list[str]:
+    """Offer curated addon ids (`agent add NAME`)."""
+    incomplete = incomplete or ""
+    try:
+        ids = [row["id"] for row in agent_addons.list_addons()]
+    except Exception:  # noqa: BLE001 — completion must never crash the CLI
+        return []
+    return [i for i in ids if i.startswith(incomplete)]
+
+
+ADDON_KINDS = ("skill", "bundle", "mcp", "tool", "rule")
+CATALOG_KINDS = ("agent", "skill", "rule", "mcp", "tool", "container")
+
+
+def _addon_kind_completer(ctx, incomplete: str) -> list[str]:
+    return [k for k in ADDON_KINDS if k.startswith(incomplete or "")]
+
+
+def _catalog_kind_completer(ctx, incomplete: str) -> list[str]:
+    return [k for k in CATALOG_KINDS if k.startswith(incomplete or "")]
+
+
 @agent_app.command("setup")
 def agent_setup_cmd(
     ctx: typer.Context,
-    bundle: Annotated[list[str] | None, typer.Argument()] = None,
+    bundle: Annotated[list[str] | None, typer.Argument(autocompletion=_bundle_completer)] = None,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
     list_bundles: Annotated[
         bool,
@@ -116,9 +174,7 @@ def agent_setup_cmd(
     if result.ok and not result.partial:
         ui.print_ok("Agent setup complete")
     elif result.partial:
-        ui.print_warn(
-            f"Partial setup — {len(result.actions)} ok, {len(result.errors)} failed"
-        )
+        ui.print_warn(f"Partial setup — {len(result.actions)} ok, {len(result.errors)} failed")
     else:
         ui.print_error("Agent setup failed")
     ui.print_hint("  astroai-lab agent install kilo|goose|cline|qoder|opencode")
@@ -140,12 +196,6 @@ def agent_update_cmd(ctx: typer.Context) -> None:
     Examples:
         astroai-lab agent update
     """
-    _run_agent_sync(ctx)
-
-
-@agent_app.command("sync", hidden=True)
-def agent_sync_cmd(ctx: typer.Context) -> None:
-    """Alias for ``agent update``."""
     _run_agent_sync(ctx)
 
 
@@ -231,9 +281,7 @@ def _print_tools(as_json: bool) -> None:
     ui.print_hint("  ───────────  ───────────  ────────  ───────────")
     for row in rows:
         mark = "✓" if row["installed"] else "—"
-        ui.print_hint(
-            f"  {row['name']:<12} {row['binary']:<12} {mark:<8} {row['description']}"
-        )
+        ui.print_hint(f"  {row['name']:<12} {row['binary']:<12} {mark:<8} {row['description']}")
 
 
 def _print_skills(as_json: bool, *, home: Path | None = None) -> None:
@@ -273,13 +321,9 @@ def _print_addons(
     ui.print_hint("  Id                               Kind     Status     Tags / summary")
     ui.print_hint("  ───────────────────────────────  ───────  ─────────  ──────────────")
     for row in rows:
-        status = (
-            "default" if row["default"] else ("installed" if row["installed"] else "—")
-        )
+        status = "default" if row["default"] else ("installed" if row["installed"] else "—")
         tags = ",".join(row["tags"]) if row["tags"] else ""
-        ui.print_hint(
-            f"  {row['id']:<32} {row['kind']:<8} {status:<9} {tags}"
-        )
+        ui.print_hint(f"  {row['id']:<32} {row['kind']:<8} {status:<9} {tags}")
         if row["summary"]:
             ui.print_hint(f"    {row['summary']}")
 
@@ -289,7 +333,12 @@ def agent_addons_cmd(
     ctx: typer.Context,
     kind: Annotated[
         str | None,
-        typer.Option("--kind", "-k", help="Filter: skill, bundle, mcp, tool, rule."),
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Filter: skill, bundle, mcp, tool, rule.",
+            autocompletion=_addon_kind_completer,
+        ),
     ] = None,
     tag: Annotated[
         str | None,
@@ -309,7 +358,9 @@ def agent_addons_cmd(
 @agent_app.command("add")
 def agent_add_cmd(
     ctx: typer.Context,
-    names: Annotated[list[str] | None, typer.Argument(help="Addon id(s).")] = None,
+    names: Annotated[
+        list[str] | None, typer.Argument(help="Addon id(s).", autocompletion=_addon_completer)
+    ] = None,
     tag: Annotated[
         str | None,
         typer.Option("--tag", "-t", help="Install all addons with this tag (skips defaults)."),
@@ -399,33 +450,6 @@ def skills_update_cmd(ctx: typer.Context) -> None:
     _update_github_skills(ctx)
 
 
-# Keep `sources` as a thin alias so older docs/scripts keep working.
-sources_app = typer.Typer(
-    help="Alias for `agent skills` (GitHub upstream skill sources).",
-    hidden=False,
-)
-agent_app.add_typer(sources_app, name="sources")
-
-
-@sources_app.callback(invoke_without_command=True)
-def sources_root(ctx: typer.Context) -> None:
-    if ctx.invoked_subcommand is None:
-        ui.print_hint("Prefer: `astroai-lab agent skills list` | `astroai-lab agent skills update`")
-        ui.print_hint("(sources is an alias for skills)")
-
-
-@sources_app.command("list")
-def sources_list_cmd(ctx: typer.Context) -> None:
-    """List skill sources (alias for ``agent skills list``)."""
-    _print_skills(get_opts(ctx).json)
-
-
-@sources_app.command("update")
-def sources_update_cmd(ctx: typer.Context) -> None:
-    """Pull GitHub upstream skills (alias for ``agent skills update``)."""
-    _update_github_skills(ctx)
-
-
 def _update_github_skills(ctx: typer.Context) -> None:
     opts = get_opts(ctx)
     try:
@@ -468,7 +492,9 @@ def _update_github_skills(ctx: typer.Context) -> None:
             raise typer.Exit(1)
         return
     if failures:
-        raise typer.Exit(2 if failures < len([a for a in actions if a["status"] != "skipped"]) else 1)
+        raise typer.Exit(
+            2 if failures < len([a for a in actions if a["status"] != "skipped"]) else 1
+        )
     ui.print_ok("GitHub skill sources refreshed")
 
 
@@ -518,17 +544,22 @@ def agent_project_cmd(
 
 
 @agent_app.command("catalog")
-@agent_app.command("directory", hidden=True)
-@agent_app.command("awesome", hidden=True)
 def agent_catalog_cmd(
     ctx: typer.Context,
     kind: Annotated[
         str | None,
-        typer.Option("--kind", "-k", help="Filter: agent, skill, rule, mcp, tool, container."),
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Filter: agent, skill, rule, mcp, tool, container.",
+            autocompletion=_catalog_kind_completer,
+        ),
     ] = None,
     tag: Annotated[
         str | None,
-        typer.Option("--tag", "-t", help="Filter tag: lean, science, python, review, open, ui, ..."),
+        typer.Option(
+            "--tag", "-t", help="Filter tag: lean, science, python, review, open, ui, ..."
+        ),
     ] = None,
     search: Annotated[
         str | None,
@@ -543,12 +574,12 @@ def agent_catalog_cmd(
         return
     ui.print_hint("AstroAI Agent & Container Catalog (Agents, Skills, Rules, MCPs, UIs)")
     ui.print_hint("  Id                               Kind       Status     Summary")
-    ui.print_hint("  ───────────────────────────────  ─────────  ─────────  ──────────────────────────")
+    ui.print_hint(
+        "  ───────────────────────────────  ─────────  ─────────  ──────────────────────────"
+    )
     for item in items:
         status = "installed" if item["installed"] else "available"
-        ui.print_hint(
-            f"  {item['id']:<32} {item['kind']:<10} {status:<10} {item['summary']}"
-        )
+        ui.print_hint(f"  {item['id']:<32} {item['kind']:<10} {status:<10} {item['summary']}")
         if item.get("install_command"):
             ui.print_hint(f"    > {item['install_command']}")
 
@@ -556,11 +587,17 @@ def agent_catalog_cmd(
 @agent_app.command("clean")
 def agent_clean_cmd(
     ctx: typer.Context,
-    stale_locks: Annotated[bool, typer.Option("--stale-locks", help="Remove stale lock files.")] = True,
+    stale_locks: Annotated[
+        bool, typer.Option("--stale-locks", help="Remove stale lock files.")
+    ] = True,
     failed: Annotated[bool, typer.Option("--failed", help="Clear failed setup marker.")] = True,
-    empty_configs: Annotated[bool, typer.Option("--empty-configs", help="Remove empty config files.")] = True,
+    empty_configs: Annotated[
+        bool, typer.Option("--empty-configs", help="Remove empty config files.")
+    ] = True,
     logs: Annotated[bool, typer.Option("--logs", help="Remove setup log file.")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show actions without executing.")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
 ) -> None:
     """Clean stale setup locks, failed state markers, empty configs, and logs."""
     from astroai_lab.cli.context import merge_opts
@@ -587,7 +624,9 @@ def agent_clean_cmd(
 @agent_app.command("fix")
 def agent_fix_cmd(
     ctx: typer.Context,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show actions without executing.")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
 ) -> None:
     """Auto-repair syntax errors, stale locks, and missing directory structures in agent setup."""
     from astroai_lab.cli.context import merge_opts
@@ -611,7 +650,6 @@ def agent_fix_cmd(
 
 
 @agent_app.command("interact")
-@agent_app.command("access", hidden=True)
 def agent_interact_cmd(ctx: typer.Context) -> None:
     """Inspect active container UI endpoints, web services, and agent CLI status."""
     opts = get_opts(ctx)
@@ -620,7 +658,10 @@ def agent_interact_cmd(ctx: typer.Context) -> None:
         ui.print_json(info)
         return
     ui.print_hint(f"Interactive Session Diagnostics ({info['session_kind'].upper()})")
-    ui.print_hint("  Active Agent CLIs: " + (", ".join(info['installed_agents']) if info['installed_agents'] else "None"))
+    ui.print_hint(
+        "  Active Agent CLIs: "
+        + (", ".join(info["installed_agents"]) if info["installed_agents"] else "None")
+    )
     ui.print_hint("")
     ui.print_hint("Endpoints & Access Points:")
     for ep in info["endpoints"]:
@@ -634,7 +675,9 @@ def agent_verify_cmd(
     ctx: typer.Context,
     auto_fix: Annotated[
         bool,
-        typer.Option("--fix", "-f", help="Auto-repair missing directories, stale locks, or syntax errors."),
+        typer.Option(
+            "--fix", "-f", help="Auto-repair missing directories, stale locks, or syntax errors."
+        ),
     ] = False,
 ) -> None:
     """Check agent setup: required files plus JSON/TOML/YAML syntax of configs.
@@ -664,7 +707,9 @@ def agent_verify_cmd(
         return
     if issues:
         ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
-        ui.print_hint("Tip: Run `astroai-lab agent fix` or `astroai-lab agent verify --fix` to auto-repair.")
+        ui.print_hint(
+            "Tip: Run `astroai-lab agent fix` or `astroai-lab agent verify --fix` to auto-repair."
+        )
         raise typer.Exit(1)
     if state.stamp:
         ui.print_hint(f"  last run: {state.stamp}")
@@ -709,15 +754,16 @@ def agent_list_cmd(ctx: typer.Context) -> None:
     ui.print_hint("")
     _print_skills(False)
     ui.print_hint("")
-    ui.print_hint(
-        "Curated addons: `astroai-lab agent addons` · `astroai-lab agent add NAME`"
-    )
+    ui.print_hint("Curated addons: `astroai-lab agent addons` · `astroai-lab agent add NAME`")
 
 
 @agent_app.command("install")
 def agent_install_cmd(
     ctx: typer.Context,
-    tool: Annotated[str | None, typer.Argument(help="Tool name (omit to list).")] = None,
+    tool: Annotated[
+        str | None,
+        typer.Argument(help="Tool name (omit to list).", autocompletion=_tool_completer),
+    ] = None,
     list_tools: Annotated[
         bool,
         typer.Option("--list", "-l", help="List installable CLIs (same as omitting TOOL)."),
@@ -801,7 +847,10 @@ def models_list_cmd(ctx: typer.Context) -> None:
 @models_app.command("free")
 def models_free_cmd(
     ctx: typer.Context,
-    preset: Annotated[str, typer.Option("--preset", "-p", help="Preset name.")] = "coding",
+    preset: Annotated[
+        str,
+        typer.Option("--preset", "-p", help="Preset name.", autocompletion=_preset_completer),
+    ] = "coding",
     force: Annotated[
         bool,
         typer.Option("--force", "-f", help="Overwrite existing configs."),

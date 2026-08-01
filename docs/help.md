@@ -20,26 +20,25 @@ flowchart LR
 
 | Tool | Use it for |
 |------|------------|
-| [`canfar`](https://github.com/opencadc/canfar) | Authenticate, create and list sessions, manage images |
-| **`astroai-lab`** | Projects, env save/resume, paths, data stage/sync, doctor, agents |
+| [`canfar`](https://github.com/opencadc/canfar) | Authenticate, create and list sessions, manage images, `canfar data` archive I/O |
+| **`astroai-lab`** | Env save/resume, AI agents, session status, notebook kernels |
 | CADC clients (`cadcget`, `vcp`, …) | Archive and VOSpace I/O (shipped in session images) |
 
 Notebook path: Science Portal → **notebook** image →
-`/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) →
+`/opt/astroai/notebooks/starter.ipynb` →
 `astroai-lab kernel ensure` if the kernel is missing.
 
 Marimo path: Science Portal → **marimo** image →
-`TMP_SRC_DIR/notebooks/starter.py` opens by default
-(or `astroai-lab notebook starter marimo`).
+`$WORK/notebooks/starter.py` opens by default.
 
 ## Storage tiers
 
 | Tier | Typical path | Purpose |
 |------|--------------|---------|
-| Work | `TMP_SRC_DIR` → `/srcdir` | Ephemeral code (fast, session-local) |
-| Scratch | `TMP_SCRATCH_DIR` → `/scratch` | Ephemeral data and package caches |
+| Work | `WORK` → `/srcdir` | Ephemeral code (fast, session-local) |
+| Scratch | `SCRATCH` → `/scratch` | Ephemeral data and package caches |
 | Home | `/arc/home` | Persistent config and env saves |
-| Projects | `/arc/projects` | Team persistent storage |
+| Projects | `/arc/projects` | Team persistent storage (read-only for most users) |
 
 Env saves default to **`~/.astroai/lab/saves/`** on persistent home.
 
@@ -50,10 +49,10 @@ Env saves default to **`~/.astroai/lab/saves/`** on persistent home.
 2. cd $WORK/mylab && pixi run …
 3. … work …
 4. astroai-lab save             # anytime; lockfile snapshot
-5. astroai-lab push             # before closing session
 ```
 
-Same text from the CLI: **`astroai-lab guide`**.
+CLI: **`astroai-lab help`** prints `--help` for every command
+(`astroai-lab help -c agent` for one command).
 
 ## Daily commands
 
@@ -64,9 +63,8 @@ astroai-lab clone owner/repo
 astroai-lab save [name]
 astroai-lab resume NAME
 astroai-lab saves
-astroai-lab push --yes
 astroai-lab status --json
-astroai-lab doctor --json
+astroai-lab kernel ensure
 astroai-lab agent setup
 astroai-lab agent update
 ```
@@ -76,21 +74,17 @@ astroai-lab agent update
 | Layer | Where | How it is versioned |
 |-------|-------|---------------------|
 | Platform CLIs | `/opt/astroai/venv/cadc` | Image build + optional `upgrade-cadc-tools.sh` this session |
-| Your project | `TMP_SRC_DIR` pixi/uv env | Lockfiles (`pixi.lock`, `uv.lock`) |
+| Your project | `$WORK` pixi/uv env | Lockfiles (`pixi.lock`, `uv.lock`) |
 
 ```bash
 upgrade-cadc-tools.sh list
 upgrade-cadc-tools.sh --upgrade astroai-lab
 ```
 
-## Data and hygiene
+## Data
 
-```bash
-astroai-lab data stage SRC [DST]   # /arc → scratch
-astroai-lab data sync SRC DST      # scratch → /arc
-astroai-lab clean home --all-safe --dry-run
-astroai-lab clean cache --all-safe
-```
+Use the platform: **`canfar data`** for archive I/O, and `vcp` / `vls` for
+VOSpace. `astroai-lab` does not wrap data movement.
 
 ## Portable projects
 

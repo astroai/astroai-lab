@@ -25,7 +25,7 @@ def lab_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     work = home / "work"
     work.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
+    monkeypatch.setenv("WORK", str(work))
     return home
 
 
@@ -35,132 +35,66 @@ def test_version_flag() -> None:
     assert "astroai-lab" in result.stdout
 
 
-def test_guide_command() -> None:
+def test_help_command() -> None:
+    result = runner.invoke(app, ["help"])
+    assert result.exit_code == 0
+    assert "Usage:" in result.output
+    assert "save" in result.output
+
+
+def test_help_single_command() -> None:
+    result = runner.invoke(app, ["help", "--command", "agent"])
+    assert result.exit_code == 0
+    assert "Usage: astroai-lab agent" in result.output
+    # Scoped: agent group help shows agent subcommands, not save/resume ones.
+    assert "catalog" in result.output
+    assert "Usage: astroai-lab save" not in result.output
+
+
+def test_help_single_nested_command() -> None:
+    result = runner.invoke(app, ["help", "-c", "agent list"])
+    assert result.exit_code == 0
+    assert "Usage: astroai-lab agent list" in result.output
+
+
+def test_help_unknown_command() -> None:
+    result = runner.invoke(app, ["help", "-c", "nope"])
+    assert result.exit_code == 1
+    assert "nope" in result.output
+
+
+def test_guide_alias_removed() -> None:
+    """The `guide` alias was removed in the 0.3 simplification (use `help`)."""
     result = runner.invoke(app, ["guide"])
-    assert result.exit_code == 0
-    assert "Session loop" in result.output
+    assert result.exit_code != 0
+    assert "No such command" in (result.stdout + result.stderr)
 
 
-def test_ray_guide_and_status(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ASTROAI_RAY_JOBS_ADDRESS", raising=False)
-    monkeypatch.delenv("RAY_DASHBOARD_URL", raising=False)
-    monkeypatch.delenv("RAY_ADDRESS", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(lab_home / ".config"))
-    # Isolate from the developer machine's live canfar sessions / prior wires.
-    monkeypatch.setattr("astroai_lab.cli.ray_cmd.canfar_sessions", lambda: [])
-    monkeypatch.setattr("astroai_lab.cli.ray_cmd.read_persisted_connect_url", lambda: None)
-    result = runner.invoke(app, ["ray", "guide"])
-    assert result.exit_code == 0
-    assert "ray-manager" in result.output
-
-    monkeypatch.setenv("RAY_CLUSTER_ID", "test-cluster")
-    state = lab_home / ".astroai" / "ray" / "clusters" / "test-cluster"
-    state.mkdir(parents=True)
-    (state / "manager-heartbeat").touch()
-    (state / "state.json").write_text('{"phase": "Running"}')
-
-    other = lab_home / ".astroai" / "ray" / "clusters" / "mgr-other"
-    other.mkdir(parents=True)
-    (other / "manager-heartbeat").touch()
-
-    result = runner.invoke(app, ["--json", "ray", "status"])
+def test_help_json_inventory() -> None:
+    result = runner.invoke(app, ["help", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["cluster_id"] == "test-cluster"
-    assert data["heartbeat_present"] is True
-    assert data["state"]["phase"] == "Running"
-    assert data["phase"] == "Running"
-    assert len(data["clusters"]) >= 2
-    assert "launch_command" in data
-    assert "ray ensure" in data["launch_command"]
-    # Heartbeat alone is not a live Running manager / wired Jobs URL.
-    assert data.get("compute_ready") is False
-    assert data.get("manager_running") is False
-    assert not data.get("connect_url")
-    assert data.get("hint")
-    # Human-readable path (non-json).
-    result = runner.invoke(app, ["ray", "status"])
-    assert result.exit_code == 0
-    assert "test-cluster" in result.output
-    assert "Running" in result.output
+    assert "commands" in data
+    paths = {c["path"] for c in data["commands"]}
+    assert "status" in paths
+    assert "agent list" in paths
+    assert "guide" not in paths
 
-    # Missing heartbeat → launch hint.
-    empty = lab_home / ".astroai" / "ray" / "clusters" / "empty"
-    empty.mkdir(parents=True)
-    monkeypatch.setenv("RAY_CLUSTER_ID", "empty")
-    # Remove other heartbeats so scan finds none active for preferred empty.
-    (state / "manager-heartbeat").unlink()
-    (other / "manager-heartbeat").unlink()
-    result = runner.invoke(app, ["--json", "ray", "status"])
+
+def test_help_json_single_command() -> None:
+    result = runner.invoke(app, ["help", "-c", "status", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["heartbeat_present"] is False
-    assert "hint" in data
-    hint = data["hint"].lower()
-    assert "ensure" in hint or "start batch" in hint or "ray-manager" in hint
+    assert data["path"] == "status"
+    assert "help" in data
+    assert "options" in data
+    assert any("--json" in o["opts"] for o in data["options"])
 
 
-def test_backup_cli_status_and_run(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    work = lab_home / "work"
-    (work / "a.py").write_text("x\n")
-    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
-    monkeypatch.delenv("skaha_sessionid", raising=False)
-    get_settings.cache_clear()
-
-    result = runner.invoke(app, ["--json", "backup", "status"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert "enabled" in data
-    assert "interval" in data
-
-    with patch("astroai_lab.core.backup.quota_used_pct", return_value=10):
-        with patch("astroai_lab.core.backup.run", return_value=None):
-            result = runner.invoke(app, ["--json", "backup", "run"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert data.get("ok") is True or "dest" in data
-
-    result = runner.invoke(app, ["--json", "backup", "stop"])
-    assert result.exit_code == 0
-    assert json.loads(result.stdout)["stopped"] is False
-
-
-def test_doctor_json(lab_home: Path) -> None:
-    result = runner.invoke(app, ["--json", "doctor"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert "work_dir" in data
-    assert "tools" in data
-
-
-def test_paths_json(lab_home: Path) -> None:
-    result = runner.invoke(app, ["paths", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert "work_dir" in data
-    assert "cwd" in data
-
-
-def test_tools_json(lab_home: Path) -> None:
-    result = runner.invoke(app, ["tools", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert "tools" in data
-    assert any(t["name"] == "git" for t in data["tools"])
-
-
-@patch("astroai_lab.core.tools.quota_used_pct")
-def test_check_json(mock_quota: MagicMock, lab_home: Path) -> None:
-    # Hardware-state isolation: CI/test runners can sit on tmpfs, overlayfs,
-    # or shared hosts where `statvfs(~)` reports percentages anywhere from
-    # 0% to 100% regardless of the real disk situation. Pin the quota reading
-    # so the check-pass/fail outcome is deterministic.
-    mock_quota.return_value = 50
-    result = runner.invoke(app, ["check", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert data["ok"] is True
-    assert "checks" in data
+def test_help_json_unknown_command() -> None:
+    result = runner.invoke(app, ["help", "-c", "nope", "--json"])
+    assert result.exit_code == 1
+    assert "nope" in result.output
 
 
 def test_default_banner(lab_home: Path) -> None:
@@ -239,18 +173,3 @@ def test_init_creates_pixi_project(lab_home: Path, monkeypatch: pytest.MonkeyPat
     target = work / "demo"
     assert target.is_dir()
     assert (target / "pixi.toml").is_file() or (target / "pyproject.toml").is_file()
-
-
-@patch("astroai_lab.cli.project.init_team_project")
-@patch("astroai_lab.cli.project.project_layout")
-@patch("astroai_lab.cli.project.project_quota_line")
-def test_project_init_cli(mock_quota, mock_layout, mock_init, lab_home: Path) -> None:
-    mock_init.return_value = Path("/arc/projects/demo")
-    mock_layout.return_value = ["data/", "results/", "env-saves/"]
-    mock_quota.return_value = "10GB / 100GB"
-
-    result = runner.invoke(app, ["project", "init", "demo", "--members", "alice,bob"])
-    assert result.exit_code == 0
-    assert "Project workspace: /arc/projects/demo" in result.output
-    assert "data/" in result.output
-    assert "quota: 10GB / 100GB" in result.output

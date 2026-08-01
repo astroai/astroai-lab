@@ -6,7 +6,6 @@ import os
 import shutil
 import urllib.request
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from typing import Any
 
 
@@ -36,7 +35,7 @@ def inspect_interact_endpoints() -> dict[str, Any]:
             name="AstroAI Agent Hub",
             port=wizard_port,
             path_prefix="/astroai-agents/",
-            description="Agent status, wizard setup, CANFAR sessions, Ray status, and awesome catalog",
+            description="Agent status, wizard setup, CANFAR sessions, and Ray status",
             active=wizard_active,
             url_hint=f"http://127.0.0.1:{wizard_port}/ or via proxy at /astroai-agents/",
         )
@@ -96,13 +95,13 @@ def _check_port(host: str, port: int) -> bool:
         req = urllib.request.Request(f"http://{host}:{port}/healthz", method="GET")
         with urllib.request.urlopen(req, timeout=1.0) as resp:
             return resp.status == 200
-    except Exception:
+    except OSError:
         # Try root
         try:
             req = urllib.request.Request(f"http://{host}:{port}/", method="GET")
             with urllib.request.urlopen(req, timeout=1.0) as resp:
                 return resp.status < 500
-        except Exception:
+        except OSError:
             return False
 
 

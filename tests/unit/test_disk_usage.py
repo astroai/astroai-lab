@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -46,7 +45,7 @@ def test_collect_resources_shape(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     home.mkdir()
     scratch.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
+    monkeypatch.setenv("SCRATCH", str(scratch))
     snap = collect_resources()
     data = snap.to_dict()
     assert "mem_pct" in data

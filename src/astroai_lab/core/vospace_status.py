@@ -66,7 +66,7 @@ def gms_name_from_uri(value: str | None) -> str | None:
 
 
 def _vos_client():
-    from vos import vos
+    from vos import vos  # type: ignore
 
     cert = cadc_cert_path()
     if cert is not None:
@@ -216,7 +216,7 @@ def vault_statuses(
     gms: GmsGroups | None,
 ) -> VaultStatus | None:
     try:
-        from vos import vos  # noqa: F401
+        from vos import vos  # noqa: F401  # type: ignore
     except ImportError:
         return None
 

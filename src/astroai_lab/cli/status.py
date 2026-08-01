@@ -42,10 +42,11 @@ def register(app: typer.Typer) -> None:
         seen_quota_labels = {q.label for q in quotas}
         arc_names = {p.name.casefold() for p in arc_projects}
         for proj in arc_projects:
+            proj_vault = proj.vault
             if (
-                proj.vault is not None
-                and proj.vault.found
-                and (q := proj.vault.quota_line(current=proj.is_cwd))
+                proj_vault is not None
+                and proj_vault.found
+                and (q := proj_vault.quota_line(current=proj.is_cwd))
                 and q.label not in seen_quota_labels
             ):
                 quotas.append(q)

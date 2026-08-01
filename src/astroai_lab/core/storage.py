@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import os
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import humanize
 
@@ -18,7 +18,9 @@ from astroai_lab.core.arc_permissions import (
 from astroai_lab.core.disk_usage import disk_usage
 from astroai_lab.core.session_common import find_arc_project_root
 from astroai_lab.errors import LabError
-from astroai_lab.utils.subprocess import run
+
+if TYPE_CHECKING:
+    from astroai_lab.core.vospace_status import VaultNodeStatus, VaultStatus
 
 
 @dataclass
@@ -60,7 +62,7 @@ def dir_size(path: Path) -> int:
 def home_breakdown(home: Path) -> list[tuple[str, str, str]]:
     entries = [
         (".cache", "ML/tool caches"),
-        (".astroai", "AstroAI lab saves / ray metadata"),
+        (".astroai", "AstroAI lab saves"),
         (".canfar", "CANFAR client config"),
         (".pixi", "pixi global envs"),
         (".local", "user tools and data"),
@@ -85,51 +87,6 @@ def top_cpu_processes(limit: int = 5) -> list[str]:
         return []
 
 
-def rsync_copy(source: Path, target: Path, *, dry_run: bool = False) -> None:
-    if shutil.which("rsync") is None:
-        raise LabError("rsync is required.", hint="Install rsync on the session image.")
-    flags = ["rsync", "-avh"]
-    if dry_run:
-        flags.append("--dry-run")
-    else:
-        flags.append("--progress")
-    if source.is_dir():
-        flags.extend([f"{source}/", str(target)])
-    else:
-        flags.extend([str(source), str(target)])
-    run(flags)
-
-
-def stage_data(source: Path, target: Path, *, yes: bool = False, dry_run: bool = False) -> None:
-    if not source.exists():
-        raise LabError(f"Source not found: {source}")
-    if target.exists() and not yes and not dry_run:
-        raise LabError(
-            f"Target exists: {target}",
-            hint="astroai-lab data stage ... --yes  # overwrite",
-        )
-    rsync_copy(source, target, dry_run=dry_run)
-
-
-def sync_data(
-    source: Path,
-    target: Path,
-    scratch: Path | None,
-    *,
-    yes: bool = False,
-    dry_run: bool = False,
-) -> None:
-    if not source.exists():
-        raise LabError(f"Source not found: {source}")
-    if scratch and not str(source).startswith(str(scratch)) and not yes:
-        raise LabError(
-            f"Source is not under scratch ({scratch}): {source}",
-            hint="astroai-lab data sync ... --yes  # continue anyway",
-        )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    rsync_copy(source, target, dry_run=dry_run)
-
-
 def list_arc_projects() -> list[Path]:
     root = Path("/arc/projects")
     if not root.is_dir():
@@ -146,7 +103,7 @@ class ArcProjectInfo:
     access: str = "ro"
     acl_groups: list[AclGroupEntry] | None = None
     gms_member: bool | None = None
-    vault: object | None = None
+    vault: VaultNodeStatus | None = None
 
     def __post_init__(self) -> None:
         if self.acl_groups is None:
@@ -181,7 +138,7 @@ def arc_project_statuses(
     ArcProjectInfo | None,
     list[ArcProjectInfo],
     GmsGroups | None,
-    object | None,
+    VaultStatus | None,
 ]:
     """Team projects under /arc/projects with access, ACL groups, GMS, and vault."""
     cwd_root = find_arc_project_root(start)

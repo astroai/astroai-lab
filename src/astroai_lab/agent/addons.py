@@ -213,9 +213,7 @@ def add_addons(
             "Specify addon id(s) or --tag",
             hint="astroai-lab agent addons",
         )
-    return [
-        add_addon(aid, home=home, force=force, dry_run=dry_run) for aid in ordered
-    ]
+    return [add_addon(aid, home=home, force=force, dry_run=dry_run) for aid in ordered]
 
 
 def _install_github_bundle(
@@ -352,9 +350,7 @@ def _cursor_to_opencode(cfg: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _merge_cursor_mcp(
-    path: Path, server: str, cfg: dict[str, Any], *, force: bool
-) -> None:
+def _merge_cursor_mcp(path: Path, server: str, cfg: dict[str, Any], *, force: bool) -> None:
     if not cfg:
         return
     if path.is_file():
@@ -377,9 +373,7 @@ def _merge_cursor_mcp(
     write_json(path, data)
 
 
-def _merge_claude_mcp(
-    path: Path, server: str, cfg: dict[str, Any], *, force: bool
-) -> None:
+def _merge_claude_mcp(path: Path, server: str, cfg: dict[str, Any], *, force: bool) -> None:
     if not cfg:
         return
     if path.is_file():

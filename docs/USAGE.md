@@ -1,24 +1,26 @@
 # astroai-lab usage
 
 **astroai-lab** is the in-session workbench for AstroAI sessions on the
-[CANFAR Science Platform](https://www.opencadc.org/canfar/).
+[CANFAR Science Platform](https://www.opencadc.org/canfar/). It is intentionally
+small: **environment save/resume** plus **AI agent management**, with a few
+supporting commands.
 
 It works alongside:
 
 | Tool | Role |
 |------|------|
-| [`canfar`](https://github.com/opencadc/canfar) | Platform auth and session lifecycle |
+| [`canfar`](https://github.com/opencadc/canfar) | Platform auth, session lifecycle, `canfar data` archive I/O |
 | CADC clients (`cadcget`, `cadc-tap`, `vcp`, …) | Archive and VOSpace I/O in session images |
 | [Session images](https://github.com/astroai/astroai-containers) | `webterm`, `notebook`, `vscode`, `marimo`, Ray |
 
 | Doc | Scope |
 |-----|--------|
 | **USAGE.md** (this file) | Narrative: where to work, storage, workflows |
-| [guide.md](guide.md) | Short session loop |
+| [help.md](help.md) | Short session loop |
 | [cli.md](cli.md) | Full CLI reference |
 | [config.md](config.md) | Optional `~/.astroai/lab/config.yaml` |
 
-In a session: `astroai-lab guide` · `less /opt/astroai/USAGE.md` (image user guide).
+In a session: `astroai-lab help` · `less /opt/astroai/USAGE.md` (image user guide).
 
 Platform docs: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)
 
@@ -55,15 +57,14 @@ flowchart TB
 ### Student path (notebook-first)
 
 1. Open the [Science Portal](https://www.canfar.net/science-portal) → launch **notebook** or **marimo** (pick a GPU node only if you need a GPU).
-2. **Jupyter:** open `/opt/astroai/notebooks/starter.ipynb` (or `astroai-lab notebook starter`) and select the AstroAI kernel (`astroai-lab kernel ensure` if needed).
-3. **Marimo:** the session opens `TMP_SRC_DIR/notebooks/starter.py` (seeded once); or run `astroai-lab notebook starter marimo`.
-4. Run `astroai-lab doctor` — caches should resolve under `/scratch`, not `$HOME`.
-5. Keep long-lived results with `astroai-lab data sync … /arc/projects/…` or `vcp` to VOSpace.
+2. **Jupyter:** open `/opt/astroai/notebooks/starter.ipynb` and select the AstroAI kernel (`astroai-lab kernel ensure` if needed).
+3. **Marimo:** the session opens `$WORK/notebooks/starter.py` (seeded once).
+4. Run `astroai-lab status` to check paths and quotas.
+5. Keep long-lived results with `canfar data` or `vcp` to VOSpace.
 6. Later: `astroai-lab init` / `clone` plus pixi or uv for project environments.
 
 VOSpace: use **`vls` / `vcp`** from the image (or the interim Vault widget in the
-marimo starter). Native marimo **Remote Storage** for Vault waits on `vos`
-fsspec support. There is no separate `astroai-lab` VOSpace wrapper.
+marimo starter). There is no separate `astroai-lab` VOSpace wrapper.
 
 ---
 
@@ -105,22 +106,15 @@ astroai-lab clone owner/repo
 astroai-lab clone --from-env mylab owner/repo   # optional: warm from a named save
 ```
 
-End of session:
-
-```bash
-astroai-lab push --yes
-```
-
-`push` runs git push when applicable and saves the environment lockfiles to `/arc`.
+The env snapshot (`save`) writes lockfiles + manifest to `~/.astroai/lab/saves/`
+on `/arc/home`, so a future session can `resume` it:
 
 ```mermaid
 flowchart TD
-  I[init or clone] --> W[Edit and run under TMP_SRC_DIR]
+  I[init or clone] --> W[Edit and run under $WORK]
   W --> S[save]
   S --> W
-  W --> D[data sync to /arc]
-  D --> P[push]
-  P --> X[End session — scratch wiped]
+  S --> R[resume in the next session]
 ```
 
 ---
@@ -129,31 +123,23 @@ flowchart TD
 
 | Tier | Env / path | Lifetime | Use for |
 |------|------------|----------|---------|
-| Work | `TMP_SRC_DIR` (`/srcdir`) | Session | Source trees, pixi/uv projects |
-| Scratch | `TMP_SCRATCH_DIR` (`/scratch`) | Session | Datasets, build caches, temp |
+| Work | `WORK` (`/srcdir`) | Session | Source trees, pixi/uv projects |
+| Scratch | `SCRATCH` (`/scratch`) | Session | Datasets, build caches, temp |
 | Home | `/arc/home/<you>` | Persistent | Config, `~/.astroai/lab/saves/`, certs |
 | Projects | `/arc/projects/<group>` | Persistent | Shared data and team env-saves |
 
-Inspect resolved paths:
+Inspect quotas and home usage:
 
 ```bash
-astroai-lab paths
-astroai-lab paths --json
+astroai-lab status
+astroai-lab status --json
 ```
 
-Move data:
+Move data with the platform client:
 
 ```bash
-astroai-lab data stage /arc/projects/mygroup/raw   # → scratch
-astroai-lab data sync /scratch/results /arc/projects/mygroup/results
-```
-
-Hourly backup of the work directory to `/arc/home`:
-
-```bash
-astroai-lab backup status
-astroai-lab backup run                 # one-shot
-# daemon starts automatically in AstroAI sessions
+canfar data …        # archive I/O
+vcp ./local.fits vos:…
 ```
 
 ---
@@ -192,17 +178,58 @@ vcp ./local.fits vos:…
 | Snapshot env | `astroai-lab save [NAME]` |
 | Restore env | `astroai-lab resume NAME` |
 | List saves | `astroai-lab saves` |
-| Close-out | `astroai-lab push` |
 | Quotas / sessions | `astroai-lab status` |
-| Paths / tools | `astroai-lab paths` · `astroai-lab tools` |
-| Health | `astroai-lab check` · `astroai-lab doctor` |
-| Data | `astroai-lab data stage\|sync` |
-| Clean caches | `astroai-lab clean home\|cache` |
-| Jupyter | `astroai-lab kernel ensure` · `astroai-lab notebook starter` |
+| Jupyter kernel | `astroai-lab kernel ensure` |
 | Agents | `astroai-lab agent setup\|install\|…` |
-| Team dir | `astroai-lab project init` |
 
 Full flags: [cli.md](cli.md).
+
+---
+
+## Shell completion
+
+Enable tab-completion once per shell (bash, zsh, or fish):
+
+```bash
+astroai-lab --install-completion bash   # or zsh, fish
+```
+
+Completions cover **command paths** and **option values** where they are
+enumerable, so you rarely need to guess or re-read `help`:
+
+- **Command paths** for `help -c` — type a prefix and press Tab:
+
+  ```bash
+  astroai-lab help -c "agent l"<TAB>    # → agent list
+  astroai-lab help -c env<TAB>          # → env export
+  ```
+
+- **Free-model presets** for `agent models free --preset`:
+
+  ```bash
+  astroai-lab agent models free --preset <TAB>   # → coding, long, reasoning
+  ```
+
+- **Registered kernel names** for `kernel unregister` / `kernel ensure --name`:
+
+  ```bash
+  astroai-lab kernel unregister <TAB>   # → kernels you have registered
+  ```
+
+- **Installable CLIs** for `agent install`, **bundles** for `agent setup`,
+  and **addon ids** for `agent add`:
+
+  ```bash
+  astroai-lab agent install <TAB>       # → kilo, goose, opencode, …
+  astroai-lab agent setup <TAB>         # → cursor, claude, …
+  astroai-lab agent add <TAB>           # → ponytail, polars, …
+  ```
+
+- **`--kind` filters** for `agent addons` and `agent catalog`:
+
+  ```bash
+  astroai-lab agent addons --kind <TAB> # → skill, bundle, mcp, tool, rule
+  ```
 
 ---
 
@@ -229,17 +256,16 @@ See [cli.md](cli.md) for `agent models free --preset long` and per-agent options
 
 | Symptom | What to run |
 |---------|-------------|
-| Paths look wrong / caches under `$HOME` | `astroai-lab doctor --json` then fix env with a login shell (`bash -l`) |
-| Env save failed | `astroai-lab status` (quota); `astroai-lab clean home --all-safe --dry-run` |
+| Paths look wrong / caches under `$HOME` | `astroai-lab env export` in a login shell (`bash -l`) |
+| Env save failed | `astroai-lab status` (quota) |
 | Kernel missing in Jupyter | `astroai-lab kernel ensure` |
-| `canfar` unknown | Confirm you are on an AstroAI image; `astroai-lab tools` |
-| Need a printable loop | `astroai-lab guide` |
+| `canfar` unknown | Confirm you are on an AstroAI image |
+| All command help | `astroai-lab help` |
 
 ---
 
 ## See also
 
 - [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md) — images, portal session types
-- [Ray on AstroAI](https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md) — distributed clusters
 - [astroai-workload](https://github.com/astroai/astroai-workload) — submit Ray Jobs (`astroai-workload run`) on ray-manager
 - [CANFAR client docs](https://opencadc.github.io/canfar/)

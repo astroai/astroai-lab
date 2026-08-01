@@ -1,10 +1,11 @@
-"""Unit tests for agent awesome catalog, clean state, auto-fix, and interact features."""
+"""Unit tests for agent catalog, clean state, auto-fix, and interact features."""
 
 import json
 from pathlib import Path
+
 from typer.testing import CliRunner
 
-from astroai_lab.agent.awesome import list_awesome_catalog
+from astroai_lab.agent.catalog import list_agent_catalog
 from astroai_lab.agent.clean_agent import clean_agent_state
 from astroai_lab.agent.fix import fix_agent_setup
 from astroai_lab.agent.interact import inspect_interact_endpoints
@@ -13,21 +14,21 @@ from astroai_lab.cli.main import app
 runner = CliRunner()
 
 
-def test_awesome_catalog_basic(tmp_path: Path) -> None:
-    catalog = list_awesome_catalog(home=tmp_path)
+def test_catalog_basic(tmp_path: Path) -> None:
+    catalog = list_agent_catalog(home=tmp_path)
     assert isinstance(catalog, list)
     assert len(catalog) > 0
 
     # Test filtering by kind
-    containers = list_awesome_catalog(kind="container", home=tmp_path)
+    containers = list_agent_catalog(kind="container", home=tmp_path)
     assert all(c["kind"] == "container" for c in containers)
 
     # Test filtering by tag
-    lean_items = list_awesome_catalog(tag="lean", home=tmp_path)
+    lean_items = list_agent_catalog(tag="lean", home=tmp_path)
     assert all("lean" in [t.lower() for t in i["tags"]] for i in lean_items)
 
     # Test query search
-    kilo_items = list_awesome_catalog(query="kilo", home=tmp_path)
+    kilo_items = list_agent_catalog(query="kilo", home=tmp_path)
     assert any("kilo" in i["id"].lower() for i in kilo_items)
 
 
@@ -102,8 +103,12 @@ def test_cli_agent_catalog() -> None:
     res_tag = runner.invoke(app, ["agent", "catalog", "--tag", "lean"])
     assert res_tag.exit_code == 0
 
-    res_alias = runner.invoke(app, ["--json", "agent", "awesome"])
-    assert res_alias.exit_code == 0
+
+def test_cli_agent_awesome_alias_removed() -> None:
+    """The `agent awesome` alias was removed (use `agent catalog`)."""
+    result = runner.invoke(app, ["--json", "agent", "awesome"])
+    assert result.exit_code != 0
+    assert "No such command" in (result.stdout + result.stderr)
 
 
 def test_cli_agent_clean() -> None:

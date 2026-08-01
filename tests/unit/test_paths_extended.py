@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from astroai_lab.core.git import git_push
 from astroai_lab.core.paths import (
     find_arc_project_root,
     quota_used_pct,
@@ -41,7 +40,7 @@ def test_user_bin_dir_prefers_scratch(tmp_path: Path, monkeypatch: pytest.Monkey
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     (scratch / ".local" / "bin").mkdir(parents=True)
-    monkeypatch.setenv("TMP_SCRATCH_DIR", str(scratch))
+    monkeypatch.setenv("SCRATCH", str(scratch))
     monkeypatch.delenv("ASTROAI_LAB_BIN_DIR", raising=False)
     assert user_bin_dir() == scratch / ".local" / "bin"
 
@@ -66,14 +65,6 @@ def test_find_arc_project_root_not_found() -> None:
 
     with patch("pathlib.Path.is_dir", side_effect=lambda: True):
         assert find_arc_project_root(Path("/foo/bar")) is None
-
-
-def test_git_push_mocked(tmp_path: Path) -> None:
-    from unittest.mock import patch
-
-    with patch("astroai_lab.utils.subprocess.run") as mock_run:
-        git_push(tmp_path)
-    mock_run.assert_called_once()
 
 
 def test_lab_error_without_hint() -> None:

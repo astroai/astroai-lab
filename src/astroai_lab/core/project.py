@@ -125,14 +125,27 @@ def save_env(name: str, save_dir: Path, source: Path, *, full: bool = False) -> 
                 hint="Run pixi install or uv sync first.",
             )
         packed = save_dir / "env.tar.zst"
-        from astroai_lab.core.workspace import tar_zst
-
         try:
             tar_zst(source / env_dir, packed, arcname=env_dir)
         except Exception as exc:  # noqa: BLE001 — re-raised as user-facing LabError; any tar/zstd failure qualifies
             raise LabError("Failed to compress environment pack") from exc
 
     return save_dir
+
+
+def tar_zst(source: Path, dest: Path, *, arcname: str) -> None:
+    """Tar + zstd a directory tree into a single archive."""
+    proc = subprocess.run(
+        ["tar", "-C", str(source.parent), "-cf", "-", arcname],
+        capture_output=True,
+        check=True,
+    )
+    with dest.open("wb") as out:
+        # communicate(input=...) writes stdin, closes it, drains stdout/stderr,
+        # and waits — avoids deadlock when tar output is large or zstd
+        # blocks on a full pipe buffer.
+        zstd = subprocess.Popen(["zstd", "-T0", "-"], stdin=subprocess.PIPE, stdout=out)
+        zstd.communicate(input=proc.stdout)
 
 
 def resolve_save_dir(name: str, save_root: Path, from_path: Path | None) -> Path:

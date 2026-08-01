@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -8,17 +9,68 @@ from astroai_lab.cli.main import app
 
 
 def test_env_export(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("TMP_SRC_DIR", str(tmp_path))
+    monkeypatch.setenv("WORK", str(tmp_path))
     runner = CliRunner()
     result = runner.invoke(app, ["env", "export", "--no-ensure"])
     assert result.exit_code == 0
     assert "ASTROAI_LAB_BIN_DIR" in result.stdout
+    assert "export WORK=" in result.stdout
 
 
-def test_env_install_shell(tmp_path: Path) -> None:
-    dest = tmp_path / "shell"
+def test_env_export_json(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("WORK", str(tmp_path))
     runner = CliRunner()
-    result = runner.invoke(app, ["env", "install-shell", str(dest)])
+    result = runner.invoke(app, ["env", "export", "--no-ensure", "--json"])
     assert result.exit_code == 0
-    assert (dest / "profile.sh").is_file()
-    assert (dest / "hooks.sh").is_file()
+    data = json.loads(result.stdout)
+    assert isinstance(data, dict)
+    # JSON output carries the same resolved values as the shell export.
+    assert data["WORK"] == str(tmp_path)
+    assert data["ASTROAI_LAB_BIN_DIR"]
+
+
+def test_env_export_json_global_flag(tmp_path: Path, monkeypatch) -> None:
+    """The root `--json` flag must also produce JSON output (merge_opts)."""
+    monkeypatch.setenv("WORK", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(app, ["--json", "env", "export", "--no-ensure"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["WORK"] == str(tmp_path)
+
+
+def test_env_export_json_no_shell_syntax(tmp_path: Path, monkeypatch) -> None:
+    """JSON mode must not emit `export KEY=...` lines."""
+    monkeypatch.setenv("WORK", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(app, ["env", "export", "--no-ensure", "--json"])
+    assert result.exit_code == 0
+    assert "export " not in result.stdout
+
+
+def test_env_export_json_matches_shell_values(tmp_path: Path, monkeypatch) -> None:
+    """JSON and shell exports must carry identical resolved values."""
+    monkeypatch.setenv("WORK", str(tmp_path))
+    runner = CliRunner()
+    shell = runner.invoke(app, ["env", "export", "--no-ensure"])
+    js = runner.invoke(app, ["env", "export", "--no-ensure", "--json"])
+    assert shell.exit_code == 0 and js.exit_code == 0
+    data = json.loads(js.stdout)
+    # Parse `export KEY=VALUE` lines and compare a few resolved keys.
+    shell_env = {}
+    for line in shell.stdout.splitlines():
+        if line.startswith("export "):
+            _, assignment = line.split("export ", 1)
+            key, _, val = assignment.partition("=")
+            shell_env[key] = val.strip("'\"")
+    # Same key set in both modes, and identical values for the resolved paths.
+    assert set(data) == set(shell_env)
+    for key in ("WORK", "ASTROAI_LAB_BIN_DIR", "ASTROAI_LAB_RUNTIME_ROOT", "XDG_CACHE_HOME"):
+        assert data[key] == shell_env[key], f"{key} differs between JSON and shell export"
+
+
+def test_env_install_shell_removed(tmp_path: Path) -> None:
+    """install-shell moved to image builds — not an in-session command anymore."""
+    runner = CliRunner()
+    result = runner.invoke(app, ["env", "install-shell", str(tmp_path / "shell")])
+    assert result.exit_code == 2  # usage error: unknown command

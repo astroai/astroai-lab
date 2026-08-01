@@ -95,9 +95,11 @@ def test_save_env_full_packs(tmp_path: Path) -> None:
     mock_zstd.stdin = MagicMock()
     mock_zstd.returncode = 0
 
-    with patch("astroai_lab.core.project.subprocess.run", return_value=mock_tar):
-        with patch("astroai_lab.core.project.subprocess.Popen", return_value=mock_zstd):
-            save_env("proj", tmp_path / "save", project, full=True)
+    with (
+        patch("astroai_lab.core.project.subprocess.run", return_value=mock_tar),
+        patch("astroai_lab.core.project.subprocess.Popen", return_value=mock_zstd),
+    ):
+        save_env("proj", tmp_path / "save", project, full=True)
     assert (tmp_path / "save" / "env.tar.zst").exists()
 
 
@@ -125,9 +127,11 @@ def test_restore_env_full_unpacks(tmp_path: Path) -> None:
     mock_zstd = MagicMock()
     mock_zstd.stdout = MagicMock()
     mock_zstd.returncode = 0
-    with patch("astroai_lab.core.project.subprocess.Popen", return_value=mock_zstd):
-        with patch("astroai_lab.core.project.subprocess.run") as mock_run:
-            restore_env(save_dir, tmp_path / "dest")
+    with (
+        patch("astroai_lab.core.project.subprocess.Popen", return_value=mock_zstd),
+        patch("astroai_lab.core.project.subprocess.run") as mock_run,
+    ):
+        restore_env(save_dir, tmp_path / "dest")
     mock_run.assert_called_once()
 
 
@@ -140,9 +144,11 @@ def test_install_project_pixi(tmp_path: Path) -> None:
 
 def test_install_project_uv_bootstrap(tmp_path: Path) -> None:
     _uv(tmp_path)
-    with patch("astroai_lab.core.project._run_uv_sync", return_value=False):
-        with patch("astroai_lab.core.project.run") as mock_run:
-            install_project(tmp_path, bootstrap_lock=True)
+    with (
+        patch("astroai_lab.core.project._run_uv_sync", return_value=False),
+        patch("astroai_lab.core.project.run") as mock_run,
+    ):
+        install_project(tmp_path, bootstrap_lock=True)
     assert mock_run.call_count >= 2
 
 

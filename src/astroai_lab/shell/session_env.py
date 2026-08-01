@@ -135,8 +135,9 @@ def runtime_root(work: Path, scratch: Path | None) -> Path:
 
 @dataclass(frozen=True)
 class SessionEnv:
-    tmp_src_dir: Path
-    tmp_scratch_dir: Path | None
+    work_dir: Path
+    scratch_dir: Path | None
+    project_dir: Path | None
     astroai_lab_bin_dir: Path
     astroai_lab_team_bin: Path | None
     astroai_lab_npm_prefix: Path
@@ -162,7 +163,7 @@ class SessionEnv:
 
     def exports(self) -> dict[str, str]:
         out: dict[str, str] = {
-            "TMP_SRC_DIR": str(self.tmp_src_dir),
+            "WORK": str(self.work_dir),
             "ASTROAI_LAB_BIN_DIR": str(self.astroai_lab_bin_dir),
             "ASTROAI_LAB_NPM_PREFIX": str(self.astroai_lab_npm_prefix),
             "ASTROAI_LAB_RUNTIME_ROOT": str(self.astroai_lab_runtime_root),
@@ -195,8 +196,10 @@ class SessionEnv:
             "UV_LINK_MODE": os.environ.get("UV_LINK_MODE", "").strip() or "copy",
             "PIP_DISABLE_PIP_VERSION_CHECK": "1",
         }
-        if self.tmp_scratch_dir is not None:
-            out["TMP_SCRATCH_DIR"] = str(self.tmp_scratch_dir)
+        if self.scratch_dir is not None:
+            out["SCRATCH"] = str(self.scratch_dir)
+        if self.project_dir is not None:
+            out["PROJECT"] = str(self.project_dir)
         if self.astroai_lab_team_bin is not None:
             out["ASTROAI_LAB_TEAM_BIN"] = str(self.astroai_lab_team_bin)
         path_parts = []
@@ -210,7 +213,7 @@ class SessionEnv:
 
     def ensure_dirs(self) -> None:
         for path in (
-            self.tmp_src_dir,
+            self.work_dir,
             self.astroai_lab_bin_dir,
             self.uv_cache_dir,
             self.pip_cache_dir,
@@ -280,8 +283,9 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
         pixi_home = Path(os.environ.get("PIXI_HOME", str(xdg_data / "pixi")))
 
     env = SessionEnv(
-        tmp_src_dir=work,
-        tmp_scratch_dir=scratch,
+        work_dir=work,
+        scratch_dir=scratch,
+        project_dir=find_arc_project_root(),
         astroai_lab_bin_dir=bin_dir,
         astroai_lab_team_bin=team_bin_dir(),
         astroai_lab_npm_prefix=npm_prefix_dir(bin_dir),
@@ -320,3 +324,11 @@ def export_shell(*, ensure: bool = True) -> str:
     env = resolve_session_env(ensure=ensure)
     lines = [f"export {key}={shlex.quote(val)}" for key, val in env.exports().items()]
     return "\n".join(lines)
+
+
+def export_json(*, ensure: bool = True) -> dict[str, str]:
+    """Resolved session environment as a plain dict (machine-readable).
+
+    Same values as `export_shell`, without the `export KEY=...` shell syntax.
+    """
+    return resolve_session_env(ensure=ensure).exports()

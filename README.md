@@ -4,8 +4,8 @@ In-session workbench CLI for **AstroAI** sessions on the
 [CANFAR Science Platform](https://www.opencadc.org/canfar/).
 
 Use the platform client [`canfar`](https://github.com/opencadc/canfar) to log in and
-start sessions. Use **`astroai-lab`** inside a running session for projects,
-environment save/resume, data movement, hygiene checks, and AI agent setup.
+start sessions. Use **`astroai-lab`** inside a running session for environment
+save/resume, AI agent setup, session status, and notebook kernels.
 
 ```mermaid
 flowchart LR
@@ -28,7 +28,7 @@ flowchart LR
 |------|---------|
 | **AstroAI** | Product: GitHub org [`astroai`](https://github.com/astroai), Harbor project `astroai`, session images and tools |
 | **CANFAR** | Science Platform: portal, Skaha, `/arc`, authentication, session scheduling |
-| **`canfar`** | Platform CLI — auth, create/list/delete sessions, images |
+| **`canfar`** | Platform CLI — auth, create/list/delete sessions, images, `canfar data` |
 | **`astroai-lab`** | This package — workbench **inside** a session |
 | **`images.canfar.net/astroai/*`** | AstroAI images hosted on CANFAR Harbor |
 
@@ -40,21 +40,19 @@ Session images and how to launch them:
 ```bash
 astroai-lab resume mylab          # or: init / clone
 cd "$WORK/mylab" && pixi run python analysis.py
-astroai-lab save                  # anytime
-astroai-lab push                  # before closing the session
+astroai-lab save                  # anytime — lockfile snapshot to /arc
 ```
 
-Printable cheat sheet: `astroai-lab guide` · [docs/guide.md](docs/guide.md)
+All command help: `astroai-lab help` · one command: `astroai-lab help -c agent` · Cheat sheet: [docs/help.md](docs/help.md)
 
 ```mermaid
 flowchart TD
   A[Start AstroAI session] --> B["astroai-lab resume / init / clone"]
-  B --> C[Work under TMP_SRC_DIR with pixi or uv]
+  B --> C[Work under $WORK with pixi or uv]
   C --> D["astroai-lab save"]
   D --> C
-  C --> E["astroai-lab data sync … /arc/…"]
-  E --> F["astroai-lab push"]
-  F --> G[End session]
+  D --> E[End session]
+  E --> F["astroai-lab resume in next session"]
 ```
 
 ## Install
@@ -84,15 +82,13 @@ astroai-lab init mylab
 astroai-lab clone owner/repo
 astroai-lab save mylab
 astroai-lab resume mylab
-astroai-lab push
-astroai-lab paths            # work / scratch / cache paths
-astroai-lab tools            # tools on PATH
-astroai-lab check            # quick health check
-astroai-lab doctor           # full diagnostic
+astroai-lab saves
+astroai-lab status           # quotas, team projects, canfar auth/ps
+astroai-lab kernel ensure    # notebook kernels
 ```
 
 Machine-readable output: add **`--json`** where supported
-(`status`, `paths`, `tools`, `check`, `doctor`, …).
+(`status`, `saves`, `config show`, `agent …`).
 
 ## AI coding agents
 
@@ -109,9 +105,18 @@ After an image upgrade: `astroai-lab agent update`. Overview: `astroai-lab agent
 Curated addons: `astroai-lab agent addons` · `astroai-lab agent add ponytail`.
 Broken configs: `astroai-lab agent verify`. Details in [docs/cli.md](docs/cli.md).
 
+## Scope
+
+`astroai-lab` is intentionally small: environment save/resume + AI agent
+management, plus session status, notebook kernels, and shell env export.
+Data movement is the platform's job — use **`canfar data`** for archive I/O and
+`vcp` / `vls` for VOSpace. Team project provisioning is done by operators;
+users read `/arc/projects` via `astroai-lab status`.
+
 ## Configuration
 
-Paths come from Skaha session variables (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`).
+Paths come from Slurm-style session variables (`WORK`, `SCRATCH`, `PROJECT`),
+set by the Skaha platform and detected under `/arc/projects`.
 Optional preferences: **`~/.astroai/lab/config.yaml`** — see [docs/config.md](docs/config.md).
 
 ## Documentation
@@ -119,7 +124,7 @@ Optional preferences: **`~/.astroai/lab/config.yaml`** — see [docs/config.md](
 | Doc | Audience |
 |-----|----------|
 | [docs/USAGE.md](docs/USAGE.md) | Newcomers and daily use — storage, CADC, workflows |
-| [docs/guide.md](docs/guide.md) | Short session cheat sheet |
+| [docs/help.md](docs/help.md) | Short session cheat sheet |
 | [docs/cli.md](docs/cli.md) | Full CLI reference |
 | [docs/config.md](docs/config.md) | Optional YAML / env overrides |
 

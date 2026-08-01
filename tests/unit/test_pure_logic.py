@@ -22,7 +22,6 @@ from astroai_lab.core.project import (
     resolve_save_dir,
     save_rows,
 )
-from astroai_lab.core.tools import CheckItem, checks_ok
 from astroai_lab.core.vospace_status import _vault_groups, gms_name_from_uri
 from astroai_lab.errors import LabError
 from astroai_lab.models.manifest import ProjectKind
@@ -144,10 +143,7 @@ class TestParseGetfaclOutput:
         assert groups[0].perms == "rwx"  # no mask applied
 
     def test_mask_restricts(self) -> None:
-        text = (
-            "mask::r-x\n"
-            "group:dev:rwx\n"
-        )
+        text = "mask::r-x\ngroup:dev:rwx\n"
         _, groups = parse_getfacl_output(text)
         assert groups[0].perms == "r-x"
 
@@ -157,12 +153,7 @@ class TestParseGetfaclOutput:
         assert groups == []
 
     def test_blank_lines_and_comments(self) -> None:
-        text = (
-            "# header\n"
-            "\n"
-            "group:alice:rw-\n"
-            "\n"
-        )
+        text = "# header\n\ngroup:alice:rw-\n\n"
         _, groups = parse_getfacl_output(text)
         assert len(groups) == 1
         assert groups[0].name == "alice"
@@ -178,9 +169,7 @@ class TestParseGetfaclOutput:
         assert groups == []
 
     def test_multiple_groups(self) -> None:
-        text = "\n".join(
-            f"group:team{n}:rw-" for n in range(10)
-        )
+        text = "\n".join(f"group:team{n}:rw-" for n in range(10))
         _, groups = parse_getfacl_output(text)
         assert len(groups) == 10
         assert groups[-1].name == "team9"
@@ -361,57 +350,6 @@ class TestResolveSaveDir:
 
 
 # ===============================================================
-# checks_ok tests
-# ===============================================================
-class TestChecksOk:
-    def test_all_ok(self) -> None:
-        items = [
-            CheckItem("a", True, "ok"),
-            CheckItem("b", True, "fine"),
-        ]
-        assert checks_ok(items) is True
-
-    def test_one_fail(self) -> None:
-        items = [
-            CheckItem("a", True, "ok"),
-            CheckItem("b", False, "broken"),
-        ]
-        assert checks_ok(items) is False
-
-    def test_all_ok_strict_missing_recommended(self) -> None:
-        items = [
-            CheckItem("a", True, "ok"),
-            CheckItem("pixi", True, "missing (recommended)"),
-            CheckItem("uv", True, "missing (recommended)"),
-        ]
-        assert checks_ok(items) is True  # not strict
-        assert checks_ok(items, strict=True) is False
-
-    def test_strict_all_present(self) -> None:
-        items = [
-            CheckItem("a", True, "ok"),
-            CheckItem("pixi", True, "1.0.0"),
-        ]
-        assert checks_ok(items, strict=True) is True
-
-    def test_strict_no_detail_match(self) -> None:
-        """Strict only rejects exactly 'missing (recommended)'."""
-        items = [
-            CheckItem("a", True, "ok"),
-            CheckItem("b", True, "recommended but present"),
-        ]
-        assert checks_ok(items, strict=True) is True
-
-    def test_fail_takes_priority_over_strict(self) -> None:
-        items = [
-            CheckItem("a", True, "ok"),
-            CheckItem("b", False, "broken"),
-            CheckItem("pixi", True, "missing (recommended)"),
-        ]
-        assert checks_ok(items, strict=True) is False  # broken, not just strict
-
-
-# ===============================================================
 # _path_under_roots tests
 # ===============================================================
 class TestPathUnderRoots:
@@ -463,7 +401,9 @@ class TestPathUnderRoots:
 # ===============================================================
 class TestSessionCachePath:
     def test_env_under_work_without_scratch(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         work = tmp_path / "work"
         work.mkdir()
@@ -513,7 +453,9 @@ class TestSessionCachePath:
         assert result == cache  # kept because under scratch
 
     def test_env_under_work_with_scratch_present(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         work = tmp_path / "work"
         scratch = tmp_path / "scratch"
@@ -546,7 +488,9 @@ class TestSessionCachePath:
         assert result == default
 
     def test_system_path_redirected_with_scratch(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         work = tmp_path / "work"
         scratch = tmp_path / "scratch"
@@ -564,7 +508,9 @@ class TestSessionCachePath:
         assert result == default  # redirected from system path even with scratch
 
     def test_var_set_to_empty_string_uses_default(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         work = tmp_path / "work"
         work.mkdir()
@@ -585,7 +531,9 @@ class TestSessionCachePath:
 # ===============================================================
 class TestSessionRuntimePath:
     def test_env_under_scratch(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         scratch = tmp_path / "scratch"
         scratch.mkdir()
@@ -602,7 +550,9 @@ class TestSessionRuntimePath:
         assert result == runtime_dir
 
     def test_env_under_runtime_root(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         scratch = tmp_path / "scratch"
         scratch.mkdir()
@@ -621,7 +571,9 @@ class TestSessionRuntimePath:
         assert result == uv_tool
 
     def test_env_not_under_any_root_returns_default(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         scratch = tmp_path / "scratch"
         scratch.mkdir()
@@ -637,7 +589,9 @@ class TestSessionRuntimePath:
         assert result == default
 
     def test_var_not_set_returns_default(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         scratch = tmp_path / "scratch"
         scratch.mkdir()
@@ -652,7 +606,9 @@ class TestSessionRuntimePath:
         assert result == default
 
     def test_var_set_to_empty_string_uses_default(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         scratch = tmp_path / "scratch"
         scratch.mkdir()
@@ -667,7 +623,9 @@ class TestSessionRuntimePath:
         assert result == default
 
     def test_no_scratch_with_runtime_root(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         runtime = tmp_path / "runtime"
         runtime.mkdir()
@@ -684,7 +642,9 @@ class TestSessionRuntimePath:
         assert result == mamba
 
     def test_no_scratch_no_runtime_root_redirects(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("MAMBA_ROOT_PREFIX", "/usr/local/share/micromamba")
         monkeypatch.delenv("ASTROAI_LAB_RUNTIME_ROOT", raising=False)

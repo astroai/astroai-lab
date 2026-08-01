@@ -10,27 +10,6 @@ def _combined(capsys) -> str:
     return captured.out + captured.err
 
 
-def test_doctor_human(capsys) -> None:
-    report = ui.DoctorReport(
-        work_dir="/srcdir",
-        scratch_dir="/scratch",
-        save_dir="/home/.astroai/lab/saves",
-        config_dir="/home/.astroai/lab",
-        home="/home",
-        user_bin="/scratch/.local/bin",
-        npm_prefix="/scratch/.local",
-        runtime_root="/scratch/.runtime-user",
-        arc_projects="/arc/projects",
-        pixi_cache_dir="/scratch/.cache/pixi",
-        uv_cache_dir="/scratch/.cache/uv",
-        home_quota_pct=85,
-        tools={"git": True, "pixi": False},
-    )
-    ui.doctor_human(report)
-    combined = _combined(capsys)
-    assert "srcdir" in combined or "doctor" in combined.lower()
-
-
 def test_env_list_table_empty(capsys) -> None:
     ui.env_list_table([])
     assert "No saved environments" in _combined(capsys)

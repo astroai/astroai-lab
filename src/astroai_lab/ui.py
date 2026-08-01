@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,27 +10,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from astroai_lab.utils.console import console
-
-
-@dataclass
-class DoctorReport:
-    work_dir: str
-    scratch_dir: str | None
-    save_dir: str
-    config_dir: str
-    home: str
-    user_bin: str
-    npm_prefix: str
-    runtime_root: str
-    arc_projects: str | None
-    pixi_cache_dir: str | None
-    uv_cache_dir: str | None
-    home_quota_pct: int | None
-    tools: dict[str, bool]
-    canfar_auth: str | None = None
-    gpu: str | None = None
-    hygiene_ok: bool = True
-    hygiene_issues: list[str] | None = None
 
 
 def print_json(data: Any) -> None:
@@ -104,51 +82,6 @@ def progress_task(description: str, *, quiet: bool = False) -> Iterator[None]:
         yield
 
 
-def doctor_human(report: DoctorReport) -> None:
-    table = Table(title="astroai-lab doctor", show_header=True, header_style="bold")
-    table.add_column("Key", style="dim")
-    table.add_column("Value")
-    table.add_row("work_dir", report.work_dir)
-    table.add_row("scratch_dir", report.scratch_dir or "(not mounted)")
-    table.add_row("save_dir", report.save_dir)
-    table.add_row("config_dir", report.config_dir)
-    table.add_row("home", report.home)
-    table.add_row("user_bin", report.user_bin)
-    table.add_row("npm_prefix", report.npm_prefix)
-    table.add_row("runtime_root", report.runtime_root)
-    if report.arc_projects:
-        table.add_row("arc_projects", report.arc_projects)
-    if report.pixi_cache_dir:
-        table.add_row("pixi_cache", report.pixi_cache_dir)
-    if report.uv_cache_dir:
-        table.add_row("uv_cache", report.uv_cache_dir)
-    if report.home_quota_pct is not None:
-        pct = report.home_quota_pct
-        style = "red" if pct >= 95 else "yellow" if pct >= 80 else ""
-        table.add_row("home_quota", f"[{style}]{pct}%[/{style}]" if style else f"{pct}%")
-    if report.canfar_auth:
-        table.add_row("canfar_auth", report.canfar_auth)
-    if report.gpu:
-        table.add_row("gpu", report.gpu.splitlines()[0] if report.gpu else "")
-    table.add_row("home_hygiene", "[green]ok[/green]" if report.hygiene_ok else "[red]FAIL[/red]")
-    console.print(table)
-
-    if report.hygiene_issues:
-        print_error("Home-cache hygiene failed (scratch is writable but caches use $HOME):")
-        for issue in report.hygiene_issues:
-            print_hint(f"  {issue}")
-        print_hint(
-            '  Fix: eval "$(astroai-lab env export)" && astroai-lab clean home --all-safe --yes'
-        )
-
-    tools_table = Table(title="Tools", show_header=True)
-    tools_table.add_column("Command")
-    tools_table.add_column("Available")
-    for name, ok in sorted(report.tools.items()):
-        tools_table.add_row(name, "[green]yes[/green]" if ok else "[red]no[/red]")
-    console.print(tools_table)
-
-
 def env_list_table(rows: list[dict[str, str]]) -> None:
     if not rows:
         print_hint("No saved environments.")
@@ -196,10 +129,7 @@ def status_human(
             bits.append(f"scratch {scratch['pct']}%")
         gpus = resources.get("gpu") or []
         if gpus:
-            bits.append(
-                "gpu "
-                + ", ".join(f"{g.get('util_pct', '?')}%" for g in gpus[:2])
-            )
+            bits.append("gpu " + ", ".join(f"{g.get('util_pct', '?')}%" for g in gpus[:2]))
         if bits:
             console.print("[bold]Session resources:[/bold] " + " · ".join(bits))
             for note in resources.get("notes") or []:

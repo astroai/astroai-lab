@@ -45,13 +45,6 @@ def git_status(cwd: Path | None = None) -> GitStatus:
     )
 
 
-def git_push(cwd: Path | None = None) -> None:
-    from astroai_lab.utils.subprocess import run
-
-    root = cwd or Path.cwd()
-    run(["git", "push"], cwd=root)
-
-
 def git_init_and_commit(target: Path, message: str = "Initial commit") -> None:
     from astroai_lab.utils.subprocess import run
 

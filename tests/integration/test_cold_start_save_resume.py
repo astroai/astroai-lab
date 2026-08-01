@@ -33,8 +33,8 @@ def cold_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     for d in (home, work, scratch, arc):
         d.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
-    monkeypatch.setenv("ASTROAI_LAB_SCRATCH_DIR", str(scratch))
+    monkeypatch.setenv("WORK", str(work))
+    monkeypatch.setenv("SCRATCH", str(scratch))
     monkeypatch.setenv("ASTROAI_LAB_ARC_DIR", str(arc))
     monkeypatch.chdir(work)
     return work
@@ -48,7 +48,7 @@ def _pixi(path: Path, name: str = "demo") -> None:
 
 
 def test_cold_start_init_save_env_resume_loop(cold_env: Path) -> None:
-    """init → work → env save → new session dir → env resume restores project."""
+    """init → work → save → new session dir → resume restores project."""
     with pytest.MonkeyPatch.context() as m:
         m.setattr(
             "astroai_lab.core.project.init_project",
@@ -63,7 +63,7 @@ def test_cold_start_init_save_env_resume_loop(cold_env: Path) -> None:
 
     with pytest.MonkeyPatch.context() as m:
         m.chdir(project)
-        save = runner.invoke(app, ["env", "save", "mylab"])
+        save = runner.invoke(app, ["save", "mylab"])
     assert save.exit_code == 0, save.output
 
     saves = list_saves(Path.home() / ".astroai" / "lab" / "saves")
@@ -77,7 +77,7 @@ def test_cold_start_init_save_env_resume_loop(cold_env: Path) -> None:
         shutil.rmtree(project)
 
     with patch("astroai_lab.core.project.install_project"):
-        resumed = runner.invoke(app, ["env", "resume", "mylab"])
+        resumed = runner.invoke(app, ["resume", "mylab"])
     assert resumed.exit_code == 0, resumed.output
 
     assert (cold_env / "mylab" / "pixi.toml").is_file()
@@ -108,9 +108,9 @@ def test_env_list_after_save(cold_env: Path) -> None:
     _pixi(project, "listed")
     with pytest.MonkeyPatch.context() as m:
         m.chdir(project)
-        save = runner.invoke(app, ["env", "save", "listed"])
+        save = runner.invoke(app, ["save", "listed"])
     assert save.exit_code == 0, save.output
-    out = runner.invoke(app, ["--json", "env", "list"])
+    out = runner.invoke(app, ["--json", "saves"])
     assert out.exit_code == 0
     rows = json.loads(out.stdout)
     assert any(r["name"] == "listed" for r in rows)

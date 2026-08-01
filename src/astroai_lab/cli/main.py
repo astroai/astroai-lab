@@ -10,21 +10,12 @@ from astroai_lab import __version__
 from astroai_lab.cli import init_clone_env
 from astroai_lab.cli import status as status_mod
 from astroai_lab.cli.agent_cmd import agent_app
-from astroai_lab.cli.backup import backup_app
 from astroai_lab.cli.banner import show_banner
-from astroai_lab.cli.clean import clean_app
 from astroai_lab.cli.config import config_app
-from astroai_lab.cli.context import GlobalOpts
-from astroai_lab.cli.data import data_app
-from astroai_lab.cli.doctor import doctor_app
+from astroai_lab.cli.context import GlobalOpts, merge_opts
 from astroai_lab.cli.env import env_app
-from astroai_lab.cli.guide import print_guide
+from astroai_lab.cli.help_cmd import command_path_completer, help_cmd_body
 from astroai_lab.cli.kernel import kernel_app
-from astroai_lab.cli.notebook_cmd import notebook_app
-from astroai_lab.cli.paths_cmd import register as register_paths
-from astroai_lab.cli.project import project_app
-from astroai_lab.cli.ray_cmd import ray_app
-from astroai_lab.cli.workspace import workspace_app
 
 app = typer.Typer(
     name="astroai-lab",
@@ -37,19 +28,11 @@ app = typer.Typer(
 
 init_clone_env.register(app)
 status_mod.register(app)
-register_paths(app)
-app.add_typer(doctor_app, name="doctor")
 app.add_typer(env_app, name="env")
-app.add_typer(data_app, name="data")
-app.add_typer(backup_app, name="backup")
-app.add_typer(clean_app, name="clean")
 app.add_typer(config_app, name="config")
-app.add_typer(workspace_app, name="workspace")
 app.add_typer(kernel_app, name="kernel")
 app.add_typer(agent_app, name="agent")
-app.add_typer(project_app, name="project")
-app.add_typer(notebook_app, name="notebook")
-app.add_typer(ray_app, name="ray")
+
 
 @app.callback()
 def main(
@@ -64,7 +47,7 @@ def main(
     quiet: Annotated[bool, typer.Option("--quiet", "-q", help="Minimal output.")] = False,
     version: Annotated[bool | None, typer.Option("--version", "-V", help="Show version.")] = None,
 ) -> None:
-    """In-session workbench for code, environments, and storage paths."""
+    """In-session workbench for environments and AI agents."""
     ctx.obj = GlobalOpts(json=json_output, yes=yes, dry_run=dry_run, quiet=quiet)
     if version:
         typer.echo(f"astroai-lab {__version__}")
@@ -74,14 +57,37 @@ def main(
         raise typer.Exit()
 
 
-@app.command()
-def guide() -> None:
-    """Print session workflow cheat sheet.
+@app.command("help")
+def help_cmd(
+    ctx: typer.Context,
+    command: Annotated[
+        str | None,
+        typer.Option(
+            "--command",
+            "-c",
+            help="Show help for one command path, e.g. 'agent list'.",
+            autocompletion=command_path_completer(app),
+        ),
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Machine-readable output.")] = False,
+) -> None:
+    """Show --help for the app and every subcommand.
+
+    Equivalent to running `astroai-lab --help` on the app and each command
+    in registration order. Use `--command <path>` (or `-c`) to show a single
+    command's help; the full dump pages through `less` on interactive
+    terminals. With `--json`, prints a command inventory (no `-c`) or
+    structured help for one command.
 
     Examples:
-        astroai-lab guide
+        astroai-lab help
+        astroai-lab help -c agent
+        astroai-lab help --command "agent list"
+        astroai-lab help --json
+        astroai-lab help -c status --json
     """
-    print_guide()
+    opts = merge_opts(ctx, json_output=json_output)
+    help_cmd_body(app, command, json_output=opts.json)
 
 
 def main_entry() -> None:

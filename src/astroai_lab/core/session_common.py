@@ -25,6 +25,12 @@ def scratch_cache_root(work: Path, scratch: Path | None) -> Path:
 
 
 def find_arc_project_root(start: Path | None = None) -> Path | None:
+    """Team project dir: `PROJECT` env var wins, else walk up to /arc/projects."""
+    project = os.environ.get("PROJECT", "").strip()
+    if project:
+        path = Path(project).expanduser()
+        if path.is_dir():
+            return path
     path = (start or Path.cwd()).resolve()
     if not Path("/arc/projects").is_dir():
         return None

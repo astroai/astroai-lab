@@ -35,8 +35,8 @@ def resolve_paths() -> SessionPaths:
     env = resolve_session_env(ensure=False)
 
     return SessionPaths(
-        work_dir=env.tmp_src_dir,
-        scratch_dir=env.tmp_scratch_dir,
+        work_dir=env.work_dir,
+        scratch_dir=env.scratch_dir,
         save_dir=env.astroai_lab_save_dir,
         config_dir=env.astroai_lab_config_dir,
         home=Path.home(),
@@ -48,10 +48,6 @@ def resolve_paths() -> SessionPaths:
         uv_cache_dir=_first_writable(env.uv_cache_dir),
         pip_cache_dir=_first_writable(env.pip_cache_dir),
     )
-
-
-def workspace_root(work_dir: Path) -> Path:
-    return work_dir / ".astroai-lab" / "workspaces"
 
 
 def user_bin_dir() -> Path:
@@ -76,5 +72,4 @@ __all__ = [
     "runtime_root",
     "scratch_cache_root",
     "user_bin_dir",
-    "workspace_root",
 ]

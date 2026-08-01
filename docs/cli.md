@@ -4,6 +4,10 @@ Power-user reference for **`astroai-lab`** (in-session workbench). Platform
 session lifecycle uses the separate **`canfar`** CLI —
 [opencadc.github.io/canfar](https://opencadc.github.io/canfar/).
 
+`astroai-lab` is intentionally small: **environment save/resume** plus **AI
+agent management**, with a few supporting commands (session status, notebook
+kernel, shell env export).
+
 Global flags (most commands accept these **before** the subcommand, e.g. `astroai-lab --json status`. Several commands also accept the same flags **after** the subcommand name — see examples below):
 
 | Flag | Description |
@@ -65,15 +69,6 @@ astroai-lab saves
 astroai-lab saves --json
 ```
 
-### `astroai-lab push`
-
-End-of-session: git push (if repo) + env save + summary.
-
-```bash
-astroai-lab push
-astroai-lab push --yes --name mylab
-```
-
 ### `astroai-lab status`
 
 Quotas, home breakdown, team project membership, CANFAR auth/sessions, and top processes.
@@ -93,122 +88,73 @@ Each **`arc_projects[]`** entry includes `access` (`rw`/`ro`), `acl_groups` (fro
 
 Requires optional tools on PATH: `getfacl`, `cadc-groups` (CADC venv), `vos` — all ship in AstroAI session images.
 
-### `astroai-lab paths`
+### `astroai-lab help`
 
-Resolved session paths (work, scratch, caches, saves, cwd).
-
-```bash
-astroai-lab paths
-astroai-lab paths --json
-```
-
-### `astroai-lab tools`
-
-Inventory of common session tools on PATH, with versions when available.
+Print `--help` for the app and every subcommand — the aggregate of all help
+output in registration order.
 
 ```bash
-astroai-lab tools
-astroai-lab tools --json
+astroai-lab help                     # full dump (pages via less on a terminal)
+astroai-lab help -c agent            # one command only
+astroai-lab help --command "agent list"
+astroai-lab help --json              # command inventory (machine-readable)
+astroai-lab help -c status --json    # structured help for one command
 ```
 
-### `astroai-lab check`
-
-Quick health check: writable work/scratch/save paths plus `git` and `astroai-lab`. Exit code `1` on failure. Use **`--strict`** to also require recommended tools (`pixi`, `uv`, `gh`, `rg`, `jq`, `canfar`).
-
-```bash
-astroai-lab check
-astroai-lab check --json
-astroai-lab check --strict
-```
-
-### `astroai-lab doctor`
-
-Full paths and tools report.
-
-```bash
-astroai-lab doctor --json
-```
-
-### `astroai-lab guide`
-
-Print session workflow cheat sheet.
+Shell completion offers registered command paths for `-c` (bash/zsh/fish via
+`astroai-lab --install-completion <shell>`). With `--json`, `help` prints a
+command inventory (path, help, options, subcommands) or structured help for a
+single `-c` path.
 
 ## Nested commands
 
-### `astroai-lab env save|resume|list`
+### `astroai-lab env export`
 
-Backward-compatible aliases for flat commands.
-
-### `astroai-lab data stage|sync`
-
-Stage data from `/arc` to scratch or sync back.
+Session shell infrastructure (applied automatically by `profile.sh` at login).
 
 ```bash
-astroai-lab data stage /arc/home/user/data
-astroai-lab data sync /scratch/out /arc/home/user/data
-astroai-lab data stage /arc/path --dry-run
-astroai-lab data sync /scratch/out /arc/path --yes
+eval "$(astroai-lab env export)"
+astroai-lab env export --json        # resolved env as a JSON object
+astroai-lab --json env export        # same, via the global flag
 ```
 
-### `astroai-lab backup run|start|stop|status|restore`
+With `--json`, prints the resolved session environment as a JSON object — the
+same keys and values as the shell export, without `export KEY=...` syntax (useful
+for `jq`, scripts, and tooling). `--no-ensure` skips creating cache/runtime
+directories.
 
-Hourly (default) rsync of the ephemeral work directory (`TMP_SRC_DIR` / `/srcdir`)
-to `~/.astroai/lab/backups/<skaha_sessionid>/` on `/arc/home`. Session startup
-starts the daemon automatically (`astroai-lab backup start`).
-
-```bash
-astroai-lab backup status
-astroai-lab backup run
-astroai-lab backup start --interval 21600   # every 6 hours
-astroai-lab backup stop
-astroai-lab backup restore --yes
-```
-
-Env: `ASTROAI_LAB_BACKUP_ENABLED`, `ASTROAI_LAB_BACKUP_INTERVAL` (seconds),
-`ASTROAI_LAB_BACKUP_DIR`. Skips when home quota is ≥90% unless `--yes`.
-
-### `astroai-lab ray guide|status`
-
-CANFAR Ray cheat sheet and local manager cluster status.
-
-```bash
-astroai-lab ray guide
-astroai-lab ray status
-astroai-lab --json ray status
-canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:<tag>
-# on the manager after workers join:
-astroai-workload run train.py --cpus 2 --memory 8GiB
-```
-
-`/scratch` is session-private (per pod). Share data via `/arc/home` or
-`/arc/projects`. See container [RAY.md](https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md).
-
-### `astroai-lab clean home|cache`
-
-Prune caches and home clutter. Pass **`--dry-run`** to preview; destructive runs need explicit category flags (`--all-safe` or individual toggles).
-
-```bash
-astroai-lab clean home --all-safe --dry-run
-astroai-lab clean cache --all-safe --dry-run
-```
+Image builds copy the packaged `profile.sh` / `hooks.sh` at build time —
+`astroai-lab` itself stays an in-session tool.
 
 ### `astroai-lab config show|path`
 
 Optional preferences file.
 
-### `astroai-lab workspace save|restore`
+```bash
+astroai-lab config show
+astroai-lab config path
+```
 
-Freeze/restore full project trees (zstd bundles).
+### `astroai-lab kernel ensure|register|list|unregister`
 
-### `astroai-lab agent setup|update|addons|add|awesome|skills|project|verify|fix|clean|interact|list|install|models|status`
+Jupyter kernels for notebook sessions.
 
-AI agent MCP, rules, skills, CLI installation, Awesome catalog, auto-fix, state clean, and free model presets.
+```bash
+astroai-lab kernel ensure              # scratch-safe default (no pixi project)
+astroai-lab kernel register [PATH]     # project .pixi/.venv as kernel
+astroai-lab kernel list
+astroai-lab kernel unregister NAME
+```
+
+### `astroai-lab agent setup|update|addons|add|skills|project|verify|fix|clean|interact|list|install|models|status`
+
+AI agent MCP, rules, skills, CLI installation, curated catalog, auto-fix, state clean, and free model presets.
 
 Mental model:
 
 | Command | What it does |
 |---------|----------------|
-| `agent awesome` | Curated Awesome catalog (agents, skills, rules, MCPs, container UIs) |
+| `agent catalog` | Curated Catalog & Directory of agents, skills, rules, MCP servers, container UIs |
 | `agent list` | Overview: installable CLIs, config bundles, Cursor skills |
 | `agent install [TOOL]` | Download a CLI binary (omit TOOL to list) |
 | `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles) |
@@ -243,53 +189,129 @@ astroai-lab agent models free
 astroai-lab agent models free --preset long
 ```
 
-`agent sources …` remains as an alias for `agent skills …`.
+## Removed in 0.3
 
+For a deeper rethink, `astroai-lab` no longer ships the following commands.
+Use the platform tools instead:
 
-### `astroai-lab kernel`
-
-Jupyter kernels for notebook sessions.
-
-```bash
-astroai-lab kernel ensure              # scratch-safe default (no pixi project)
-astroai-lab kernel register [PATH]     # project .pixi/.venv as kernel
-astroai-lab kernel list
-astroai-lab kernel unregister NAME
-```
-
-### `astroai-lab notebook starter`
-
-Copy starter notebooks into scratch/work (also shipped at `/opt/astroai/notebooks/` in images).
-
-```bash
-astroai-lab notebook starter
-astroai-lab notebook starter ray_train --to /scratch
-astroai-lab notebook starter marimo          # → TMP_SRC_DIR/notebooks/starter.py
-```
-
-### `astroai-lab project init`
-
-Team workspace under `/arc/projects`.
-
-```bash
-astroai-lab project init mygroup --members alice,bob
-```
+| Removed | Replacement |
+|---------|-------------|
+| `data stage/sync` | `canfar data` (platform archive I/O) |
+| `project init` | Project provisioning is done by operators; users read `/arc/projects` via `status` |
+| `backup` | `git` + `astroai-lab save` (env snapshots) |
+| `workspace` | `git` + `astroai-lab save` |
+| `push` | `git push` + `astroai-lab save` |
+| `clean` | Manual cache pruning; monitor with `status` |
+| `doctor` | `status` / `env export` |
+| `paths`/`tools`/`check` | `status` / `env export` |
+| `notebook` | Starters ship at `/opt/astroai/notebooks/` in images |
+| `ray` | AstroAI hub / OpenResearch batch compute |
+| `env save/resume/list` | Flat `save`/`resume`/`saves` |
+| `env install-shell` | Image builds copy packaged `profile.sh`/`hooks.sh` at build time |
+| `guide` | Renamed to `help` (aggregate of all `--help`) |
+| `agent sync` | `agent update` |
+| `agent sources` | `agent skills` |
+| `agent awesome` / `agent directory` | `agent catalog` |
+| `agent access` | `agent interact` |
 
 ## Environment variables
 
+`astroai-lab` speaks the same storage vocabulary as typical HPC/Slurm clusters:
+`WORK`, `SCRATCH`, `PROJECT` are the canonical names. Session paths are applied
+in login shells via `astroai-lab env export` (bundled in
+`/etc/astroai-lab/profile.sh` on CANFAR images). Skaha sessions provide
+`WORK`/`SCRATCH`; `PROJECT` is detected from the current dir under `/arc/projects`
+or set explicitly.
+
+### Session paths (Slurm-style)
+
 | Variable | Purpose |
 |----------|---------|
-| `ASTROAI_LAB_WORK_DIR` | Work directory override |
-| `ASTROAI_LAB_SCRATCH_DIR` | Scratch directory override |
-| `ASTROAI_LAB_SAVE_DIR` | Env saves directory override |
-| `ASTROAI_LAB_PYTHONPATH` | Extra `PYTHONPATH` entries (colon-separated) |
-| `TMP_SRC_DIR` | Session work dir (Skaha) |
-| `TMP_SCRATCH_DIR` | Session scratch (Skaha) |
-| `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`) |
-| `ASTROAI_LAB_RUNTIME_ROOT` | Runtime uv/pixi roots (default: scratch `.runtime-$USER`) |
-| `ASTROAI_LAB_NPM_PREFIX` | npm global prefix (default: scratch `.local`) |
-| `ASTROAI_LAB_CONFIG_DIR` | Workbench config (`~/.astroai/lab`) |
+| `WORK` | Session work dir; code and project envs live here (Skaha: `/srcdir`) |
+| `SCRATCH` | Session scratch; data, caches, runtime installs (Skaha: `/scratch`) |
+| `PROJECT` | Team project dir (e.g. `/arc/projects/<group>`); used for team tools and env saves |
 
-Session paths are applied in login shells via `astroai-lab env export` (bundled in `/etc/astroai-lab/profile.sh` on CANFAR images).
+### Path overrides
+
+| Variable | Purpose |
+|----------|---------|
+| `WORK` / `SCRATCH` / `PROJECT` | Set explicitly to override detected session paths |
+| `ASTROAI_LAB_SAVE_DIR` | Env saves dir (default: `~/.astroai/lab/saves`) |
+| `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`) |
+| `ASTROAI_LAB_RUNTIME_ROOT` | Runtime uv/pixi/mamba roots (default: scratch `.runtime-$USER`) |
+| `ASTROAI_LAB_NPM_PREFIX` | npm global prefix (default: `.local` under scratch) |
+| `NPM_CONFIG_PREFIX` | Fallback npm prefix when `ASTROAI_LAB_NPM_PREFIX` is unset |
+| `ASTROAI_LAB_CONFIG_DIR` | Workbench config dir (default: `~/.astroai/lab`) |
+| `ASTROAI_LAB_PYTHONPATH` | Extra `PYTHONPATH` entries (colon-separated) |
+| `PYTHONPATH` | Existing entries are preserved and merged into the export |
+
+### XDG, cache, and runtime dirs
+
+Defaults below apply when scratch is mounted (the CANFAR session case); without
+scratch, caches fall back to `$HOME`-side paths (e.g. `XDG_CACHE_HOME` → `~/.cache`).
+
+| Variable | Purpose |
+|----------|---------|
+| `XDG_CONFIG_HOME` | XDG config base (default: `~/.config`) |
+| `XDG_DATA_HOME` | XDG data base (default: `~/.local/share`) |
+| `XDG_CACHE_HOME` | XDG cache base (default: scratch cache root) |
+| `UV_CACHE_DIR` | `uv` cache (default: scratch `uv/`) |
+| `PIP_CACHE_DIR` | `pip` cache (default: scratch `pip/`) |
+| `PIXI_CACHE_DIR` | `pixi` cache (default: scratch `pixi/`) |
+| `NPM_CONFIG_CACHE` | npm cache (default: scratch `npm/`) |
+| `HF_HOME` | Hugging Face cache (default: scratch `huggingface/`) |
+| `TORCH_HOME` | PyTorch cache (default: scratch `torch/`) |
+| `TMPDIR` | Temp dir (default: scratch `.tmp-$USER`) |
+| `UV_LINK_MODE` | `uv` link mode (default: `copy`) |
+
+### Runtime roots and conda cache (uv/pixi/mamba)
+
+These are redirected to `ASTROAI_LAB_RUNTIME_ROOT` (default: scratch
+`.runtime-$USER`) at session time, even though the image sets system-prefix
+build-time defaults.
+
+| Variable | Purpose |
+|----------|---------|
+| `PIXI_HOME` | pixi home (default: runtime `pixi/`) |
+| `MAMBA_ROOT_PREFIX` | micromamba root (default: runtime `micromamba/`) |
+| `UV_PYTHON_INSTALL_DIR` | uv-managed Pythons (default: runtime `uv/python/`) |
+| `UV_TOOL_DIR` | uv tool installs (default: runtime `uv/tools/`) |
+| `MAMBA_PKGS_DIRS` / `CONDA_PKGS_DIRS` | conda package cache (default: scratch `conda/pkgs/`) |
+
+### Preferences (also settable in `config.yaml`)
+
+| Variable | Purpose |
+|----------|---------|
+| `ASTROAI_LAB_DEFAULT_PM` | Default package manager: `pixi` or `uv` (default: `pixi`) |
+| `ASTROAI_LAB_CLONE_FROM_ENV` | Default env preset for `astroai-lab clone` |
+
+### AI agent management
+
+| Variable | Purpose |
+|----------|---------|
+| `ASTROAI_LAB_AGENT_BUNDLE` | Override the agent bundle root |
+| `ASTROAI_LAB_AGENT_GIT_TIMEOUT` | Git-op timeout, seconds (default: `120`) |
+| `ASTROAI_LAB_AGENT_INSTALL_TIMEOUT` | CLI-install timeout, seconds (default: `300`) |
+| `ASTROAI_LAB_AGENT_LOCK_TIMEOUT` | Setup-lock timeout, seconds (default: `30`) |
+| `ASTROAI_SESSION_KIND` | Session kind label for `agent interact` (default: `unknown`) |
+| `ASTROAI_AGENT_WIZARD_PORT` | Agent wizard port (default: `4792`) |
+| `ASTROAI_OPENWORKER_PORT` | OpenWorker port (default: `5000`) |
+| `OPENROUTER_API_KEY` (or `OPENROUTER_KEY`) | OpenRouter key for `agent models free` presets |
+
+### Shell integration
+
+| Variable | Purpose |
+|----------|---------|
+| `ASTROAI_LAB_SHELL_DIR` | Dir holding `profile.sh`/`hooks.sh` (default: `/etc/astroai-lab`) |
+| `ASTROAI_LAB_PROFILE_LOADED` | Set by `profile.sh` to avoid double-sourcing |
+| `JUPYTER_CONFIG_DIR` | Jupyter config dir (default: `~/.jupyter`) |
+| `USER` / `HOSTNAME` | Identity labels used by `status` and `agent interact` |
+
+`astroai-lab env export` also **emits** derived values for downstream tools,
+including `ASTROAI_LAB_TEAM_BIN` (when a team project is present),
+`ASTROAI_LAB_PATH_PREFIX` (consumed by the image's `/etc/profile.d/astroai.sh`),
+`UV_PYTHON_BIN_DIR`, `UV_TOOL_BIN_DIR` (both pointing at `ASTROAI_LAB_BIN_DIR`),
+`PYTHONUSERBASE`, `TRANSFORMERS_CACHE`, `HF_DATASETS_CACHE`, and
+`MPLCONFIGDIR`.
 
 See [config.md](config.md) for optional YAML preferences.

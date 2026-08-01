@@ -21,14 +21,14 @@ Curated lean/science addons: `astroai-lab agent addons` · `astroai-lab agent ad
 ## This repo
 
 ```bash
-pixi install    # or uv sync — env lives under TMP_SRC_DIR, not $HOME
+pixi install    # or uv sync — env lives under $WORK, not $HOME
 pixi run …      # or uv run …
-astroai-lab push --yes   # before session ends — code on TMP_SRC_DIR is ephemeral
+astroai-lab save         # before session ends — code on $WORK is ephemeral
 ```
 
 Pin Python deps in **pixi.toml / uv.lock** here — not in the image platform venv.
 Platform CLIs (`canfar`, `cadcget`, `astroai-lab`) live in `/opt/astroai/venv/cadc`; upgrade this session with `upgrade-cadc-tools.sh` if needed.
 
-Search: `rg`, `fd`, `sg` (ast-grep skill). View files: `peek <path>` (markdown/text/archives) or `bat`/`less`. Help: `astroai-lab guide`, `astroai-lab status --json`, `astroai-lab paths`, `astroai-lab tools`, `astroai-lab check`.
+Search: `rg`, `fd`, `sg` (ast-grep skill). View files: `peek <path>` (markdown/text/archives) or `bat`/`less`. Help: `astroai-lab help`, `astroai-lab status --json`.
 
 In webterm, prefer `peek` when pointing the user at generated plans, logs, or archives.

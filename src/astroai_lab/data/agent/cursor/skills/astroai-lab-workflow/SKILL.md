@@ -27,38 +27,37 @@ Broken agent configs (esp. OpenCode JSON): `astroai-lab agent verify`
 ```bash
 astroai-lab init mylab                # or astroai-lab clone owner/repo
 astroai-lab clone --from-env ml-base owner/repo   # warm caches from saved stack
-cd "${TMP_SRC_DIR}/mylab"
+cd "${WORK}/mylab"
 pixi install                     # or uv sync
 pixi run python analysis.py
-astroai-lab push --yes            # before session ends (or: astroai-lab --yes push)
+astroai-lab save                  # snapshot env before session ends
 ```
 
 Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subcommand:
-`astroai-lab status --json`, `astroai-lab clean home --dry-run`, `astroai-lab saves --json`.
+`astroai-lab status --json`, `astroai-lab saves --json`.
 
 ## Storage (memorize this)
 
 | Path | What |
 |------|------|
-| `${TMP_SRC_DIR}` | Code + project `.pixi`/`.venv` — **ephemeral** |
-| `${TMP_SCRATCH_DIR}` | Data, download caches, runtime installs (`ASTROAI_LAB_BIN_DIR`, uv/pixi roots) |
+| `${WORK}` | Code + project `.pixi`/`.venv` — **ephemeral** |
+| `${SCRATCH}` | Data, download caches, runtime installs (`ASTROAI_LAB_BIN_DIR`, uv/pixi roots) |
 | `/opt/astroai/venv/cadc` | Platform CLIs: `canfar`, `cadcget`, `astroai-lab` — **writable this session** |
 | `/arc/projects/<team>/.local` | Shared team tools + env saves (persistent) |
 | `/arc` (`$HOME`) | **Small only** — agent MCP config, gh auth, lockfile saves (`~/.astroai/lab`) |
 
-**Project deps:** use pixi/uv lockfiles under `${TMP_SRC_DIR}` — that is where versions belong.
+**Project deps:** use pixi/uv lockfiles under `${WORK}` — that is where versions belong.
 **Platform CLIs:** image installs are unpinned; bump in-session with `upgrade-cadc-tools.sh` (lost when the session ends).
 
 ```bash
 upgrade-cadc-tools.sh list
 upgrade-cadc-tools.sh 'astroai-lab @ git+https://github.com/astroai/astroai-lab.git@main'
-astroai-lab data stage /arc/path --dry-run
-astroai-lab doctor --json
+astroai-lab status --json
 ```
 
-Avoid pip/uv/pixi/conda/npm **project** installs under `$HOME` — use project envs in `${TMP_SRC_DIR}` or team paths on `/arc/projects`.
+Avoid pip/uv/pixi/conda/npm **project** installs under `$HOME` — use project envs in `${WORK}` or team paths on `/arc/projects`.
 
-Optional: `${TMP_SRC_DIR}/.astroai-lab/pythonpath` or `ASTROAI_LAB_PYTHONPATH` for extra import paths.
+Optional: `${WORK}/.astroai-lab/pythonpath` or `ASTROAI_LAB_PYTHONPATH` for extra import paths.
 
 ## Search & run (standard tools — no custom commands)
 
@@ -76,14 +75,10 @@ When showing the user a generated markdown, log, or archive in webterm (or any A
 ## Help
 
 ```bash
-astroai-lab guide
+astroai-lab help
 astroai-lab status --json          # quotas, team projects (access/ACL/GMS/vault), canfar auth/ps
-astroai-lab paths --json           # resolved work/scratch/cache/save paths
-astroai-lab tools --json           # tools on PATH (+ versions)
-astroai-lab check                  # quick health check
-astroai-lab doctor --json          # full paths, caches, tools on PATH
+astroai-lab saves --json           # saved environments
 astroai-lab agent list             # agent CLIs, config bundles, skills
 astroai-lab agent verify           # configs present + parseable
-astroai-lab clean home --all-safe --dry-run
 less /opt/astroai/USAGE.md
 ```

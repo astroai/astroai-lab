@@ -11,7 +11,6 @@ from typer.testing import CliRunner
 from astroai_lab.cli.main import app
 from astroai_lab.config.settings import get_settings
 from astroai_lab.core.git import git_init_and_commit, git_status
-from astroai_lab.core.hygiene import apply_clean, collect_home_targets
 from astroai_lab.core.project import save_env, save_rows
 from astroai_lab.models.manifest import ProjectKind
 
@@ -30,7 +29,7 @@ def lab_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home.mkdir()
     work.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(work))
+    monkeypatch.setenv("WORK", str(work))
     monkeypatch.chdir(work)
     return work
 
@@ -71,60 +70,16 @@ def test_save_env_creates_manifest(lab_env: Path) -> None:
     assert rows[0]["name"] == "mylab"
 
 
-def test_push_skips_git_when_not_repo(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    project = lab_env / "mylab"
-    _pixi_project(project)
-    monkeypatch.chdir(project)
-    with patch("astroai_lab.core.git.git_status") as gs:
-        gs.return_value = type("S", (), {"in_repo": False, "uncommitted": False})()
-        with patch("astroai_lab.cli.init_clone_env.save_env") as save:
-            result = runner.invoke(app, ["--yes", "push"])
-    assert result.exit_code == 0
-    save.assert_called_once()
-
-
-def test_clean_home_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("ASTROAI_LAB_WORK_DIR", str(tmp_path / "work"))
-    cache = home / ".cache" / "pip"
-    cache.mkdir(parents=True)
-    (cache / "wheel").write_text("x")
-    for argv in (
-        ["--dry-run", "clean", "home", "--stale-pkg"],
-        ["clean", "home", "--stale-pkg", "--dry-run"],
-    ):
-        result = runner.invoke(app, argv)
-        assert result.exit_code == 0, result.output
-        assert "dry-run" in result.output.lower()
-
-
-def test_hygiene_collect_and_apply_dry_run(tmp_path: Path) -> None:
-    home = tmp_path / "home"
-    cache = home / ".cache" / "pip"
-    cache.mkdir(parents=True)
-    (cache / "pkg").write_text("x" * 100)
-    targets = collect_home_targets(home, stale_pkg=True, ml=False, hf=False, xdg_junk=False)
-    assert targets
-    freed = apply_clean(targets, dry_run=True)
-    assert freed > 0
-    assert cache.exists()
-
-
-def test_data_stage_missing_source(lab_env: Path) -> None:
-    result = runner.invoke(app, ["data", "stage", "/no/such/path"])
-    assert result.exit_code == 1
-
-
 def test_status_command(lab_env: Path) -> None:
-    with patch("astroai_lab.cli.status.collect_status_quotas", return_value=[]), patch(
-        "astroai_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)
-    ), patch("astroai_lab.cli.status.home_breakdown", return_value=[]):
-        with patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]):
-            for argv in (["status"], ["status", "--json"], ["--json", "status"]):
-                result = runner.invoke(app, argv)
-                assert result.exit_code == 0, result.output
+    with (
+        patch("astroai_lab.cli.status.collect_status_quotas", return_value=[]),
+        patch("astroai_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)),
+        patch("astroai_lab.cli.status.home_breakdown", return_value=[]),
+        patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]),
+    ):
+        for argv in (["status"], ["status", "--json"], ["--json", "status"]):
+            result = runner.invoke(app, argv)
+            assert result.exit_code == 0, result.output
 
 
 def test_status_json_includes_arc_projects(lab_env: Path) -> None:
@@ -144,14 +99,16 @@ def test_status_json_includes_arc_projects(lab_env: Path) -> None:
         ),
         is_cwd=True,
     )
-    with patch("astroai_lab.cli.status.collect_status_quotas", return_value=[active.quota]):
-        with patch(
+    with (
+        patch("astroai_lab.cli.status.collect_status_quotas", return_value=[active.quota]),
+        patch(
             "astroai_lab.cli.status.arc_project_statuses",
             return_value=(active, [active], None, None),
-        ):
-            with patch("astroai_lab.cli.status.home_breakdown", return_value=[]):
-                with patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]):
-                    result = runner.invoke(app, ["status", "--json"])
+        ),
+        patch("astroai_lab.cli.status.home_breakdown", return_value=[]),
+        patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]),
+    ):
+        result = runner.invoke(app, ["status", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["arc_project"]["name"] == "mygroup"

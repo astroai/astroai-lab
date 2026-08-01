@@ -10,12 +10,30 @@ from astroai_lab.cli.context import merge_opts
 from astroai_lab.core.kernel import list_kernels, register_kernel, unregister_kernel
 from astroai_lab.errors import LabError
 
+
+def _kernel_name_completer(ctx, incomplete: str) -> list[str]:
+    """Offer registered kernel names for `kernel unregister` / `--name`.
+
+    Matches typer's autocompletion signature (ctx, incomplete) -> list[str];
+    never raises (completion must not crash the CLI when jupyter is absent).
+    """
+    incomplete = incomplete or ""
+    try:
+        names = [row["name"] for row in list_kernels()]
+    except Exception:  # noqa: BLE001 — completion must never crash the CLI
+        return []
+    return [n for n in names if n.startswith(incomplete)]
+
+
 kernel_app = typer.Typer(help="Jupyter kernel registration (notebook sessions).")
 
 
 @kernel_app.command("ensure")
 def kernel_ensure(
-    name: Annotated[str, typer.Option("--name", help="Kernel name.")] = "astroai",
+    name: Annotated[
+        str,
+        typer.Option("--name", help="Kernel name.", autocompletion=_kernel_name_completer),
+    ] = "astroai",
 ) -> None:
     """Create/refresh a scratch-safe notebook kernel (no pixi project needed).
 
@@ -75,7 +93,9 @@ def kernel_list(
 
 
 @kernel_app.command("unregister")
-def kernel_unregister(name: Annotated[str, typer.Argument()]) -> None:
+def kernel_unregister(
+    name: Annotated[str, typer.Argument(autocompletion=_kernel_name_completer)],
+) -> None:
     """Remove a registered kernel.
 
     Examples:

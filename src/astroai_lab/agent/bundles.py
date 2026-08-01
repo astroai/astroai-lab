@@ -108,11 +108,12 @@ def merge_opencode_mcp(src: Path, dst: Path, *, force: bool, dry_run: bool) -> N
 
 def _toml_get(data: dict[str, Any], *keys: str) -> Any:
     """Walk nested dict keys; return None if any key missing."""
+    current: Any = data
     for key in keys:
-        if not isinstance(data, dict):
+        if not isinstance(current, dict):
             return None
-        data = data.get(key)
-    return data
+        current = current.get(key)
+    return current
 
 
 def _merge_marimo_openrouter(cfg: Path, *, force: bool, dry_run: bool) -> None:
@@ -145,10 +146,10 @@ def _merge_marimo_openrouter(cfg: Path, *, force: bool, dry_run: bool) -> None:
     # Check if api_key is already set using tomllib (stdlib 3.11+) or tomli
     text = cfg.read_text(encoding="utf-8")
     try:
-        import tomllib
+        import tomllib  # type: ignore
     except ImportError:
         try:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib  # type: ignore
         except ImportError:
             tomllib = None  # type: ignore[assignment]
 
@@ -246,9 +247,7 @@ def _git_run(args: list[str], *, cwd: Path | None = None) -> subprocess.Complete
         )
 
 
-def _clone_upstream_repo(
-    cache_root: Path, repo: str, paths: str | list[str]
-) -> tuple[str, str]:
+def _clone_upstream_repo(cache_root: Path, repo: str, paths: str | list[str]) -> tuple[str, str]:
     path_list = [paths] if isinstance(paths, str) else list(paths)
     if cache_root.exists():
         shutil.rmtree(cache_root)
@@ -278,9 +277,7 @@ def _clone_upstream_repo(
     return "cloned", repo
 
 
-def _refresh_upstream_repo(
-    cache_root: Path, repo: str, paths: str | list[str]
-) -> tuple[str, str]:
+def _refresh_upstream_repo(cache_root: Path, repo: str, paths: str | list[str]) -> tuple[str, str]:
     path_list = [paths] if isinstance(paths, str) else list(paths)
     if not (cache_root / ".git").is_dir():
         return _clone_upstream_repo(cache_root, repo, path_list)
@@ -602,10 +599,10 @@ def _check_json_file(path: Path, home: Path, *, jsonc: bool = False) -> str | No
 
 def _check_toml_file(path: Path, home: Path) -> str | None:
     try:
-        import tomllib
+        import tomllib  # type: ignore
     except ImportError:
         try:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib  # type: ignore
         except ImportError:
             return None
     try:
@@ -702,9 +699,7 @@ def verify_setup(home: Path) -> list[str]:
         try:
             text = goose_cfg.read_text(encoding="utf-8")
             if "GOOSE_PROVIDER:" not in text or "GOOSE_MODEL:" not in text:
-                issues.append(
-                    "Goose provider not fully configured (~/.config/goose/config.yaml)"
-                )
+                issues.append("Goose provider not fully configured (~/.config/goose/config.yaml)")
         except OSError:
             pass
 
@@ -713,8 +708,7 @@ def verify_setup(home: Path) -> list[str]:
         try:
             if "openrouter" not in marimo.read_text(encoding="utf-8"):
                 issues.append(
-                    "marimo.toml missing OpenRouter config — run: "
-                    "astroai-lab agent setup marimo"
+                    "marimo.toml missing OpenRouter config — run: astroai-lab agent setup marimo"
                 )
         except OSError:
             pass
@@ -868,7 +862,7 @@ def agent_setup(
     if quota is not None and quota >= 98 and not force:
         raise LabError(
             f"Home quota {quota}% — refusing agent setup",
-            hint="Free space with `astroai-lab clean home` or pass --force",
+            hint="Free space under /arc/home (caches, old envs) or pass --force",
         )
     if quota is not None and quota >= 90:
         warnings.append(f"Home quota {quota}% — agent configs may fill /arc/home")
@@ -902,8 +896,9 @@ def agent_setup(
                 record_setup_ok(home, mode=mode)
             else:
                 detail = "; ".join(errors) if errors else "no bundles succeeded"
-                from astroai_lab.agent.setup_state import lab_state_dir
                 from datetime import datetime, timezone
+
+                from astroai_lab.agent.setup_state import lab_state_dir
 
                 state = lab_state_dir(home)
                 state.mkdir(parents=True, exist_ok=True)

@@ -77,9 +77,11 @@ def test_agent_project_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert result.exit_code == 0
 
 
-def test_project_init_cli_no_arc() -> None:
+def test_project_command_removed() -> None:
+    """The `project` command was removed in the 0.3 simplification."""
     result = runner.invoke(app, ["project", "init", "mygroup"])
-    assert result.exit_code == 1
+    assert result.exit_code != 0
+    assert "No such command" in (result.stdout + result.stderr)
 
 
 def test_list_github_sources() -> None:
@@ -128,29 +130,34 @@ def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.Monkey
     assert result.status == "dry-run"
 
 
-def test_agent_sources_list_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_skills_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["agent", "sources", "list"])
+    result = runner.invoke(app, ["--dry-run", "agent", "skills", "update"])
     assert result.exit_code == 0
     assert "ast-grep" in (result.stdout + result.stderr)
 
 
-def test_agent_sync_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--dry-run", "agent", "sync"])
+    result = runner.invoke(app, ["--dry-run", "agent", "update"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "refreshed skill" in out or "would refresh skill" in out
 
 
-def test_agent_sources_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--dry-run", "agent", "sources", "update"])
-    assert result.exit_code == 0
-    assert "ast-grep" in (result.stdout + result.stderr)
+def test_agent_sources_alias_removed() -> None:
+    """The `agent sources` alias was removed (use `agent skills`)."""
+    result = runner.invoke(app, ["agent", "sources", "list"])
+    assert result.exit_code != 0
+    assert "No such command" in (result.stdout + result.stderr)
+
+
+def test_agent_sync_alias_removed() -> None:
+    """The `agent sync` alias was removed (use `agent update`)."""
+    result = runner.invoke(app, ["agent", "sync"])
+    assert result.exit_code != 0
+    assert "No such command" in (result.stdout + result.stderr)

@@ -151,9 +151,7 @@ def collect_resources() -> ResourceSnapshot:
             "home quota from Ceph xattrs (ceph.dir.rbytes can lag a few seconds after writes)"
         )
     elif home_du and home_du.source == "statvfs":
-        notes.append(
-            "home usage from statvfs/df — may not match Ceph directory quota on /arc"
-        )
+        notes.append("home usage from statvfs/df — may not match Ceph directory quota on /arc")
     return ResourceSnapshot(
         cpu_pct=_cpu_pct_from_load(load),
         load_1m=load,

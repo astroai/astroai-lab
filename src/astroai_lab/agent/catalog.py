@@ -11,7 +11,6 @@ from typing import Any
 
 from astroai_lab.agent.addons import list_addons
 from astroai_lab.agent.install import list_tools_status
-from astroai_lab.agent.setup_state import read_setup_state
 
 
 @dataclass(frozen=True)
@@ -39,7 +38,9 @@ CATALOG_CONTAINERS = [
         "tags": ["agent", "ui", "science", "open"],
         "summary": "OpenResearch (orx) autoresearch dashboard for CANFAR sessions",
         "homepage": "https://github.com/alphaXiv/openresearch-cli",
-        "install_command": "canfar create --name orx contributed images.canfar.net/astroai/openresearch:latest",
+        "install_command": (
+            "canfar create --name orx contributed images.canfar.net/astroai/openresearch:latest"
+        ),
         "notes": "Proxied at / (port 5000) with Agent Hub at /astroai-agents/",
     },
     {
@@ -49,7 +50,10 @@ CATALOG_CONTAINERS = [
         "tags": ["agent", "ui", "open"],
         "summary": "OpenWorker browser UI + Python agent server for CANFAR (no Tauri)",
         "homepage": "https://github.com/andrewyng/openworker",
-        "install_command": "canfar create --name openworker contributed images.canfar.net/astroai/openworker:latest",
+        "install_command": (
+            "canfar create --name openworker contributed "
+            "images.canfar.net/astroai/openworker:latest"
+        ),
         "notes": "Browser UI + local agent server running on port 5000",
     },
     {
@@ -59,7 +63,9 @@ CATALOG_CONTAINERS = [
         "tags": ["ui", "terminal"],
         "summary": "Browser web terminal (ttyd) with full AstroAI toolchain",
         "homepage": "https://github.com/astroai/astroai-containers",
-        "install_command": "canfar create --name webterm contributed images.canfar.net/astroai/webterm:latest",
+        "install_command": (
+            "canfar create --name webterm contributed images.canfar.net/astroai/webterm:latest"
+        ),
         "notes": "Standard interactive terminal session",
     },
     {
@@ -69,7 +75,9 @@ CATALOG_CONTAINERS = [
         "tags": ["ui", "data", "science"],
         "summary": "JupyterLab environment pre-loaded with AstroAI agent extensions",
         "homepage": "https://github.com/astroai/astroai-containers",
-        "install_command": "canfar create --name notebook contributed images.canfar.net/astroai/notebook:latest",
+        "install_command": (
+            "canfar create --name notebook contributed images.canfar.net/astroai/notebook:latest"
+        ),
         "notes": "JupyterLab browser UI",
     },
     {
@@ -79,7 +87,9 @@ CATALOG_CONTAINERS = [
         "tags": ["ui", "ide"],
         "summary": "Browser VSCode server with pre-configured AI extensions",
         "homepage": "https://github.com/astroai/astroai-containers",
-        "install_command": "canfar create --name vscode contributed images.canfar.net/astroai/vscode:latest",
+        "install_command": (
+            "canfar create --name vscode contributed images.canfar.net/astroai/vscode:latest"
+        ),
         "notes": "In-browser VSCode experience",
     },
     {
@@ -89,7 +99,10 @@ CATALOG_CONTAINERS = [
         "tags": ["container", "science", "data"],
         "summary": "Ray cluster head node + Jobs dashboard manager",
         "homepage": "https://github.com/astroai/astroai-containers",
-        "install_command": "canfar create --name raymgr --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:latest",
+        "install_command": (
+            "canfar create --name raymgr --cpu 2 --memory 8 contributed "
+            "images.canfar.net/astroai/ray-manager:latest"
+        ),
         "notes": "Ray Dashboard & Cluster Job submitter",
     },
 ]
@@ -232,13 +245,11 @@ def list_agent_catalog(
         if tag and tag.lower() not in [t.lower() for t in item["tags"]]:
             continue
         if q:
-            searchable = f"{item['id']} {item['name']} {item['summary']} {' '.join(item['tags'])}".lower()
+            searchable = (
+                f"{item['id']} {item['name']} {item['summary']} {' '.join(item['tags'])}".lower()
+            )
             if q not in searchable:
                 continue
         filtered.append(item)
 
     return filtered
-
-
-# Backward compatibility alias
-list_awesome_catalog = list_agent_catalog

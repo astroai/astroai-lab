@@ -30,8 +30,9 @@ _KERNEL_ENV_KEYS = (
     "XDG_CACHE_HOME",
     "TMPDIR",
     "MPLCONFIGDIR",
-    "TMP_SRC_DIR",
-    "TMP_SCRATCH_DIR",
+    "WORK",
+    "SCRATCH",
+    "PROJECT",
     "ASTROAI_LAB_BIN_DIR",
     "ASTROAI_LAB_RUNTIME_ROOT",
 )
@@ -50,11 +51,11 @@ def _python_for_project(project: Path) -> Path:
 
 def _scratch_venv_python(name: str = "notebook") -> Path:
     env = resolve_session_env(ensure=True)
-    scratch = env.tmp_scratch_dir
+    scratch = env.scratch_dir
     if scratch is None:
         raise LabError(
             "No writable /scratch — cannot create notebook venv off $HOME.",
-            hint="Launch a session with scratch, or use a project under TMP_SRC_DIR.",
+            hint="Launch a session with scratch, or use a project under $WORK.",
         )
     root = scratch / ".astroai-lab" / "venvs" / name
     py = root / "bin" / "python"

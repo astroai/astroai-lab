@@ -5,25 +5,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from astroai_lab import config_dir, saves_dir
 
 
-class PushSettings(BaseModel):
-    auto_save: bool = True
-    require_clean_git: bool = False
-
-
-class BackupSettings(BaseModel):
-    enabled: bool = True
-    interval: int = 3600
-    dir: Path | None = None
-
-
 class LabSettings(BaseSettings):
-    """Session workbench settings (ASTROAI_LAB_* env vars + optional config.yaml)."""
+    """Session workbench settings (Slurm-style env vars + optional config.yaml)."""
 
     model_config = SettingsConfigDict(
         env_prefix="ASTROAI_LAB_",
@@ -32,21 +21,17 @@ class LabSettings(BaseSettings):
         extra="ignore",
     )
 
-    work_dir: Path | None = Field(default=None)
-    scratch_dir: Path | None = Field(default=None)
+    # Slurm-style canonical names (WORK / SCRATCH) map onto the YAML keys via
+    # validation_alias; the legacy ASTROAI_LAB_WORK_DIR/SCRATCH_DIR names are
+    # intentionally gone — users set WORK and SCRATCH.
+    work_dir: Path | None = Field(default=None, validation_alias="WORK")
+    scratch_dir: Path | None = Field(default=None, validation_alias="SCRATCH")
     save_dir: Path | None = Field(default=None)
     default_pm: Literal["pixi", "uv"] = "pixi"
     clone_from_env: str | None = None
-    push: PushSettings = Field(default_factory=PushSettings)
-    backup: BackupSettings = Field(default_factory=BackupSettings)
 
     def resolve_work_dir(self) -> Path:
-        for raw in (
-            self.work_dir,
-            _env_path("ASTROAI_LAB_WORK_DIR"),
-            _env_path("TMP_SRC_DIR"),
-            _env_path("ASTROAI_LAB_DEFAULT_SRC_DIR"),
-        ):
+        for raw in (self.work_dir, _env_path("WORK")):
             if raw is not None and raw.is_dir() and os.access(raw, os.W_OK):
                 return raw
         for candidate in (Path("/srcdir"), Path.home() / "work"):
@@ -55,12 +40,7 @@ class LabSettings(BaseSettings):
         return Path.cwd()
 
     def resolve_scratch_dir(self) -> Path | None:
-        for raw in (
-            self.scratch_dir,
-            _env_path("ASTROAI_LAB_SCRATCH_DIR"),
-            _env_path("TMP_SCRATCH_DIR"),
-            _env_path("ASTROAI_LAB_DEFAULT_SCRATCH_DIR"),
-        ):
+        for raw in (self.scratch_dir, _env_path("SCRATCH")):
             if raw is not None and raw.is_dir() and os.access(raw, os.W_OK):
                 return raw
         default = Path("/scratch")

@@ -374,7 +374,7 @@
           "args": [
             "-y",
             "@modelcontextprotocol/server-sqlite",
-            "${TMP_SCRATCH_DIR}/astroai-lab-mcp.sqlite"
+            "${SCRATCH}/astroai-lab-mcp.sqlite"
           ]
         },
         "opencode": {
@@ -383,7 +383,7 @@
             "npx",
             "-y",
             "@modelcontextprotocol/server-sqlite",
-            "${TMP_SCRATCH_DIR}/astroai-lab-mcp.sqlite"
+            "${SCRATCH}/astroai-lab-mcp.sqlite"
           ],
           "enabled": true
         }

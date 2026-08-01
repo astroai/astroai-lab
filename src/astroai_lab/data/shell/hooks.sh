@@ -6,7 +6,7 @@ __astroai_lab_state_dir() {
 }
 
 __astroai_lab_scratch_dir() {
-    echo "${TMP_SCRATCH_DIR:-${ASTROAI_LAB_DEFAULT_SCRATCH_DIR:-/scratch}}"
+    echo "${SCRATCH:-/scratch}"
 }
 
 __astroai_lab_scratch_reminder() {
@@ -47,10 +47,10 @@ __astroai_lab_scratch_reminder() {
     fi
 
     if [[ -n "${_summary}" ]]; then
-        printf '\n  \033[1;33m⏳ %dh %dm (%s)\033[0m\n  → git push or astroai-lab --yes push (${TMP_SRC_DIR} is ephemeral)\n\n' \
+        printf '\n  \033[1;33m⏳ %dh %dm (%s)\033[0m\n  → git push and astroai-lab save (${WORK} is ephemeral)\n\n' \
             "${_hours}" "${_mins}" "${_summary}"
     else
-        printf '\n  \033[1;33m⏳ %dh %dm — git push or astroai-lab --yes push (${TMP_SRC_DIR} is ephemeral)\033[0m\n\n' \
+        printf '\n  \033[1;33m⏳ %dh %dm — git push and astroai-lab save (${WORK} is ephemeral)\033[0m\n\n' \
             "${_hours}" "${_mins}"
     fi
 
@@ -121,83 +121,14 @@ __astroai_lab_quota_reminder() {
         _level="monitor"
         _color='\033[1;33m'
     fi
-    printf '\n  %b⚠  home: %d%% used (%s) — astroai-lab clean home --all-safe%b\n\n' \
+    printf '\n  %b⚠  home: %d%% used (%s) — check astroai-lab status for details%b\n\n' \
         "${_color}" "${_used_pct}" "${_level}" '\033[0m'
 }
 
-__astroai_lab_backup_reminder() {
-    local _state _status _interval=21600 _now _last _since_last
-
-    [[ -t 1 ]] || return 0
-    _state="$(__astroai_lab_state_dir)"
-    _status="${_state}/backup-status.json"
-    [[ -f "${_status}" ]] || return 0
-
-    printf -v _now '%(%s)T' -1
-    _last=0
-    [[ -f "${_state}/last-backup-reminder" ]] && _last="$(cat "${_state}/last-backup-reminder" 2>/dev/null)" || true
-    _since_last=$(( _now - _last ))
-    (( _since_last >= _interval )) || return 0
-
-    if ! command -v jq >/dev/null 2>&1; then
-        return 0
-    fi
-    local _ok _skipped _msg
-    _ok="$(jq -r '.ok // empty' "${_status}" 2>/dev/null)" || return 0
-    _skipped="$(jq -r '.skipped // false' "${_status}" 2>/dev/null)"
-    _msg="$(jq -r '.message // empty' "${_status}" 2>/dev/null)"
-    [[ "${_ok}" == "true" ]] && return 0
-
-    mkdir -p "${_state}"
-    printf '%s' "${_now}" > "${_state}/last-backup-reminder"
-    if [[ "${_skipped}" == "true" ]]; then
-        printf '\n  \033[1;33m⚠  work backup skipped — %s\033[0m\n  → astroai-lab clean home --all-safe  or  ASTROAI_LAB_BACKUP_INTERVAL\n\n' "${_msg}"
-    else
-        printf '\n  \033[1;33m⚠  work backup failed — %s\033[0m\n  → astroai-lab backup status\n\n' "${_msg}"
-    fi
-}
-
-__astroai_lab_auto_archive() {
-    local _root _hash _marker _log _state
-
-    git rev-parse --is-inside-work-tree &>/dev/null || return 0
-    _root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
-    _hash="$(printf '%s' "${_root}" | sha256sum | awk '{print $1}')"
-    _state="$(__astroai_lab_state_dir)"
-    _marker="${_state}/auto-archived-${_hash}"
-    _log="${_state}/auto-archive.log"
-
-    [[ -f "${_marker}" ]] && return 0
-
-    mkdir -p "${_state}"
-    touch "${_marker}"
-    if astroai-lab --yes push >>"${_log}" 2>&1; then
-        return 0
-    fi
-    rm -f "${_marker}"
-}
-
-__astroai_lab_on_exit() {
-    __astroai_lab_auto_archive
-    if [[ -n "${__ASTROAI_LAB_PRIOR_EXIT_TRAP:-}" ]]; then
-        eval "${__ASTROAI_LAB_PRIOR_EXIT_TRAP}"
-    fi
-}
-
-if [[ -t 1 ]]; then
-    __ASTROAI_LAB_PRIOR_EXIT_TRAP="$(
-        trap -p EXIT 2>/dev/null | sed -n "s/^trap -- '\(.*\)' EXIT\$/\1/p" || true
-    )"
-    if [[ -z "${__ASTROAI_LAB_PRIOR_EXIT_TRAP}" || "${__ASTROAI_LAB_PRIOR_EXIT_TRAP}" == "__astroai_lab_on_exit" ]]; then
-        unset __ASTROAI_LAB_PRIOR_EXIT_TRAP
-    fi
-    trap __astroai_lab_on_exit EXIT
-fi
-
 if [[ -t 1 ]]; then
     if [[ -z "${PROMPT_COMMAND:-}" ]]; then
-        PROMPT_COMMAND="__astroai_lab_scratch_reminder; __astroai_lab_quota_reminder; __astroai_lab_backup_reminder"
+        PROMPT_COMMAND="__astroai_lab_scratch_reminder; __astroai_lab_quota_reminder"
     else
-        PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_lab_scratch_reminder; __astroai_lab_quota_reminder; __astroai_lab_backup_reminder"
+        PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_lab_scratch_reminder; __astroai_lab_quota_reminder"
     fi
 fi

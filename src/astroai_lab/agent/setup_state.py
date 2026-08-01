@@ -6,11 +6,12 @@ import contextlib
 import json
 import os
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.errors import LabError
@@ -81,8 +82,7 @@ def record_setup_ok(home: Path | None = None, *, mode: str = "install") -> None:
     if version_file.is_file():
         ver = version_file.read_text(encoding="utf-8").strip()
     stamp_path(home).write_text(
-        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        + f" bundle={ver} mode={mode}\n",
+        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") + f" bundle={ver} mode={mode}\n",
         encoding="utf-8",
     )
     failed_path(home).unlink(missing_ok=True)
