@@ -254,7 +254,7 @@ def apply_free_models(
     if preset not in PRESETS:
         raise LabError(
             f"Unknown preset: {preset}",
-            hint="astroai-lab agent models --list",
+            hint="astroai-lab agent models list",
         )
     home = home or Path.home()
     actions: list[str] = []

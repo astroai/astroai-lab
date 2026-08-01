@@ -1,6 +1,7 @@
 name: CI
 
-# Minimal remote gate — run ./scripts/ci.sh locally before pushing.
+# Remote gate mirroring ./scripts/ci.sh: ruff, ty, CLI audit, pytest.
+# Run ./scripts/ci.sh locally before pushing.
 on:
   push:
     branches: [main]
@@ -48,7 +49,22 @@ jobs:
         # model this project is built on depends on this gate staying hard.
         run: uv lock --check
 
+      - name: Sync
+        run: uv sync --all-extras --quiet
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: ty typecheck
+        # env -u CONDA_PREFIX is a no-op on runners but keeps this identical
+        # to scripts/ci.sh, where a local conda env can confuse ty.
+        run: env -u CONDA_PREFIX uv run ty check src/astroai_lab
+
+      - name: CLI audit
+        run: bash scripts/audit-cli-help.sh
+
       - name: Pytest
-        run: |
-          uv sync --all-extras --quiet
-          uv run pytest -q
+        run: uv run pytest -q

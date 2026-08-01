@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full local CI for astroai-lab. GitHub Actions runs a minimal pytest-only gate.
+# Full local CI for astroai-lab — mirrors .github/workflows/ci.yml.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,12 +11,20 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 uv sync --all-extras --quiet
+uv lock --check
 
 echo "==> ruff check"
 uv run ruff check .
 
 echo "==> ruff format"
 uv run ruff format --check .
+
+echo "==> ty check"
+# CONDA_PREFIX can point ty at a conda site-packages on some dev machines.
+env -u CONDA_PREFIX uv run ty check src/astroai_lab
+
+echo "==> CLI audit"
+bash scripts/audit-cli-help.sh
 
 echo "==> pytest"
 uv run pytest -q

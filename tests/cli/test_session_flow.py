@@ -82,6 +82,33 @@ def test_status_command(lab_env: Path) -> None:
             assert result.exit_code == 0, result.output
 
 
+def test_status_canfar_timeout_graceful(lab_env: Path) -> None:
+    from astroai_lab.cli.status import CANFAR_CMD_TIMEOUT_SEC
+    from astroai_lab.errors import LabError
+
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def _slow_canfar(cmd: list[str], **kwargs: object) -> str:
+        calls.append((cmd, kwargs))
+        raise LabError(f"Command timed out: {cmd[0]}")
+
+    with (
+        patch("astroai_lab.cli.status.shutil.which", return_value="/usr/bin/canfar"),
+        patch("astroai_lab.cli.status.run_capture", side_effect=_slow_canfar),
+        patch("astroai_lab.cli.status.collect_status_quotas", return_value=[]),
+        patch("astroai_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)),
+        patch("astroai_lab.cli.status.home_breakdown", return_value=[]),
+        patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]),
+    ):
+        result = runner.invoke(app, ["status", "--json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)
+    assert data["canfar_auth"] == "Not authenticated"
+    assert data["canfar_sessions"] is None
+    assert [cmd for cmd, _ in calls] == [["canfar", "auth", "show"], ["canfar", "ps"]]
+    assert all(kwargs.get("timeout") == CANFAR_CMD_TIMEOUT_SEC for _, kwargs in calls)
+
+
 def test_status_json_includes_arc_projects(lab_env: Path) -> None:
     from astroai_lab.core.storage import ArcProjectInfo, QuotaLine
 

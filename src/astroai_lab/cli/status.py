@@ -19,6 +19,10 @@ from astroai_lab.core.vospace_status import vault_status_dict
 from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run_capture
 
+# Keep `status` responsive at session start even if the canfar CLI is slow
+# or its auth server stalls; a timeout degrades to "Not authenticated".
+CANFAR_CMD_TIMEOUT_SEC = 5.0
+
 
 def register(app: typer.Typer) -> None:
     @app.command()
@@ -66,11 +70,15 @@ def register(app: typer.Typer) -> None:
         canfar_sessions = None
         if shutil.which("canfar") is not None:
             try:
-                canfar_auth = run_capture(["canfar", "auth", "show"])
+                canfar_auth = run_capture(
+                    ["canfar", "auth", "show"], timeout=CANFAR_CMD_TIMEOUT_SEC
+                )
             except LabError:
                 canfar_auth = "Not authenticated"
             with contextlib.suppress(LabError):
-                canfar_sessions = run_capture(["canfar", "ps"]).splitlines()
+                canfar_sessions = run_capture(
+                    ["canfar", "ps"], timeout=CANFAR_CMD_TIMEOUT_SEC
+                ).splitlines()
 
         if opts.json:
             ui.print_json(
