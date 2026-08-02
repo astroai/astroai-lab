@@ -1,0 +1,20 @@
+# ray-manager-mcp — Ray cluster ops MCP server from the ray-manager session.
+# kind: mcp — `agent plugins configure ray-manager-mcp` merges an mcpServers
+# entry into each host agent's config. Dynamic URL ONLY: the Jobs API address
+# is resolved from $ASTROAI_RAY_JOBS_ADDRESS at runtime (exported by the
+# ray-manager startup script), never a hardcoded per-session manager URL.
+id: ray-manager-mcp
+kind: mcp
+tags: [science, ray, compute, canfar, mcp]
+summary: Ray cluster MCP tools (ensure/status/scale/dashboard) served from the ray-manager session
+homepage: https://github.com/astroai/astroai-workload
+agents: [cursor, hermes, openclaw]    # support matrix (MCP-capable hosts)
+install:
+  server: ray-manager
+  entry:
+    command: astroai-workload
+    args:
+    - mcp
+    - serve
+    env:
+      ASTROAI_RAY_JOBS_ADDRESS: "$ASTROAI_RAY_JOBS_ADDRESS"

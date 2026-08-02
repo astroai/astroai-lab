@@ -562,3 +562,29 @@ def test_configure_addon_transport_uses_dispatcher(tmp_path: Path) -> None:
     results = configure_plugin("git-mcp", home=tmp_path, dry_run=True)
     assert results
     assert all(r.status == "would_install" for r in results)
+
+
+def test_load_plugins_includes_ray_manager_mcp() -> None:
+    """ray-manager-mcp loads from the registry with the mcp kind schema."""
+    plugin = get_plugin("ray-manager-mcp")
+    assert plugin is not None
+    assert plugin["kind"] == "mcp"
+    assert set(plugin["agents"]) == {"cursor", "hermes", "openclaw"}
+    assert plugin["install"]["server"] == "ray-manager"
+    entry = plugin["install"]["entry"]
+    assert entry["command"] == "astroai-workload"
+    assert entry["args"] == ["mcp", "serve"]
+    # Dynamic URL only — env reference, never a hardcoded manager URL.
+    env_ref = entry["env"]["ASTROAI_RAY_JOBS_ADDRESS"]
+    assert env_ref == "$ASTROAI_RAY_JOBS_ADDRESS"
+
+
+def test_configure_ray_manager_mcp_writes_dynamic_env(tmp_path: Path) -> None:
+    """configure ray-manager-mcp merges an entry whose env stays a $-ref."""
+    results = configure_plugin("ray-manager-mcp", home=tmp_path, agent="cursor")
+    assert results
+    assert results[0].status == "installed"
+    data = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+    entry = data["mcpServers"]["ray-manager"]
+    assert entry["command"] == "astroai-workload"
+    assert entry["env"]["ASTROAI_RAY_JOBS_ADDRESS"] == "$ASTROAI_RAY_JOBS_ADDRESS"
