@@ -216,9 +216,11 @@ astroai-lab agent add --tag lean
 astroai-lab agent skills list
 astroai-lab agent skills update
 astroai-lab agent plugins list
+astroai-lab agent plugins list --kind mcp
 astroai-lab agent plugins install canfar-ray       # apply to installed agents
 astroai-lab agent plugins install canfar-ray --agent hermes
 astroai-lab agent plugins remove canfar-ray
+astroai-lab agent plugins configure ray-manager-mcp   # MCP server entry (astroai-workload mcp serve)
 astroai-lab agent verify
 astroai-lab agent fix-config          # auto-repair (or --clean for stale state)
 astroai-lab agent update               # full refresh after image upgrades
@@ -239,6 +241,16 @@ openclaw `~/.openclaw/openclaw.json` — **dynamic URLs only** (e.g.
 `$ASTROAI_RAY_JOBS_ADDRESS`), never a hardcoded per-session manager URL.
 Dropping an agent (`agent remove <agent>`) also removes its plugin-applied
 files. `agent list --json` includes a `plugins` section.
+
+**`ray-manager-mcp`** (the shipped `kind: mcp` example, agents
+cursor/hermes/openclaw) configures `astroai-workload mcp serve` — the
+zero-dependency stdio MCP server from astroai-workload exposing the Ray cluster
+tools `cluster_ensure` / `cluster_status` / `cluster_scale` / `dashboard_url`.
+Its `env.ASTROAI_RAY_JOBS_ADDRESS` stays a `$`-ref resolved at runtime (the
+ray-manager startup script exports it), so any MCP-capable agent (hermes,
+openclaw, Cursor) gets live Ray cluster tools without a hardcoded manager URL.
+Container E2E verified the entry lands in `~/.hermes/config.yaml` +
+`~/.openclaw/openclaw.json` + `~/.cursor/mcp.json`.
 
 The legacy `addons.json` catalog was **migrated into the plugin registry**
 (entries carry `addon: true` + their `install.type` transport): `agent addons`

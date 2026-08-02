@@ -29,7 +29,8 @@ The goals:
 4. **New agents onboarded properly** — `hermes` (Nous Research) and `openclaw`
    (openclaw/openclaw) get full registry entries (install/setup/config/verify +
    plugin support), and the Ray-on-CANFAR story is exposed to them as a skill
-   (`canfar-ray`, already added) and, later, as MCP tools.
+   (`canfar-ray`, already added) and as MCP tools (`ray-manager-mcp`, shipped
+   in Phase 3).
 
 ---
 
@@ -248,6 +249,12 @@ YAML file — no Python branch required.
       openclaw JSON5). **Dynamic URLs only** (e.g.
       `$ASTROAI_RAY_JOBS_ADDRESS`) — never a hardcoded manager URL, since it
       differs per session.
+- [x] **`ray-manager-mcp` ships as the `kind: mcp` example** (agents
+      cursor/hermes/openclaw): `plugins configure ray-manager-mcp` wires
+      `command: astroai-workload, args: [mcp, serve]` with a dynamic
+      `$ASTROAI_RAY_JOBS_ADDRESS` env ref into each agent's config. Backed by
+      the zero-dependency stdio MCP server in astroai-workload (`mcp serve`,
+      tools: cluster_ensure / cluster_status / cluster_scale / dashboard_url).
 - [x] Removal is recursive: `agent remove <agent>` removes its plugin-applied
       files via `plugins.remove_agent_plugin_files` (wired into the registry).
 
@@ -267,8 +274,12 @@ Specifics:
   ClawHub `openclaw skills install @owner/slug`; headless
   `openclaw agent --message "…"`.
 - Both get `canfar-ray` plugin coverage (already wired via the `agent-skill`
-  install type) and — when the ray-manager MCP server ships — a `kind: mcp`
-  plugin entry pointing at the session manager URL.
+  install type) and the `ray-manager-mcp` `kind: mcp` plugin entry (shipped in
+  Phase 3): `astroai-workload mcp serve` exposes the Ray cluster tools
+  (ensure/status/scale/dashboard) over stdio, wired with a dynamic
+  `$ASTROAI_RAY_JOBS_ADDRESS` env ref (resolved per-session, never hardcoded).
+  Container E2E proved the entry lands in `~/.hermes/config.yaml` +
+  `~/.openclaw/openclaw.json` (+ `~/.cursor/mcp.json`) for both agents.
 
 ### Phase 5 — Tests, docs, CI
 
