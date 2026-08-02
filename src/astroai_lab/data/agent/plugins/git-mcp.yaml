@@ -1,0 +1,25 @@
+# git-mcp — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: git-mcp
+kind: mcp
+addon: true
+tags:
+- lean
+- review
+summary: Local git MCP (uvx mcp-server-git) — no API key
+homepage: ''
+agents:
+- cursor
+install:
+  type: mcp-snippet
+  server: git
+  cursor:
+    command: uvx
+    args:
+    - mcp-server-git
+  opencode:
+    type: local
+    command:
+    - uvx
+    - mcp-server-git
+    enabled: true

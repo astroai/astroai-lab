@@ -1,0 +1,15 @@
+# ast-grep-cli — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: ast-grep-cli
+kind: tool
+addon: true
+tags:
+- lean
+- python
+summary: ast-grep (sg) binary for structural edits
+homepage: ''
+agents:
+- cursor
+install:
+  type: cli-tool
+  tool: ast-grep

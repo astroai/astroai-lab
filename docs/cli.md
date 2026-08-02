@@ -146,9 +146,9 @@ astroai-lab kernel list
 astroai-lab kernel unregister NAME
 ```
 
-### `astroai-lab agent catalog|list|install|remove|setup|update|addons|add|skills|project|verify|fix-config|models|status`
+### `astroai-lab agent catalog|list|install|remove|setup|update|addons|add|skills|plugins|project|verify|fix-config|models|status`
 
-AI agent MCP, rules, skills, CLI installation, curated catalog, auto-fix, state clean, and free model presets.
+AI agent MCP, rules, skills, CLI installation, curated catalog, auto-fix, state clean, plugins, and free model presets.
 
 **The agent registry is the single source of truth.** Every agent is defined by
 one YAML file under `data/agent/agents/<id>.yaml` (schema in
@@ -177,10 +177,15 @@ Mental model:
 | `agent remove TOOL` | Uninstall a CLI binary + config files via the registry (`--purge` for home dirs) |
 | `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles) |
 | `agent update` | Refresh configs + upstream skills (after image upgrades) |
-| `agent addons` | Curated lean + science addons (skills/rules/MCP) |
-| `agent add NAME…` | Install curated addon(s); `--tag lean` / `--tag science` |
+| `agent addons` | Curated lean + science addons (skills/rules/MCP) — reads the plugin registry (`addon: true` entries) |
+| `agent add NAME…` | Install curated addon(s); `--tag lean` / `--tag science` — delegates to `plugins install` |
 | `agent skills list` | Cursor skill inventory (bundled / GitHub / pixi / extras) |
 | `agent skills update` | Refresh GitHub upstream skills only |
+| `agent plugins list` | Installed + available plugins (skill/mcp/config/addon) from `data/agent/plugins/*.yaml` |
+| `agent plugins install ID` | Apply a plugin to every installed agent in its support matrix (`--agent` scopes, `--force` re-applies) |
+| `agent plugins update ID` | Force re-apply a plugin (refresh after image upgrades) |
+| `agent plugins remove ID` | Remove a plugin from every agent (or `--agent`); recursive agent removal cleans these too |
+| `agent plugins configure ID` | Per-agent config merge (kind `mcp` → `mcpServers` entry; kind `config` → write) — dynamic URLs only |
 | `agent project [DIR]` | Per-project AGENTS.md + `.cursor/` scaffold |
 | `agent status` | Binaries + configs at a glance (registry agents included) |
 | `agent status --endpoints` | Active container UI endpoints (was `agent interact`) |
@@ -210,12 +215,35 @@ astroai-lab agent add polars modern-python
 astroai-lab agent add --tag lean
 astroai-lab agent skills list
 astroai-lab agent skills update
+astroai-lab agent plugins list
+astroai-lab agent plugins install canfar-ray       # apply to installed agents
+astroai-lab agent plugins install canfar-ray --agent hermes
+astroai-lab agent plugins remove canfar-ray
 astroai-lab agent verify
 astroai-lab agent fix-config          # auto-repair (or --clean for stale state)
 astroai-lab agent update               # full refresh after image upgrades
 astroai-lab agent models free
 astroai-lab agent models free --preset long
 ```
+
+**Agent plugins** (`data/agent/plugins/*.yaml`) are the uniform surface for
+skills / MCP servers / config snippets / addons across *all* installed agents.
+Each plugin declares a support matrix (`agents:`), a `kind` (`skill` |
+`bundle` | `mcp` | `tool` | `rule` | `config` | `addon`), and how it is
+applied (`install.source` for bundled skills, `install.entry` for `mcpServers`
+merges, or a legacy addon `install.type` transport). `plugins install <id>`
+applies to every installed agent in the matrix by default; `--agent` scopes it.
+`plugins configure <id>` for `kind: mcp` merges an `mcpServers` entry into
+Cursor/Copilot/Claude/OpenCode configs, hermes `~/.hermes/config.yaml`, and
+openclaw `~/.openclaw/openclaw.json` — **dynamic URLs only** (e.g.
+`$ASTROAI_RAY_JOBS_ADDRESS`), never a hardcoded per-session manager URL.
+Dropping an agent (`agent remove <agent>`) also removes its plugin-applied
+files. `agent list --json` includes a `plugins` section.
+
+The legacy `addons.json` catalog was **migrated into the plugin registry**
+(entries carry `addon: true` + their `install.type` transport): `agent addons`
+/ `agent add` now read and install through the plugin system, so `agent add
+ponytail` and `agent plugins install ponytail` are equivalent.
 
 ## Removed in 0.3
 

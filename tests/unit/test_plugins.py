@@ -1,0 +1,564 @@
+"""Unit tests for the Phase 3 plugin system (docs/agent-rethink-plan.md).
+
+Covers the plugins/*.yaml loader + schema validation, per-agent installed
+status, install/update/remove/configure for the skill / mcp / config kinds,
+recursive agent removal (remove_agent_plugin_files), and the CLI surface.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+from typer.testing import CliRunner
+
+from astroai_lab.agent.plugins import (
+    configure_plugin,
+    get_plugin,
+    install_plugin,
+    load_plugins,
+    plugin_ids,
+    plugin_installed,
+    plugin_status,
+    remove_agent_plugin_files,
+    remove_plugin,
+    update_plugin,
+)
+from astroai_lab.cli.main import app
+from astroai_lab.errors import LabError
+
+runner = CliRunner()
+
+
+def _write_plugin_yaml(root: Path, name: str, body: str) -> Path:
+    plugins = root / "plugins"
+    plugins.mkdir(parents=True, exist_ok=True)
+    path = plugins / f"{name}.yaml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Loader + schema validation
+# ---------------------------------------------------------------------------
+
+
+def test_load_plugins_includes_canfar_ray() -> None:
+    plugins = load_plugins()
+    ids = [p["id"] for p in plugins]
+    assert "canfar-ray" in ids
+    assert ids == sorted(ids)
+    plugin = get_plugin("canfar-ray")
+    assert plugin is not None
+    assert plugin["kind"] == "skill"
+    assert set(plugin["agents"]) == {"hermes", "openclaw"}
+    assert plugin["install"]["source"] == "canfar-ray"
+
+
+def test_load_plugins_empty_dir(tmp_path: Path) -> None:
+    assert load_plugins(tmp_path) == []
+
+
+def test_plugin_ids_and_get(tmp_path: Path) -> None:
+    assert "canfar-ray" in plugin_ids()
+    assert get_plugin("not-a-plugin") is None
+
+
+def test_validation_missing_required_key(tmp_path: Path) -> None:
+    body = "kind: skill\nsummary: x\nagents: [a]\ninstall:\n  source: x\n"
+    _write_plugin_yaml(tmp_path, "broken", body)
+    with pytest.raises(LabError, match="missing required key"):
+        load_plugins(tmp_path)
+
+
+def test_validation_bad_kind(tmp_path: Path) -> None:
+    _write_plugin_yaml(
+        tmp_path,
+        "broken",
+        "id: broken\nkind: widget\nsummary: x\nagents: [a]\ninstall:\n  source: x\n",
+    )
+    with pytest.raises(LabError, match="invalid kind"):
+        load_plugins(tmp_path)
+
+
+def test_validation_empty_agents(tmp_path: Path) -> None:
+    _write_plugin_yaml(
+        tmp_path,
+        "broken",
+        "id: broken\nkind: skill\nsummary: x\nagents: []\ninstall:\n  source: x\n",
+    )
+    with pytest.raises(LabError, match="non-empty agents"):
+        load_plugins(tmp_path)
+
+
+def test_validation_skill_missing_source(tmp_path: Path) -> None:
+    _write_plugin_yaml(
+        tmp_path,
+        "broken",
+        "id: broken\nkind: skill\nsummary: x\nagents: [a]\ninstall:\n  targets:\n    a: .x\n",
+    )
+    with pytest.raises(LabError, match="install.source"):
+        load_plugins(tmp_path)
+
+
+def test_validation_mcp_missing_entry(tmp_path: Path) -> None:
+    _write_plugin_yaml(
+        tmp_path,
+        "broken",
+        "id: broken\nkind: mcp\nsummary: x\nagents: [cursor]\ninstall:\n  server: s\n",
+    )
+    with pytest.raises(LabError, match="install.server and install.entry"):
+        load_plugins(tmp_path)
+
+
+def test_validation_bad_yaml(tmp_path: Path) -> None:
+    _write_plugin_yaml(tmp_path, "broken", "id: [unclosed")
+    with pytest.raises(LabError, match="Invalid YAML"):
+        load_plugins(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Installed status
+# ---------------------------------------------------------------------------
+
+
+def _skill_plugin_dict() -> dict:
+    return {
+        "id": "canfar-ray",
+        "kind": "skill",
+        "tags": ["science", "ray"],
+        "summary": "Drive CANFAR Ray clusters",
+        "agents": ["hermes", "openclaw"],
+        "install": {
+            "source": "canfar-ray",
+            "targets": {
+                "hermes": ".hermes/skills/canfar-ray",
+                "openclaw": ".openclaw/skills/canfar-ray",
+            },
+        },
+    }
+
+
+def test_plugin_status_not_installed(tmp_path: Path) -> None:
+    status = plugin_status(_skill_plugin_dict(), tmp_path)
+    assert status["any_installed"] is False
+    assert status["installed"] == {"hermes": False, "openclaw": False}
+
+
+def test_plugin_status_installed_one_agent(tmp_path: Path) -> None:
+    dst = tmp_path / ".hermes" / "skills" / "canfar-ray"
+    dst.mkdir(parents=True)
+    (dst / "SKILL.md").write_text("# canfar-ray\n", encoding="utf-8")
+    status = plugin_status(_skill_plugin_dict(), tmp_path)
+    assert status["installed"]["hermes"] is True
+    assert status["installed"]["openclaw"] is False
+    assert status["any_installed"] is True
+
+
+# ---------------------------------------------------------------------------
+# Install / update / remove (skill kind)
+# ---------------------------------------------------------------------------
+
+
+def test_install_plugin_unknown() -> None:
+    with pytest.raises(LabError, match="Unknown plugin"):
+        install_plugin("not-a-plugin")
+
+
+def test_install_plugin_skill_no_installed_agents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: False)
+    results = install_plugin("canfar-ray", home=tmp_path)
+    assert len(results) == 1
+    assert results[0].status == "skipped"
+    assert "no installed agent" in results[0].detail
+
+
+def test_install_plugin_skill_copies_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    results = install_plugin("canfar-ray", home=tmp_path)
+    assert results
+    assert all(r.status == "installed" for r in results)
+    for agent in ("hermes", "openclaw"):
+        dst = tmp_path / f".{agent}" / "skills" / "canfar-ray" / "SKILL.md"
+        assert dst.is_file()
+
+
+def test_install_plugin_skill_scope_agent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    results = install_plugin("canfar-ray", home=tmp_path, agent="hermes")
+    assert len(results) == 1
+    assert results[0].agent == "hermes"
+    assert results[0].status == "installed"
+    assert not (tmp_path / ".openclaw").exists()
+
+
+def test_install_plugin_skill_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    results = install_plugin("canfar-ray", home=tmp_path, dry_run=True)
+    assert all(r.status == "would_install" for r in results)
+    assert not (tmp_path / ".hermes").exists()
+
+
+def test_install_plugin_skill_skip_when_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    install_plugin("canfar-ray", home=tmp_path)
+    results = install_plugin("canfar-ray", home=tmp_path)
+    assert all(r.status == "skipped" for r in results)
+    # force re-applies
+    results = install_plugin("canfar-ray", home=tmp_path, force=True)
+    assert all(r.status == "installed" for r in results)
+
+
+def test_update_plugin_forces(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    install_plugin("canfar-ray", home=tmp_path)
+    results = update_plugin("canfar-ray", home=tmp_path)
+    assert all(r.status == "installed" for r in results)  # force re-apply
+
+
+def test_remove_plugin_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    install_plugin("canfar-ray", home=tmp_path)
+    results = remove_plugin("canfar-ray", home=tmp_path)
+    assert all(r.status == "removed" for r in results)
+    assert not (tmp_path / ".hermes" / "skills" / "canfar-ray").exists()
+    assert not (tmp_path / ".openclaw" / "skills" / "canfar-ray").exists()
+
+
+def test_remove_plugin_skill_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    install_plugin("canfar-ray", home=tmp_path)
+    results = remove_plugin("canfar-ray", home=tmp_path, dry_run=True)
+    assert all(r.status == "would_remove" for r in results)
+    assert (tmp_path / ".hermes" / "skills" / "canfar-ray" / "SKILL.md").is_file()
+
+
+def test_remove_plugin_scope_agent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    install_plugin("canfar-ray", home=tmp_path)
+    results = remove_plugin("canfar-ray", home=tmp_path, agent="hermes")
+    assert len(results) == 1
+    assert results[0].agent == "hermes"
+    assert not (tmp_path / ".hermes" / "skills" / "canfar-ray").exists()
+    assert (tmp_path / ".openclaw" / "skills" / "canfar-ray" / "SKILL.md").is_file()
+
+
+def test_remove_plugin_unknown_agent() -> None:
+    with pytest.raises(LabError, match="does not support agent"):
+        remove_plugin("canfar-ray", agent="not-an-agent")
+
+
+# ---------------------------------------------------------------------------
+# configure (mcp kind)
+# ---------------------------------------------------------------------------
+
+
+def _mcp_plugin_dict() -> dict:
+    return {
+        "id": "ray-manager",
+        "kind": "mcp",
+        "tags": ["ray"],
+        "summary": "Ray manager MCP tools",
+        "agents": ["cursor", "openclaw"],
+        "install": {
+            "server": "ray-manager",
+            "entry": {
+                "command": "astroai-workload",
+                "args": ["mcp", "serve"],
+                "env": {"ASTROAI_RAY_JOBS_ADDRESS": "$ASTROAI_RAY_JOBS_ADDRESS"},
+            },
+        },
+    }
+
+
+def test_configure_mcp_merges_cursor_config(tmp_path: Path) -> None:
+    results = configure_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="cursor")
+    assert results[0].status == "installed"
+    mcp_file = tmp_path / ".cursor" / "mcp.json"
+    data = json.loads(mcp_file.read_text(encoding="utf-8"))
+    assert "ray-manager" in data["mcpServers"]
+    assert data["mcpServers"]["ray-manager"]["command"] == "astroai-workload"
+    # Dynamic URL only — env reference, never a hardcoded manager URL.
+    assert data["mcpServers"]["ray-manager"]["env"]["ASTROAI_RAY_JOBS_ADDRESS"].startswith("$")
+
+
+def test_configure_mcp_merges_openclaw_config(tmp_path: Path) -> None:
+    results = configure_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="openclaw")
+    assert results[0].status == "installed"
+    data = json.loads((tmp_path / ".openclaw" / "openclaw.json").read_text(encoding="utf-8"))
+    assert "ray-manager" in data["mcpServers"]
+
+
+def test_configure_mcp_skip_when_present(tmp_path: Path) -> None:
+    results = configure_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="cursor")
+    assert results[0].status == "installed"
+    results = configure_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="cursor")
+    assert results[0].status == "skipped"
+    # force re-merges
+    results = configure_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="cursor", force=True)
+    assert results[0].status == "installed"
+
+
+def test_configure_mcp_dry_run(tmp_path: Path) -> None:
+    results = configure_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="cursor", dry_run=True)
+    assert results[0].status == "would_install"
+    assert not (tmp_path / ".cursor").exists()
+
+
+def test_configure_mcp_remove(tmp_path: Path) -> None:
+    configure_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="cursor")
+    results = remove_plugin_from_dict(_mcp_plugin_dict(), tmp_path, agent="cursor")
+    assert results[0].status == "removed"
+    data = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+    assert "ray-manager" not in data["mcpServers"]
+
+
+def test_configure_skill_is_noop(tmp_path: Path) -> None:
+    results = configure_plugin_from_dict(_skill_plugin_dict(), tmp_path, agent="hermes")
+    assert results[0].status == "no-op"
+
+
+def test_plugin_installed_mcp_present(tmp_path: Path) -> None:
+    plugin = _mcp_plugin_dict()
+    assert plugin_installed(plugin, tmp_path, "cursor") is False
+    configure_plugin_from_dict(plugin, tmp_path, agent="cursor")
+    assert plugin_installed(plugin, tmp_path, "cursor") is True
+
+
+# ---------------------------------------------------------------------------
+# config kind
+# ---------------------------------------------------------------------------
+
+
+def test_install_config_kind(tmp_path: Path) -> None:
+    plugin = {
+        "id": "kilo-preset",
+        "kind": "config",
+        "agents": ["kilo"],
+        "install": {"target": "~/.config/kilo/preset.jsonc", "content": '{"model": "free"}\n'},
+    }
+    results = install_plugin_from_dict(plugin, tmp_path)
+    assert results[0].status == "installed"
+    assert (tmp_path / ".config" / "kilo" / "preset.jsonc").is_file()
+    results = install_plugin_from_dict(plugin, tmp_path)
+    assert results[0].status == "skipped"
+    results = remove_plugin_from_dict(plugin, tmp_path)
+    assert results[0].status == "removed"
+    assert not (tmp_path / ".config" / "kilo" / "preset.jsonc").exists()
+
+
+# ---------------------------------------------------------------------------
+# Recursive agent removal
+# ---------------------------------------------------------------------------
+
+
+def test_remove_agent_plugin_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astroai_lab.agent.plugins._agent_installed", lambda a, h=None: True)
+    install_plugin("canfar-ray", home=tmp_path)
+    rows = remove_agent_plugin_files("hermes", home=tmp_path)
+    assert rows
+    assert all("hermes" in r["target"] for r in rows)
+    assert not (tmp_path / ".hermes" / "skills" / "canfar-ray").exists()
+    # openclaw untouched
+    assert (tmp_path / ".openclaw" / "skills" / "canfar-ray" / "SKILL.md").is_file()
+
+
+def test_remove_agent_plugin_files_unknown_agent(tmp_path: Path) -> None:
+    assert remove_agent_plugin_files("not-an-agent", home=tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
+# Helpers that inject a plugin dict (root-less) by monkeypatching get_plugin
+# ---------------------------------------------------------------------------
+
+
+def _plugin_ctx(plugin: dict):
+    """Context manager swapping plugins.get_plugin for the injected plugin."""
+    from astroai_lab.agent import plugins as plugins_mod
+
+    original = plugins_mod.get_plugin
+
+    def fake_get(plugin_id, root=None):
+        return plugin if plugin_id == plugin["id"] else None
+
+    return plugins_mod, original, fake_get
+
+
+def configure_plugin_from_dict(plugin: dict, home: Path, *, agent=None, force=False, dry_run=False):
+    plugins_mod, original, fake_get = _plugin_ctx(plugin)
+    plugins_mod.get_plugin = fake_get
+    try:
+        return configure_plugin(plugin["id"], agent=agent, home=home, force=force, dry_run=dry_run)
+    finally:
+        plugins_mod.get_plugin = original
+
+
+def install_plugin_from_dict(plugin: dict, home: Path, *, force=False):
+    plugins_mod, original, fake_get = _plugin_ctx(plugin)
+    plugins_mod.get_plugin = fake_get
+    try:
+        return install_plugin(plugin["id"], home=home, force=force, installed_only=False)
+    finally:
+        plugins_mod.get_plugin = original
+
+
+def remove_plugin_from_dict(plugin: dict, home: Path, *, agent=None):
+    plugins_mod, original, fake_get = _plugin_ctx(plugin)
+    plugins_mod.get_plugin = fake_get
+    try:
+        return remove_plugin(plugin["id"], agent=agent, home=home)
+    finally:
+        plugins_mod.get_plugin = original
+
+
+# ---------------------------------------------------------------------------
+# CLI surface
+# ---------------------------------------------------------------------------
+
+
+def test_cli_plugins_list_json() -> None:
+    result = runner.invoke(app, ["--json", "agent", "plugins", "list"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    ids = {row["id"] for row in data}
+    assert "canfar-ray" in ids
+    row = next(r for r in data if r["id"] == "canfar-ray")
+    assert row["kind"] == "skill"
+
+
+def test_cli_plugins_install_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    argv = ["--json", "--dry-run", "agent", "plugins", "install", "canfar-ray"]
+    result = runner.invoke(app, argv)
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["plugin"] == "canfar-ray"
+    assert data["dry_run"] is True
+    assert data["actions"]
+
+
+def test_cli_plugins_install_unknown() -> None:
+    result = runner.invoke(app, ["--json", "agent", "plugins", "install", "not-a-plugin"])
+    assert result.exit_code == 1
+    data = json.loads(result.stdout)
+    assert data["ok"] is False
+    assert "Unknown plugin" in data["errors"][0]
+
+
+def test_cli_plugins_help_mentions_verb() -> None:
+    result = runner.invoke(app, ["agent", "--help"])
+    assert result.exit_code == 0
+    assert "plugins" in (result.stdout + result.stderr)
+
+
+def test_cli_agent_list_json_includes_plugins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["--json", "agent", "list"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "plugins" in data
+    ids = {row["id"] for row in data["plugins"]}
+    assert "canfar-ray" in ids
+
+
+# ---------------------------------------------------------------------------
+# Migrated addons (Phase 3 seed-catalog: addons.json -> plugins/*.yaml)
+# ---------------------------------------------------------------------------
+
+
+def test_load_plugins_includes_migrated_addons() -> None:
+    """Legacy addons now load as plugins with an `addon` marker + transport."""
+    plugins = load_plugins()
+    by_id = {p["id"]: p for p in plugins}
+    for addon_id in ("ponytail", "polars", "git-mcp", "token-efficient", "hyperfine"):
+        assert addon_id in by_id, f"missing migrated addon {addon_id}"
+        assert by_id[addon_id]["addon"] is True
+        assert by_id[addon_id]["install"]["type"]
+    # Natural kind mapping preserved.
+    assert by_id["ponytail"]["kind"] == "bundle"
+    assert by_id["polars"]["kind"] == "skill"
+    assert by_id["git-mcp"]["kind"] == "mcp"
+    assert by_id["hyperfine"]["kind"] == "tool"
+    assert by_id["token-efficient"]["kind"] == "rule"
+    # Defaults carried over.
+    assert by_id["token-efficient"]["default"] is True
+    assert by_id["ponytail"].get("default") is None
+
+
+def test_validation_addon_transport_requires_fields(tmp_path: Path) -> None:
+    _write_plugin_yaml(
+        tmp_path,
+        "broken",
+        "id: broken\nkind: skill\nsummary: x\nagents: [cursor]\n"
+        "install:\n  type: github-skill\n  repo: org/repo\n",
+    )
+    with pytest.raises(LabError, match="requires repo and path"):
+        load_plugins(tmp_path)
+    # The first broken entry still fails on reload — drop it before the next case.
+    (tmp_path / "plugins" / "broken.yaml").unlink()
+    _write_plugin_yaml(
+        tmp_path,
+        "broken2",
+        "id: broken2\nkind: mcp\nsummary: x\nagents: [cursor]\ninstall:\n  type: mcp-snippet\n",
+    )
+    with pytest.raises(LabError, match="requires server"):
+        load_plugins(tmp_path)
+
+
+def test_validation_addon_transport_bad_type(tmp_path: Path) -> None:
+    _write_plugin_yaml(
+        tmp_path,
+        "broken",
+        "id: broken\nkind: skill\nsummary: x\nagents: [cursor]\ninstall:\n  type: mystery\n",
+    )
+    with pytest.raises(LabError, match="invalid install.type"):
+        load_plugins(tmp_path)
+
+
+def test_plugin_status_includes_default_field() -> None:
+    plugin = _skill_plugin_dict()
+    plugin["default"] = True
+    status = plugin_status(plugin, Path("/tmp"))
+    assert status["default"] is True
+    assert plugin_status(_skill_plugin_dict(), Path("/tmp"))["default"] is False
+
+
+def test_cursor_agent_always_installed() -> None:
+    from astroai_lab.agent.plugins import _agent_installed
+
+    assert _agent_installed("cursor", home=Path("/tmp")) is True
+
+
+def test_install_addon_transport_dry_run(tmp_path: Path) -> None:
+    """`plugins install` on a migrated mcp-snippet addon -> would_install."""
+    results = install_plugin("git-mcp", home=tmp_path, installed_only=False, dry_run=True)
+    assert results
+    assert all(r.status == "would_install" for r in results)
+    assert not (tmp_path / ".cursor" / "mcp.json").exists()
+
+
+def test_install_addon_transport_skips_when_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Migrated mcp-snippet addon: skipped once the server is in the config."""
+    from astroai_lab.agent.addons import _merge_cursor_mcp
+
+    (tmp_path / ".cursor").mkdir(parents=True)
+    (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers": {}}\n', encoding="utf-8")
+    _merge_cursor_mcp(tmp_path / ".cursor" / "mcp.json", "git", {"command": "uvx"}, force=True)
+    results = install_plugin("git-mcp", home=tmp_path, installed_only=False)
+    assert all(r.status == "skipped" for r in results)
+
+
+def test_configure_addon_transport_uses_dispatcher(tmp_path: Path) -> None:
+    """`plugins configure git-mcp` must not KeyError on a missing `entry`."""
+    results = configure_plugin("git-mcp", home=tmp_path, dry_run=True)
+    assert results
+    assert all(r.status == "would_install" for r in results)

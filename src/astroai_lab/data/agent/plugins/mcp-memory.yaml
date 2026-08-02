@@ -1,0 +1,15 @@
+# mcp-memory — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: mcp-memory
+kind: mcp
+addon: true
+tags:
+- lean
+summary: Persistent agent memory (already in agent setup)
+homepage: ''
+default: true
+agents:
+- cursor
+install:
+  type: bundled
+  note: Included in agent setup MCP configs

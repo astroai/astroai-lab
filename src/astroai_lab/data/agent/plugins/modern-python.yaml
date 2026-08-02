@@ -1,0 +1,16 @@
+# modern-python — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: modern-python
+kind: skill
+addon: true
+tags:
+- lean
+- python
+summary: Modern Python tooling — uv, ruff, ty, pytest (Trail of Bits)
+homepage: https://github.com/trailofbits/skills
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: trailofbits/skills
+  path: plugins/modern-python/skills/modern-python

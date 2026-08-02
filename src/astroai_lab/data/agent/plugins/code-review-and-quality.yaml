@@ -1,0 +1,16 @@
+# code-review-and-quality — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: code-review-and-quality
+kind: skill
+addon: true
+tags:
+- lean
+- review
+summary: Five-axis review, small PRs, severity labels
+homepage: https://github.com/addyosmani/agent-skills
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: addyosmani/agent-skills
+  path: skills/code-review-and-quality

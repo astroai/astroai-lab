@@ -116,6 +116,50 @@ def test_strip_jsonc_preserves_comma_in_string() -> None:
     assert parse_jsonc('{"a": 1,}') == {"a": 1}
 
 
+def test_load_addons_is_plugin_registry_shim() -> None:
+    """addons.json was migrated — load_addons reads the plugin registry."""
+    from astroai_lab.agent.plugins import load_plugins
+
+    plugin_ids = {p["id"] for p in load_plugins() if p.get("addon")}
+    addon_ids = {a["id"] for a in load_addons()}
+    assert addon_ids == plugin_ids
+    # Legacy shape preserved: install.type transport + kind vocabulary.
+    item = get_addon("ponytail")
+    assert item is not None
+    assert item["kind"] == "bundle"
+    assert item["install"]["type"] == "github-bundle"
+    assert isinstance(item["install"]["skills"], list)
+
+
+def test_add_addon_delegates_to_plugins_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`agent add X` and `agent plugins install X` route identically."""
+    from astroai_lab.agent.plugins import install_plugin
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    addon_result = add_addon("canfar-ray", home=home)
+    assert addon_result.status == "installed"
+    plugin_results = install_plugin("canfar-ray", home=home, installed_only=False)
+    # Both paths produced the same skill dirs.
+    for agent in ("hermes", "openclaw"):
+        rel = f".{agent}/skills/canfar-ray/SKILL.md"
+        assert (home / rel).is_file()
+    assert all(r.status == "skipped" for r in plugin_results)
+
+
+def test_add_addon_github_bundle_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Migrated github-bundle addon dry-run (no network)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = add_addon("ponytail", home=home, dry_run=True)
+    assert result.status == "dry-run"
+    assert not (home / ".cursor").exists()
+
+
 def test_add_unknown_raises() -> None:
     with pytest.raises(LabError, match="Unknown addon"):
         add_addon("definitely-missing")

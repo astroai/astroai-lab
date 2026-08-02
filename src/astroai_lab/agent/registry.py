@@ -400,7 +400,13 @@ def _remove_registry_method(
         if purge and cfg.parent != home:
             rm_tree(cfg.parent, f"purge:{cfg.parent}")
 
-    # Plugin-created files (~/.<id>/skills from agent-skill addons).
+    # Plugin-applied files (Phase 3 recursive removal). Run the precise
+    # plugin sweep first so installed plugins report `removed` (not `skipped`),
+    # then a broad sweep of ~/.<id>/skills catches any non-plugin skills.
+    from astroai_lab.agent import plugins as agent_plugins
+
+    for row in agent_plugins.remove_agent_plugin_files(agent_id, home=home, dry_run=dry_run):
+        results.append(row)
     rm_tree(home / f".{agent_id}" / "skills", f"plugins:{agent_id}")
 
     # Setup state stamps.

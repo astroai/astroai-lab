@@ -1,0 +1,16 @@
+# pr-review — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: pr-review
+kind: skill
+addon: true
+tags:
+- lean
+- review
+summary: Pull-request review playbook
+homepage: https://github.com/pavelzw/skill-forge
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: pavelzw/skill-forge
+  path: recipes/pr-review

@@ -14,6 +14,7 @@ from astroai_lab.agent import free_models as agent_free_models
 from astroai_lab.agent import install as agent_install
 from astroai_lab.agent import interact as agent_interact_mod
 from astroai_lab.agent import inventory as agent_inventory
+from astroai_lab.agent import plugins as agent_plugins
 from astroai_lab.agent import setup as agent_setup_mod
 from astroai_lab.agent import upstream as agent_upstream
 from astroai_lab.cli.context import get_opts
@@ -30,14 +31,15 @@ agent_app = typer.Typer(
         "  remove     uninstall a CLI binary + config files\n"
         "  setup      write MCP/rules/skills configs\n"
         "  update     refresh configs + upstream skills\n"
-        "  addons     curated skills/rules/MCP (lean + science)\n"
-        "  add        install curated addon(s) by id or --tag\n"
+        "  addons     curated addons via the plugin registry (lean + science)\n"
+        "  add        install curated addon(s) — delegates to `plugins install`\n"
         "  skills     Cursor skill inventory / refresh upstream\n"
         "  project    per-project AGENTS.md + .cursor scaffold\n"
         "  status     binaries + configs at a glance (--endpoints for container UIs)\n"
         "  verify     presence + config syntax checks (with --fix)\n"
         "  fix-config auto-repair setup state, locks, & config syntax\n"
         "  models     free-tier model presets\n"
+        "  plugins    skills/MCP/config/addons across installed agents\n"
         "Deprecated aliases: fix, clean, report, interact — see `astroai-lab help -c agent`"
     ),
 )
@@ -64,6 +66,8 @@ def agent_root(ctx: typer.Context) -> None:
             "  astroai-lab agent fix-config        # auto-repair (--clean for stale state)"
         )
         ui.print_hint("  astroai-lab agent models free       # OpenRouter / Kilo presets")
+        ui.print_hint("  astroai-lab agent plugins list     # skills/MCP/config across agents")
+        ui.print_hint("  astroai-lab agent plugins install canfar-ray  # apply to installed")
         ui.print_hint(
             "  (deprecated: fix, clean, report, interact → "
             "fix-config / status --json / status --endpoints)"
@@ -115,12 +119,27 @@ def _addon_completer(ctx, incomplete: str) -> list[str]:
     return [i for i in ids if i.startswith(incomplete)]
 
 
+def _plugin_completer(ctx, incomplete: str) -> list[str]:
+    """Offer plugin ids (`agent plugins install NAME`)."""
+    incomplete = incomplete or ""
+    try:
+        ids = sorted(agent_plugins.plugin_ids())
+    except Exception:  # noqa: BLE001 — completion must never crash the CLI
+        return []
+    return [i for i in ids if i.startswith(incomplete)]
+
+
 ADDON_KINDS = ("skill", "bundle", "mcp", "tool", "rule")
 CATALOG_KINDS = ("agent", "skill", "rule", "mcp", "tool", "container")
 
 
 def _addon_kind_completer(ctx, incomplete: str) -> list[str]:
     return [k for k in ADDON_KINDS if k.startswith(incomplete or "")]
+
+
+def _plugin_kind_completer(ctx, incomplete: str) -> list[str]:
+    """Offer plugin registry kinds (`agent plugins list --kind`)."""
+    return [k for k in agent_plugins.PLUGIN_KINDS if k.startswith(incomplete or "")]
 
 
 def _catalog_kind_completer(ctx, incomplete: str) -> list[str]:
@@ -390,6 +409,32 @@ def _print_skills(as_json: bool, *, home: Path | None = None) -> None:
             ui.print_hint(f"    {detail}")
 
 
+def _print_plugins(
+    as_json: bool,
+    *,
+    kind: str | None = None,
+    agent: str | None = None,
+) -> None:
+    rows = agent_plugins.list_plugins(kind=kind, agent=agent)
+    if as_json:
+        ui.print_json(rows)
+        return
+    if not rows:
+        ui.print_hint("Plugins: none in the registry (data/agent/plugins/*.yaml)")
+        return
+    ui.print_hint(
+        "Plugins (skills/MCP/config/addons) — apply: astroai-lab agent plugins install ID"
+    )
+    ui.print_hint("  Id          Kind     Status   Agents")
+    ui.print_hint("  ──────────  ───────  ───────  ──────────────")
+    for row in rows:
+        status = "installed" if row["any_installed"] else "—"
+        agents = ",".join(a for a in row["agents"] if row["installed"].get(a)) or row["agents"][0]
+        ui.print_hint(f"  {row['id']:<11} {row['kind']:<8} {status:<7} {agents}")
+        if row["summary"]:
+            ui.print_hint(f"    {row['summary']}")
+
+
 def _print_addons(
     as_json: bool,
     *,
@@ -534,6 +579,266 @@ def skills_update_cmd(ctx: typer.Context) -> None:
         astroai-lab agent skills update --dry-run
     """
     _update_github_skills(ctx)
+
+
+plugins_app = typer.Typer(
+    help=(
+        "Plugin system: skills/MCP/config/addons across installed agents "
+        "(data/agent/plugins/*.yaml)."
+    )
+)
+agent_app.add_typer(plugins_app, name="plugins")
+
+
+@plugins_app.callback(invoke_without_command=True)
+def plugins_root(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        _print_plugins(get_opts(ctx).json)
+
+
+@plugins_app.command("list")
+def plugins_list_cmd(
+    ctx: typer.Context,
+    kind: Annotated[
+        str | None,
+        typer.Option(
+            "--kind",
+            "-k",
+            help="Filter: skill, bundle, mcp, tool, rule, config, addon.",
+            autocompletion=_plugin_kind_completer,
+        ),
+    ] = None,
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Only plugins applied to this agent."),
+    ] = None,
+) -> None:
+    """List installed + available plugins (skill/mcp/config/addon).
+
+    Examples:
+        astroai-lab agent plugins list
+        astroai-lab agent plugins list --kind skill
+        astroai-lab agent plugins list --agent hermes
+    """
+    _print_plugins(get_opts(ctx).json, kind=kind, agent=agent)
+
+
+def _print_plugin_results(results, *, verb: str, dry_run: bool) -> None:
+    failures = [r for r in results if r.status == "failed"]
+    for r in results:
+        scope = r.agent or "all"
+        prefix = "would" if dry_run else ""
+        if r.status == "failed":
+            ui.print_error(f"{r.plugin}: {r.detail}")
+        elif r.status in ("would_install", "would_remove"):
+            ui.print_ok(f"{prefix} {r.plugin} ({scope}): {r.status} — {r.detail}")
+        elif r.status in ("installed", "removed"):
+            ui.print_ok(f"{r.plugin} ({scope}): {r.status} — {r.detail}")
+        elif r.status == "skipped":
+            ui.print_hint(f"{r.plugin} ({scope}): skip — {r.detail}")
+        elif r.status == "no-op":
+            ui.print_hint(f"{r.plugin} ({scope}): {r.detail}")
+        else:
+            ui.print_hint(f"{r.plugin} ({scope}): {r.status} — {r.detail}")
+    if failures:
+        raise typer.Exit(1)
+    ui.print_ok(f"{verb} complete")
+
+
+@plugins_app.command("install")
+def plugins_install_cmd(
+    ctx: typer.Context,
+    plugin: Annotated[str, typer.Argument(autocompletion=_plugin_completer)],
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Scope to one agent."),
+    ] = None,
+    force: Annotated[bool, typer.Option("--force", "-f")] = False,
+) -> None:
+    """Install a plugin, applied to every installed agent that supports it.
+
+    ``--agent`` scopes the install to one agent. ``--force`` re-applies.
+
+    Examples:
+        astroai-lab agent plugins install canfar-ray
+        astroai-lab agent plugins install canfar-ray --agent hermes
+        astroai-lab agent plugins install canfar-ray --dry-run
+    """
+    opts = get_opts(ctx)
+    try:
+        results = agent_plugins.install_plugin(
+            plugin,
+            agent=agent,
+            force=force or opts.yes,
+            dry_run=opts.dry_run,
+        )
+    except LabError as exc:
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "plugin": plugin,
+                    "actions": [],
+                    "errors": [str(exc)],
+                }
+            )
+        else:
+            ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": not any(r.status == "failed" for r in results),
+                "plugin": plugin,
+                "actions": [r.__dict__ for r in results],
+                "errors": [r.detail for r in results if r.status == "failed"],
+                "dry_run": opts.dry_run,
+            }
+        )
+        if any(r.status == "failed" for r in results):
+            raise typer.Exit(1)
+        return
+    _print_plugin_results(results, verb="install", dry_run=opts.dry_run)
+
+
+@plugins_app.command("update")
+def plugins_update_cmd(
+    ctx: typer.Context,
+    plugin: Annotated[str, typer.Argument(autocompletion=_plugin_completer)],
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Scope to one agent."),
+    ] = None,
+) -> None:
+    """Refresh a plugin: re-apply to every installed agent that supports it.
+
+    Examples:
+        astroai-lab agent plugins update canfar-ray
+    """
+    opts = get_opts(ctx)
+    try:
+        results = agent_plugins.update_plugin(plugin, agent=agent, dry_run=opts.dry_run)
+    except LabError as exc:
+        ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": not any(r.status == "failed" for r in results),
+                "plugin": plugin,
+                "actions": [r.__dict__ for r in results],
+                "errors": [r.detail for r in results if r.status == "failed"],
+                "dry_run": opts.dry_run,
+            }
+        )
+        if any(r.status == "failed" for r in results):
+            raise typer.Exit(1)
+        return
+    _print_plugin_results(results, verb="update", dry_run=opts.dry_run)
+
+
+@plugins_app.command("remove")
+def plugins_remove_cmd(
+    ctx: typer.Context,
+    plugin: Annotated[str, typer.Argument(autocompletion=_plugin_completer)],
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Scope to one agent."),
+    ] = None,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
+) -> None:
+    """Remove a plugin from every agent (or one ``--agent``).
+
+    Examples:
+        astroai-lab agent plugins remove canfar-ray
+        astroai-lab agent plugins remove canfar-ray --dry-run
+    """
+    from astroai_lab.cli.context import merge_opts
+
+    opts = merge_opts(ctx, dry_run=dry_run)
+    try:
+        results = agent_plugins.remove_plugin(plugin, agent=agent, dry_run=opts.dry_run)
+    except LabError as exc:
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "plugin": plugin,
+                    "actions": [],
+                    "errors": [str(exc)],
+                }
+            )
+        else:
+            ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": not any(r.status == "failed" for r in results),
+                "plugin": plugin,
+                "actions": [r.__dict__ for r in results],
+                "errors": [r.detail for r in results if r.status == "failed"],
+                "dry_run": opts.dry_run,
+            }
+        )
+        if any(r.status == "failed" for r in results):
+            raise typer.Exit(1)
+        return
+    _print_plugin_results(results, verb="remove", dry_run=opts.dry_run)
+
+
+@plugins_app.command("configure")
+def plugins_configure_cmd(
+    ctx: typer.Context,
+    plugin: Annotated[str, typer.Argument(autocompletion=_plugin_completer)],
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Scope to one agent."),
+    ] = None,
+    force: Annotated[bool, typer.Option("--force", "-f")] = False,
+) -> None:
+    """Per-agent config merge (kind: mcp) or config write (kind: config).
+
+    For mcp plugins this merges an ``mcpServers`` entry into each supported
+    agent's config — dynamic URLs only (e.g. ``$ASTROAI_RAY_JOBS_ADDRESS``).
+
+    Examples:
+        astroai-lab agent plugins configure ray-manager-mcp
+    """
+    opts = get_opts(ctx)
+    try:
+        results = agent_plugins.configure_plugin(
+            plugin, agent=agent, force=force or opts.yes, dry_run=opts.dry_run
+        )
+    except LabError as exc:
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "plugin": plugin,
+                    "actions": [],
+                    "errors": [str(exc)],
+                }
+            )
+        else:
+            ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": not any(r.status == "failed" for r in results),
+                "plugin": plugin,
+                "actions": [r.__dict__ for r in results],
+                "errors": [r.detail for r in results if r.status == "failed"],
+                "dry_run": opts.dry_run,
+            }
+        )
+        if any(r.status == "failed" for r in results):
+            raise typer.Exit(1)
+        return
+    _print_plugin_results(results, verb="configure", dry_run=opts.dry_run)
 
 
 def _update_github_skills(ctx: typer.Context) -> None:
@@ -865,6 +1170,7 @@ def agent_list_cmd(ctx: typer.Context) -> None:
                 "bundles": agent_setup_mod.agent_list_bundles(),
                 "skills": agent_inventory.list_skills_inventory(),
                 "addons": agent_addons.list_addons(),
+                "plugins": agent_plugins.list_plugins(),
             }
         )
         return
@@ -876,7 +1182,11 @@ def agent_list_cmd(ctx: typer.Context) -> None:
     ui.print_hint("")
     _print_skills(False)
     ui.print_hint("")
-    ui.print_hint("Curated addons: `astroai-lab agent addons` · `astroai-lab agent add NAME`")
+    _print_addons(False)
+    ui.print_hint("")
+    _print_plugins(False)
+    ui.print_hint("")
+    ui.print_hint("Plugins: `astroai-lab agent plugins list` · install: `agent plugins install ID`")
 
 
 @agent_app.command("install")

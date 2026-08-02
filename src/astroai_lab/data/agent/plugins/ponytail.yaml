@@ -1,0 +1,21 @@
+# ponytail — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: ponytail
+kind: bundle
+addon: true
+tags:
+- lean
+- review
+summary: YAGNI ladder — smallest correct change (skills + Cursor rule)
+homepage: https://github.com/DietrichGebert/ponytail
+agents:
+- cursor
+install:
+  type: github-bundle
+  repo: DietrichGebert/ponytail
+  skills:
+  - skills/ponytail
+  - skills/ponytail-review
+  - skills/ponytail-audit
+  rules:
+  - .cursor/rules/ponytail.mdc

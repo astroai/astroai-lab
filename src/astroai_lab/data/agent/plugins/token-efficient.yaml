@@ -1,0 +1,15 @@
+# token-efficient — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: token-efficient
+kind: rule
+addon: true
+tags:
+- lean
+summary: Bundled Cursor rule — keep agent replies and diffs concise
+homepage: ''
+default: true
+agents:
+- cursor
+install:
+  type: bundled
+  note: Installed by astroai-lab agent setup (cursor rules)

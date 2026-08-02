@@ -1,0 +1,15 @@
+# gws-cli — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: gws-cli
+kind: skill
+addon: true
+tags:
+- science
+summary: Google Workspace CLI skill
+homepage: https://github.com/pavelzw/skill-forge
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: pavelzw/skill-forge
+  path: recipes/gws-cli

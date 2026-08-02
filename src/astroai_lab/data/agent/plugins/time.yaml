@@ -1,0 +1,26 @@
+# time — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: time
+kind: mcp
+addon: true
+tags:
+- lean
+summary: Timezone / time MCP — no API key
+homepage: ''
+agents:
+- cursor
+install:
+  type: mcp-snippet
+  server: time
+  cursor:
+    command: npx
+    args:
+    - -y
+    - '@modelcontextprotocol/server-time'
+  opencode:
+    type: local
+    command:
+    - npx
+    - -y
+    - '@modelcontextprotocol/server-time'
+    enabled: true

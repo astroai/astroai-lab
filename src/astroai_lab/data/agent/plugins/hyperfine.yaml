@@ -1,0 +1,15 @@
+# hyperfine — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: hyperfine
+kind: tool
+addon: true
+tags:
+- lean
+- python
+summary: CLI benchmarking tool
+homepage: ''
+agents:
+- cursor
+install:
+  type: cli-tool
+  tool: hyperfine

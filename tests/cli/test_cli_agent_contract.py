@@ -23,8 +23,8 @@ from astroai_lab.cli.main import app
 
 runner = CliRunner()
 
-# Canonical surface (skills/models are sub-typers, not commands). Phase 2
-# added `remove` (uninstall binary + config).
+# Canonical surface (skills/models/plugins are sub-typers, not commands).
+# Phase 2 added `remove` (uninstall binary + config); Phase 3 added `plugins`.
 CANONICAL_VERBS = {
     "catalog",
     "list",
@@ -35,6 +35,7 @@ CANONICAL_VERBS = {
     "addons",
     "add",
     "skills",
+    "plugins",
     "project",
     "status",
     "verify",

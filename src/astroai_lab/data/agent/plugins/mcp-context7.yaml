@@ -1,0 +1,15 @@
+# mcp-context7 — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: mcp-context7
+kind: mcp
+addon: true
+tags:
+- docs
+summary: Live library docs (already in agent setup)
+homepage: ''
+default: true
+agents:
+- cursor
+install:
+  type: bundled
+  note: Included in agent setup MCP configs

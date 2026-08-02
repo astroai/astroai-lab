@@ -1,0 +1,17 @@
+# sqlalchemy — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: sqlalchemy
+kind: skill
+addon: true
+tags:
+- science
+- data
+- python
+summary: SQLAlchemy patterns for agents
+homepage: https://github.com/pavelzw/skill-forge
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: pavelzw/skill-forge
+  path: recipes/sqlalchemy

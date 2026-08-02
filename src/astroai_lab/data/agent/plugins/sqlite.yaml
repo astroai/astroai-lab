@@ -1,0 +1,29 @@
+# sqlite — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: sqlite
+kind: mcp
+addon: true
+tags:
+- data
+- science
+summary: SQLite MCP on scratch DB path — no API key
+homepage: ''
+agents:
+- cursor
+install:
+  type: mcp-snippet
+  server: sqlite
+  cursor:
+    command: npx
+    args:
+    - -y
+    - '@modelcontextprotocol/server-sqlite'
+    - ${SCRATCH}/astroai-lab-mcp.sqlite
+  opencode:
+    type: local
+    command:
+    - npx
+    - -y
+    - '@modelcontextprotocol/server-sqlite'
+    - ${SCRATCH}/astroai-lab-mcp.sqlite
+    enabled: true

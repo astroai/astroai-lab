@@ -1,5 +1,12 @@
 """Curated installable agent addons (skills, rules, MCP, tools).
 
+Phase 3: the plugin registry (``data/agent/plugins/*.yaml``) is the single
+source of truth. ``addons.json`` was migrated into ``plugins/*.yaml``
+(entries carry ``addon: true``), so every function here is a thin shim over
+``agent.plugins`` — the transports themselves (bundled / github-skill /
+github-bundle / github-rule / mcp-snippet / cli-tool / agent-skill) live in
+``_apply_addon`` and are also reachable via ``agent plugins install``.
+
 Not a catalog of agents — recommendations that help produce correct, lean code
 plus science/data skills useful on AstroAI sessions.
 """
@@ -30,19 +37,42 @@ class AddonResult:
     detail: str = ""
 
 
+def plugin_as_addon(plugin: dict[str, Any]) -> dict[str, Any]:
+    """Map a plugin registry entry to the legacy addon dict shape.
+
+    The Phase 3 skill schema (``install.source`` + ``install.targets``, no
+    ``install.type``) is the legacy ``agent-skill`` transport; synthesize the
+    ``type`` + ``agents`` so the addon transports below stay byte-identical.
+    """
+    install = dict(plugin.get("install") or {})
+    if plugin["kind"] == "skill" and "type" not in install:
+        install["type"] = "agent-skill"
+        install["agents"] = list(plugin.get("agents", []))
+    return {
+        "id": plugin["id"],
+        "kind": plugin["kind"],
+        "tags": plugin.get("tags", []),
+        "summary": plugin.get("summary", ""),
+        "homepage": plugin.get("homepage", ""),
+        "default": bool(plugin.get("default")),
+        "install": install,
+    }
+
+
 def load_addons() -> list[dict[str, Any]]:
-    path = bundle_root() / "addons.json"
-    if not path.is_file():
-        return []
-    data = read_json(path)
-    return list(data.get("addons", []))
+    """Every plugin registry entry marked ``addon: true`` (legacy catalog)."""
+    from astroai_lab.agent.plugins import load_plugins
+
+    return [plugin_as_addon(p) for p in load_plugins() if p.get("addon")]
 
 
 def get_addon(addon_id: str) -> dict[str, Any] | None:
-    for item in load_addons():
-        if item.get("id") == addon_id:
-            return item
-    return None
+    from astroai_lab.agent.plugins import get_plugin
+
+    plugin = get_plugin(addon_id)
+    if plugin is None or not plugin.get("addon"):
+        return None
+    return plugin_as_addon(plugin)
 
 
 def list_addons(
@@ -163,6 +193,18 @@ def add_addon(
             f"Unknown addon: {addon_id}",
             hint="astroai-lab agent addons",
         )
+    return _apply_addon(item, home=home, force=force, dry_run=dry_run)
+
+
+def _apply_addon(
+    item: dict[str, Any],
+    *,
+    home: Path | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+) -> AddonResult:
+    """Apply one addon (plugin-as-addon dict) via its install transport."""
+    addon_id = item["id"]
     home = home or Path.home()
     install = item.get("install") or {}
     itype = install.get("type")

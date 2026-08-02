@@ -1,0 +1,16 @@
+# ast-grep — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: ast-grep
+kind: skill
+addon: true
+tags:
+- lean
+- python
+summary: Structural code search/rewrite (skill); pair with CLI tool ast-grep
+homepage: https://github.com/ast-grep/agent-skill
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: ast-grep/agent-skill
+  path: ast-grep/skills/ast-grep

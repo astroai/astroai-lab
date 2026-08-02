@@ -1,0 +1,16 @@
+# librarian — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: librarian
+kind: skill
+addon: true
+tags:
+- docs
+- science
+summary: Librarian doc/knowledge skill
+homepage: https://github.com/pavelzw/skill-forge
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: pavelzw/skill-forge
+  path: recipes/librarian

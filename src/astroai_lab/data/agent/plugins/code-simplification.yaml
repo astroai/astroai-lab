@@ -1,0 +1,16 @@
+# code-simplification — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: code-simplification
+kind: skill
+addon: true
+tags:
+- lean
+- review
+summary: Simplify working code without changing behavior
+homepage: https://github.com/addyosmani/agent-skills
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: addyosmani/agent-skills
+  path: skills/code-simplification

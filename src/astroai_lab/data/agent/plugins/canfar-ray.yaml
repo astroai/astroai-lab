@@ -1,0 +1,17 @@
+# canfar-ray — Drive CANFAR Ray clusters (Phase 3 plugin seed).
+# Schema: docs/agent-rethink-plan.md §4 Phase 3. One YAML per plugin under
+# data/agent/plugins/*.yaml; `agent plugins install/update/remove/configure`
+# drive every kind. Dynamic URLs only — never bake a per-session manager URL.
+# `addon: true` surfaces it via the legacy `agent addons` / `agent add` verbs.
+id: canfar-ray
+kind: skill                    # skill | bundle | mcp | tool | rule | config | addon
+addon: true                    # legacy addon marker (agent addons / agent add)
+tags: [science, ray, compute, canfar]
+summary: Drive CANFAR Ray clusters — ensure/status/stop/scale/dashboard via astroai-workload
+homepage: https://github.com/astroai/astroai-workload
+agents: [hermes, openclaw]     # support matrix (which agents can host this plugin)
+install:
+  source: canfar-ray           # skill: bundled dir under bundle_root()/skills/<source>
+  targets:                     # optional home-relative paths (default: AGENT_SKILL_DIRS)
+    hermes: .hermes/skills/canfar-ray
+    openclaw: .openclaw/skills/canfar-ray

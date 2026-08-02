@@ -1,7 +1,7 @@
 # astroai-agent rethink: prune, unify, plugin-ify
 
-Status: **in progress** — Phase 0 (prune + decompose) and Phase 1 (agent
-registry) landed; Phase 2 `install`/`remove` landed. Phases 3–5 remain.
+Status: **in progress** — Phases 0–3 landed (prune + decompose, agent
+registry, lean verbs, plugin system). Phases 4–5 remain.
 Owner: astroai-lab.
 Companion docs: [cli.md](cli.md), [USAGE.md](USAGE.md), [help.md](help.md).
 
@@ -24,7 +24,8 @@ The goals:
    verb; adding an agent is a one-line YAML entry, not a code branch.
 3. **Plugin system** — one uniform surface to install/update/remove/configure
    **skills, MCP servers, config snippets, and addons** across *all* installed
-   agents, reusing the existing curated `addons.json` as the initial catalog.
+   agents. The legacy `addons.json` catalog was migrated into
+   `plugins/*.yaml` (Phase 3), making the plugin registry the initial catalog.
 4. **New agents onboarded properly** — `hermes` (Nous Research) and `openclaw`
    (openclaw/openclaw) get full registry entries (install/setup/config/verify +
    plugin support), and the Ray-on-CANFAR story is exposed to them as a skill
@@ -218,30 +219,37 @@ YAML file — no Python branch required.
 
 ### Phase 3 — Plugin system (the centerpiece)
 
-- [ ] `agent/plugins.py` + `data/agent/plugins/*.yaml`:
+- [x] `agent/plugins.py` + `data/agent/plugins/*.yaml` (one YAML per plugin,
+      schema-validated loader like the agent registry):
 
       ```yaml
       id: canfar-ray
       kind: skill                    # skill | mcp | config | addon
       tags: [science, ray, canfar]
       summary: Drive CANFAR Ray clusters (ensure/status/scale/dashboard)
-      agents: [hermes, openclaw, opencode, kilo, claude]   # support matrix
+      agents: [hermes, openclaw]     # support matrix
       install:
-        - agent: hermes   -> ~/.hermes/skills/canfar-ray/SKILL.md
-        - agent: openclaw -> ~/.openclaw/skills/canfar-ray/SKILL.md
+        source: canfar-ray           # skill: bundled dir under skills/<source>
+        targets:
+          hermes: .hermes/skills/canfar-ray
+          openclaw: .openclaw/skills/canfar-ray
       ```
 
-- [ ] `plugins install <id>` applies to **all installed agents** that declare
-      support; `--agent` scopes it. `plugins update/remove/configure` symmetric.
-- [ ] Seed catalog: migrate existing `addons.json` entries into the plugin
-      registry with `kind` = addon/skill/mcp/config (the `agent-skill` type added
-      for `canfar-ray` becomes the first plugin transport).
-- [ ] `configure <plugin-id>` for `kind: mcp` merges an `mcpServers` entry into
-      each agent's config (Cursor/Copilot/Claude/OpenCode today, plus hermes
-      `~/.hermes/config.yaml` and openclaw `~/.openclaw/openclaw.json`).
-      **Dynamic URLs only** (e.g. `$ASTROAI_RAY_JOBS_ADDRESS`) — never a
-      hardcoded manager URL, since it differs per session.
-- [ ] Removal is recursive: dropping an agent removes its plugin-applied files.
+- [x] `plugins install <id>` applies to **all installed agents** that declare
+      support; `--agent` scopes it. `plugins update` (force re-apply) /
+      `plugins remove` / `plugins configure` symmetric.
+- [x] Seed catalog: migrate existing `addons.json` entries into the plugin
+      registry (all 31 addons now live as `plugins/*.yaml` with `addon: true` +
+      their `install.type` transport; `addons.json` is deleted). `addons.py` is
+      now a shim over the plugin registry — `agent addons`/`agent add` and
+      `agent plugins install` route through the same `_apply_addon` dispatcher.
+- [x] `configure <plugin-id>` for `kind: mcp` merges an `mcpServers` entry into
+      each agent's config (Cursor/Copilot/Claude/OpenCode + hermes YAML +
+      openclaw JSON5). **Dynamic URLs only** (e.g.
+      `$ASTROAI_RAY_JOBS_ADDRESS`) — never a hardcoded manager URL, since it
+      differs per session.
+- [x] Removal is recursive: `agent remove <agent>` removes its plugin-applied
+      files via `plugins.remove_agent_plugin_files` (wired into the registry).
 
 ### Phase 4 — hermes + openclaw
 
@@ -266,7 +274,10 @@ Specifics:
 
 - [x] Registry loader + schema tests, `agent install`/`remove` unit tests, and the
       golden CLI-contract test (full suite green at 75%+ coverage).
-- [ ] Unit tests per remaining verb (setup/config/fix-config/update/plugins).
+- [x] Plugin system tests: `tests/unit/test_plugins.py` (loader/schema, status,
+      install/update/remove/configure for skill/mcp/config, recursive removal,
+      CLI surface) + contract test pins the `plugins` verb.
+- [ ] Unit tests per remaining verb (setup/config/fix-config/update).
 - [ ] `scripts/canfar-verify-agents.sh` updated to the new verb surface
       (`agent plugins list`, `agent fix-config --all`, etc.).
 - [x] `docs/cli.md` / `docs/USAGE.md` document the registry as source of truth

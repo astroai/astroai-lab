@@ -1,0 +1,16 @@
+# pytest-skill — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: pytest-skill
+kind: skill
+addon: true
+tags:
+- test
+- python
+summary: Pytest fixtures, parametrize, and mocking patterns
+homepage: https://github.com/LambdaTest/agent-skills
+agents:
+- cursor
+install:
+  type: github-skill
+  repo: LambdaTest/agent-skills
+  path: pytest-skill

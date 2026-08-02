@@ -1,0 +1,15 @@
+# astroai-lab-workflow — legacy addon migrated from addons.json (Phase 3).
+# `agent addons` / `agent add` surface this via the plugin registry.
+id: astroai-lab-workflow
+kind: skill
+addon: true
+tags:
+- science
+summary: AstroAI / CANFAR session workflow (bundled)
+homepage: ''
+default: true
+agents:
+- cursor
+install:
+  type: bundled
+  note: Installed by astroai-lab agent setup
