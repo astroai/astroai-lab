@@ -319,7 +319,7 @@ build-time defaults.
 |----------|---------|
 | `ASTROAI_LAB_AGENT_BUNDLE` | Override the agent bundle root |
 | `ASTROAI_LAB_AGENT_GIT_TIMEOUT` | Git-op timeout, seconds (default: `120`) |
-| `ASTROAI_LAB_AGENT_INSTALL_TIMEOUT` | CLI-install timeout, seconds (default: `300`) |
+| `ASTROAI_LAB_AGENT_INSTALL_TIMEOUT` | CLI-install timeout, seconds (default: `1500`; self-bootstrapping installers like hermes need more than 300) |
 | `ASTROAI_LAB_AGENT_LOCK_TIMEOUT` | Setup-lock timeout, seconds (default: `30`) |
 | `ASTROAI_SESSION_KIND` | Session kind label for `agent interact` (default: `unknown`) |
 | `ASTROAI_AGENT_WIZARD_PORT` | Agent wizard port (default: `4792`) |

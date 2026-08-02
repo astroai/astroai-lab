@@ -17,7 +17,12 @@ from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.errors import LabError
 
 GIT_TIMEOUT_SEC = int(os.environ.get("ASTROAI_LAB_AGENT_GIT_TIMEOUT", "120"))
-INSTALL_TIMEOUT_SEC = int(os.environ.get("ASTROAI_LAB_AGENT_INSTALL_TIMEOUT", "300"))
+# Self-bootstrapping installers (hermes bootstraps its own uv/python/node and
+# clones a repo; goose/kilo/opencode curl-installers are similar) routinely take
+# several minutes. 300s was too tight — 1500s is the value verified end-to-end
+# in a container E2E (gives `_curl_pipe_bash` a bash budget of ~1000s vs ~197s
+# at 300) while still failing fast on a hung network.
+INSTALL_TIMEOUT_SEC = int(os.environ.get("ASTROAI_LAB_AGENT_INSTALL_TIMEOUT", "1500"))
 LOCK_TIMEOUT_SEC = int(os.environ.get("ASTROAI_LAB_AGENT_LOCK_TIMEOUT", "30"))
 
 

@@ -130,3 +130,28 @@ def test_agent_report_includes_resources(tmp_path: Path, monkeypatch: pytest.Mon
     data = json.loads(result.stdout)
     assert "resources" in data
     assert "mem_pct" in data["resources"]
+
+
+def test_install_timeout_default_raised_for_self_bootstrapping_installers() -> None:
+    """Self-bootstrapping installers (hermes: uv/python/node + repo clone) need
+    far more than the old 300s default — pin the floor (the value verified in
+    the container E2E) so it doesn't regress."""
+    import astroai_lab.agent.setup_state as ss
+
+    assert ss.INSTALL_TIMEOUT_SEC >= 1500
+
+
+def test_install_timeout_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ASTROAI_LAB_AGENT_INSTALL_TIMEOUT still overrides the (raised) default."""
+    import importlib
+
+    import astroai_lab.agent.setup_state as ss
+
+    monkeypatch.setenv("ASTROAI_LAB_AGENT_INSTALL_TIMEOUT", "45")
+    importlib.reload(ss)
+    try:
+        assert ss.INSTALL_TIMEOUT_SEC == 45
+    finally:
+        monkeypatch.delenv("ASTROAI_LAB_AGENT_INSTALL_TIMEOUT")
+        importlib.reload(ss)
+        assert ss.INSTALL_TIMEOUT_SEC >= 1500
