@@ -1,0 +1,25 @@
+# Kilo CLI (@kilocode/cli) — registry entry.
+# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
+# `agent catalog` / `agent list` / `agent install` / `agent remove` / `agent verify`.
+id: kilo
+name: Kilo CLI
+homepage: https://github.com/kilocode/kilo
+summary: Open-source CLI coding agent supporting OpenRouter & custom models
+binary: kilo
+tags: [agent, cli, open]
+install:
+  method: curl
+  source: https://kilo.ai/cli/install
+  env:
+    XDG_BIN_DIR: "{bin_dir}" # land the binary in the session bin dir
+  post_binary_paths:
+    - "~/.local/bin/kilo"
+config:
+  path: "~/.config/kilo/kilo.jsonc"
+  format: jsonc
+  provider_key: OPENROUTER_API_KEY
+verify:
+  - "kilo --version"
+  - "test -f ~/.config/kilo/kilo.jsonc"
+plugins: [skill, mcp, config, addon]
+notes: Sign in with `kilo auth` or set OPENROUTER_API_KEY

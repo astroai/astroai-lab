@@ -1,0 +1,23 @@
+# Codex CLI (openai/codex) — registry entry.
+# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
+# `agent catalog` / `agent list` / `agent install` / `agent remove` / `agent verify`.
+id: codex
+name: Codex CLI
+homepage: https://github.com/openai/codex
+summary: Lightweight OpenAI Codex & OpenRouter coding assistant
+binary: codex
+tags: [agent, cli]
+install:
+  method: gh-release
+  repo: openai/codex
+  asset: "codex-{arch}-unknown-linux-musl.tar.gz" # {arch} = x86_64 | aarch64
+  requires_gh_auth: true
+config:
+  path: "~/.codex/config.toml"
+  format: toml
+  provider_key: OPENROUTER_API_KEY
+verify:
+  - "codex --version"
+  - "test -f ~/.codex/config.toml"
+plugins: [skill, mcp, config, addon]
+notes: Requires `gh auth status`; configured via ~/.codex/config.toml

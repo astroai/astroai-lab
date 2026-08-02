@@ -7,13 +7,15 @@ import typer
 
 from astroai_lab import ui
 from astroai_lab.agent import addons as agent_addons
-from astroai_lab.agent import bundles as agent_setup_mod
 from astroai_lab.agent import catalog as agent_catalog_mod
 from astroai_lab.agent import clean_agent as agent_clean_mod
 from astroai_lab.agent import fix as agent_fix_mod
 from astroai_lab.agent import free_models as agent_free_models
 from astroai_lab.agent import install as agent_install
 from astroai_lab.agent import interact as agent_interact_mod
+from astroai_lab.agent import inventory as agent_inventory
+from astroai_lab.agent import setup as agent_setup_mod
+from astroai_lab.agent import upstream as agent_upstream
 from astroai_lab.cli.context import get_opts
 from astroai_lab.core.paths import user_bin_dir
 from astroai_lab.errors import LabError
@@ -25,17 +27,18 @@ agent_app = typer.Typer(
         "  catalog    curated catalog (agents + skills + MCPs + container UIs)\n"
         "  list       overview (tools + bundles + skills)\n"
         "  install    download a CLI binary (kilo, opencode, qoder, …)\n"
+        "  remove     uninstall a CLI binary + config files\n"
         "  setup      write MCP/rules/skills configs\n"
+        "  update     refresh configs + upstream skills\n"
         "  addons     curated skills/rules/MCP (lean + science)\n"
         "  add        install curated addon(s) by id or --tag\n"
         "  skills     Cursor skill inventory / refresh upstream\n"
-        "  status     binaries + configs at a glance\n"
+        "  project    per-project AGENTS.md + .cursor scaffold\n"
+        "  status     binaries + configs at a glance (--endpoints for container UIs)\n"
         "  verify     presence + config syntax checks (with --fix)\n"
-        "  fix        auto-repair setup state, locks, & config syntax\n"
-        "  clean      remove stale locks, failed markers, & empty configs\n"
-        "  interact   inspect active container UI endpoints & agent CLI status\n"
-        "  report     one-shot JSON health (wizard)\n"
-        "  models     free-tier model presets"
+        "  fix-config auto-repair setup state, locks, & config syntax\n"
+        "  models     free-tier model presets\n"
+        "Deprecated aliases: fix, clean, report, interact — see `astroai-lab help -c agent`"
     ),
 )
 
@@ -49,6 +52,7 @@ def agent_root(ctx: typer.Context) -> None:
         )
         ui.print_hint("  astroai-lab agent list              # tools, bundles, skills overview")
         ui.print_hint("  astroai-lab agent install [TOOL]    # CLI binaries (omit TOOL to list)")
+        ui.print_hint("  astroai-lab agent remove TOOL       # uninstall (--purge for home dirs)")
         ui.print_hint("  astroai-lab agent setup [BUNDLE…]   # MCP/rules/skills configs")
         ui.print_hint("  astroai-lab agent addons            # curated lean + science addons")
         ui.print_hint("  astroai-lab agent add ponytail      # install curated addon(s)")
@@ -56,9 +60,14 @@ def agent_root(ctx: typer.Context) -> None:
         ui.print_hint(
             "  astroai-lab agent status|verify     # health check (or agent verify --fix)"
         )
-        ui.print_hint("  astroai-lab agent fix|clean         # auto-repair or clean stale state")
-        ui.print_hint("  astroai-lab agent interact          # active container UIs & endpoints")
+        ui.print_hint(
+            "  astroai-lab agent fix-config        # auto-repair (--clean for stale state)"
+        )
         ui.print_hint("  astroai-lab agent models free       # OpenRouter / Kilo presets")
+        ui.print_hint(
+            "  (deprecated: fix, clean, report, interact → "
+            "fix-config / status --json / status --endpoints)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -78,9 +87,12 @@ def _tool_completer(ctx, incomplete: str) -> list[str]:
     incomplete = incomplete or ""
     try:
         names = [str(row["name"]) for row in agent_install.list_tools_status()]
+        from astroai_lab.agent.registry import registry_ids
+
+        names += sorted(registry_ids())
     except Exception:  # noqa: BLE001 — completion must never crash the CLI
         return []
-    return [n for n in names if n.startswith(incomplete)]
+    return sorted({n for n in names if n.startswith(incomplete)})
 
 
 def _bundle_completer(ctx, incomplete: str) -> list[str]:
@@ -199,12 +211,47 @@ def agent_update_cmd(ctx: typer.Context) -> None:
     _run_agent_sync(ctx)
 
 
+def _print_interact(opts) -> None:
+    """Active container UI endpoints + agent CLI status (was `agent interact`)."""
+    info = agent_interact_mod.inspect_interact_endpoints()
+    if opts.json:
+        ui.print_json(info)
+        return
+    ui.print_hint(f"Interactive Session Diagnostics ({info['session_kind'].upper()})")
+    ui.print_hint(
+        "  Active Agent CLIs: "
+        + (", ".join(info["installed_agents"]) if info["installed_agents"] else "None")
+    )
+    ui.print_hint("")
+    ui.print_hint("Endpoints & Access Points:")
+    for ep in info["endpoints"]:
+        mark = "✓ ONLINE" if ep["active"] else "— OFFLINE"
+        ui.print_hint(f"  [{mark}] {ep['name']} ({ep['url_hint']})")
+        ui.print_hint(f"          {ep['description']}")
+
+
 @agent_app.command("status")
-def agent_status_cmd(ctx: typer.Context) -> None:
-    """Show which agents are installed, configured, and have issues."""
+def agent_status_cmd(
+    ctx: typer.Context,
+    endpoints: Annotated[
+        bool,
+        typer.Option(
+            "--endpoints",
+            help="Show active container UI endpoints (was `agent interact`).",
+        ),
+    ] = False,
+) -> None:
+    """Show which agents are installed, configured, and have issues.
+
+    `--endpoints` lists active container UI endpoints (the former `interact`
+    surface, preserved verbatim).
+    """
     from astroai_lab.agent.setup_state import build_agent_report, read_setup_state
 
     opts = get_opts(ctx)
+    if endpoints:
+        _print_interact(opts)
+        return
     home = Path.home()
     report = build_agent_report(home)
     if opts.json:
@@ -271,8 +318,33 @@ def _print_bundles(as_json: bool) -> None:
         ui.print_hint(f"  {name:<14} {desc}")
 
 
-def _print_tools(as_json: bool) -> None:
+def _installable_tools() -> list[dict]:
+    """Full installable surface: legacy TOOLS + registry-driven agents.
+
+    Shared by `agent install` and `agent list` so their JSON `tools` section
+    stays consistent after the Phase 2 TOOLS->registry migration.
+    """
     rows = agent_install.list_tools_status()
+    from astroai_lab.agent.registry import list_registry_agents, registry_agent_status
+
+    seen = {str(row["name"]) for row in rows}
+    for agent in list_registry_agents():
+        if agent["id"] in seen:
+            continue
+        status = registry_agent_status(agent)
+        rows.append(
+            {
+                "name": agent["id"],
+                "binary": agent["binary"],
+                "description": agent.get("summary", ""),
+                "installed": status["binary_ok"],
+            }
+        )
+    return rows
+
+
+def _print_tools(as_json: bool) -> None:
+    rows = _installable_tools()
     if as_json:
         ui.print_json(rows)
         return
@@ -284,8 +356,22 @@ def _print_tools(as_json: bool) -> None:
         ui.print_hint(f"  {row['name']:<12} {row['binary']:<12} {mark:<8} {row['description']}")
 
 
+def _print_registry(rows: list[dict]) -> None:
+    """Registered agents (YAML registry) with binary + config status."""
+    if not rows:
+        return
+    ui.print_hint("Registered agents (YAML registry) — status: binary / config")
+    ui.print_hint("  Agent        Binary    Config")
+    ui.print_hint("  ─────────    ───────   ──────")
+    for row in rows:
+        b = "✓" if row["binary_ok"] else "✗"
+        c = "✓" if row["config_ok"] else "—"
+        ui.print_hint(f"  {row['name']:<12} {b:<9} {c}")
+    ui.print_hint("  Install: astroai-lab agent install <id> · Verify: agent verify")
+
+
 def _print_skills(as_json: bool, *, home: Path | None = None) -> None:
-    rows = agent_setup_mod.list_skills_inventory(home)
+    rows = agent_inventory.list_skills_inventory(home)
     if as_json:
         ui.print_json(rows)
         return
@@ -453,7 +539,7 @@ def skills_update_cmd(ctx: typer.Context) -> None:
 def _update_github_skills(ctx: typer.Context) -> None:
     opts = get_opts(ctx)
     try:
-        results = agent_setup_mod.update_all_github_sources(force=True, dry_run=opts.dry_run)
+        results = agent_upstream.update_all_github_sources(force=True, dry_run=opts.dry_run)
     except LabError as exc:
         ui.print_error(str(exc))
         raise typer.Exit(1) from exc
@@ -584,9 +670,13 @@ def agent_catalog_cmd(
             ui.print_hint(f"    > {item['install_command']}")
 
 
-@agent_app.command("clean")
-def agent_clean_cmd(
+@agent_app.command("fix-config")
+def agent_fix_config_cmd(
     ctx: typer.Context,
+    clean: Annotated[
+        bool,
+        typer.Option("--clean", help="Clean stale state instead of auto-repairing."),
+    ] = False,
     stale_locks: Annotated[
         bool, typer.Option("--stale-locks", help="Remove stale lock files.")
     ] = True,
@@ -599,39 +689,35 @@ def agent_clean_cmd(
         bool, typer.Option("--dry-run", help="Show actions without executing.")
     ] = False,
 ) -> None:
-    """Clean stale setup locks, failed state markers, empty configs, and logs."""
+    """Auto-repair agent setup (or `--clean` stale state). Replaces `fix` + `clean`.
+
+    Examples:
+        astroai-lab agent fix-config
+        astroai-lab agent fix-config --clean
+        astroai-lab agent fix-config --clean --logs
+    """
     from astroai_lab.cli.context import merge_opts
 
     opts = merge_opts(ctx, dry_run=dry_run)
-    results = agent_clean_mod.clean_agent_state(
-        stale_locks=stale_locks,
-        failed_marker=failed,
-        empty_configs=empty_configs,
-        logs=logs,
-        dry_run=opts.dry_run,
-    )
-    if opts.json:
-        ui.print_json([r.__dict__ for r in results])
+    if clean:
+        results = agent_clean_mod.clean_agent_state(
+            stale_locks=stale_locks,
+            failed_marker=failed,
+            empty_configs=empty_configs,
+            logs=logs,
+            dry_run=opts.dry_run,
+        )
+        if opts.json:
+            ui.print_json([r.__dict__ for r in results])
+            return
+        if not results:
+            ui.print_ok("Agent state clean — no stale locks or broken markers found")
+            return
+        for r in results:
+            prefix = "would remove" if opts.dry_run else "removed"
+            ui.print_ok(f"  {r.target}: {prefix} ({r.detail})")
         return
-    if not results:
-        ui.print_ok("Agent state clean — no stale locks or broken markers found")
-        return
-    for r in results:
-        prefix = "would remove" if opts.dry_run else "removed"
-        ui.print_ok(f"  {r.target}: {prefix} ({r.detail})")
 
-
-@agent_app.command("fix")
-def agent_fix_cmd(
-    ctx: typer.Context,
-    dry_run: Annotated[
-        bool, typer.Option("--dry-run", help="Show actions without executing.")
-    ] = False,
-) -> None:
-    """Auto-repair syntax errors, stale locks, and missing directory structures in agent setup."""
-    from astroai_lab.cli.context import merge_opts
-
-    opts = merge_opts(ctx, dry_run=dry_run)
     results = agent_fix_mod.fix_agent_setup(dry_run=opts.dry_run)
     if opts.json:
         ui.print_json([r.__dict__ for r in results])
@@ -649,25 +735,56 @@ def agent_fix_cmd(
         ui.print_ok("Agent setup already healthy")
 
 
-@agent_app.command("interact")
-def agent_interact_cmd(ctx: typer.Context) -> None:
-    """Inspect active container UI endpoints, web services, and agent CLI status."""
-    opts = get_opts(ctx)
-    info = agent_interact_mod.inspect_interact_endpoints()
-    if opts.json:
-        ui.print_json(info)
-        return
-    ui.print_hint(f"Interactive Session Diagnostics ({info['session_kind'].upper()})")
-    ui.print_hint(
-        "  Active Agent CLIs: "
-        + (", ".join(info["installed_agents"]) if info["installed_agents"] else "None")
+def _deprecated_alias(old: str, new: str) -> None:
+    """Emit a deprecation hint to stderr (keeps stdout JSON-clean)."""
+    ui.print_warn(f"`agent {old}` is deprecated — use `agent {new}`")
+
+
+@agent_app.command("fix", hidden=True)
+def agent_fix_cmd(
+    ctx: typer.Context,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
+) -> None:
+    """Deprecated: use `agent fix-config`."""
+    _deprecated_alias("fix", "fix-config")
+    agent_fix_config_cmd(ctx, clean=False, dry_run=dry_run)
+
+
+@agent_app.command("clean", hidden=True)
+def agent_clean_cmd(
+    ctx: typer.Context,
+    stale_locks: Annotated[
+        bool, typer.Option("--stale-locks", help="Remove stale lock files.")
+    ] = True,
+    failed: Annotated[bool, typer.Option("--failed", help="Clear failed setup marker.")] = True,
+    empty_configs: Annotated[
+        bool, typer.Option("--empty-configs", help="Remove empty config files.")
+    ] = True,
+    logs: Annotated[bool, typer.Option("--logs", help="Remove setup log file.")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
+) -> None:
+    """Deprecated: use `agent fix-config --clean`."""
+    _deprecated_alias("clean", "fix-config --clean")
+    agent_fix_config_cmd(
+        ctx,
+        clean=True,
+        stale_locks=stale_locks,
+        failed=failed,
+        empty_configs=empty_configs,
+        logs=logs,
+        dry_run=dry_run,
     )
-    ui.print_hint("")
-    ui.print_hint("Endpoints & Access Points:")
-    for ep in info["endpoints"]:
-        mark = "✓ ONLINE" if ep["active"] else "— OFFLINE"
-        ui.print_hint(f"  [{mark}] {ep['name']} ({ep['url_hint']})")
-        ui.print_hint(f"          {ep['description']}")
+
+
+@agent_app.command("interact", hidden=True)
+def agent_interact_cmd(ctx: typer.Context) -> None:
+    """Deprecated: use `agent status --endpoints`."""
+    _deprecated_alias("interact", "status --endpoints")
+    _print_interact(get_opts(ctx))
 
 
 @agent_app.command("verify")
@@ -693,7 +810,7 @@ def agent_verify_cmd(
     if auto_fix:
         agent_fix_mod.fix_agent_setup(dry_run=opts.dry_run)
 
-    issues = agent_setup_mod.verify_setup(home)
+    issues = agent_inventory.verify_setup(home)
     state = read_setup_state(home)
     payload = {
         "ok": not issues,
@@ -708,7 +825,8 @@ def agent_verify_cmd(
     if issues:
         ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
         ui.print_hint(
-            "Tip: Run `astroai-lab agent fix` or `astroai-lab agent verify --fix` to auto-repair."
+            "Tip: Run `astroai-lab agent fix-config` "
+            "or `astroai-lab agent verify --fix` to auto-repair."
         )
         raise typer.Exit(1)
     if state.stamp:
@@ -716,12 +834,10 @@ def agent_verify_cmd(
     ui.print_ok("Agent setup OK")
 
 
-@agent_app.command("report")
+@agent_app.command("report", hidden=True)
 def agent_report_cmd(ctx: typer.Context) -> None:
-    """One-shot JSON report: stamp, failed marker, verify issues, binaries.
-
-    Intended for the agent wizard / automation (always JSON).
-    """
+    """Deprecated: use `agent status --json`."""
+    _deprecated_alias("report", "status --json")
     from astroai_lab.agent.setup_state import build_agent_report
 
     report = build_agent_report()
@@ -738,17 +854,23 @@ def agent_list_cmd(ctx: typer.Context) -> None:
     Curated lean/science recommendations: ``agent addons``.
     """
     opts = get_opts(ctx)
+    from astroai_lab.agent.registry import list_registry_agents, registry_agent_status
+
+    registry_rows = [registry_agent_status(a) for a in list_registry_agents()]
     if opts.json:
         ui.print_json(
             {
-                "tools": agent_install.list_tools_status(),
+                "tools": _installable_tools(),
+                "registry": registry_rows,
                 "bundles": agent_setup_mod.agent_list_bundles(),
-                "skills": agent_setup_mod.list_skills_inventory(),
+                "skills": agent_inventory.list_skills_inventory(),
                 "addons": agent_addons.list_addons(),
             }
         )
         return
     _print_tools(False)
+    ui.print_hint("")
+    _print_registry(registry_rows)
     ui.print_hint("")
     _print_bundles(False)
     ui.print_hint("")
@@ -785,7 +907,16 @@ def agent_install_cmd(
             ui.print_hint("Install one with: astroai-lab agent install NAME")
         return
     try:
-        agent_install.install_tool(tool, dry_run=opts.dry_run)
+        from astroai_lab.agent.registry import get_registry_agent, install_registry_agent
+
+        if tool in agent_install.TOOLS:
+            agent_install.install_tool(tool, dry_run=opts.dry_run)
+        elif get_registry_agent(tool) is not None:
+            install_registry_agent(tool, dry_run=opts.dry_run)
+        else:
+            raise LabError(
+                f"Unknown tool: {tool}", hint="astroai-lab agent list  (or agent catalog)"
+            )
     except LabError as exc:
         if opts.json:
             ui.print_json(
@@ -819,6 +950,82 @@ def agent_install_cmd(
         ui.print_ok(f"Installed {tool} → {user_bin_dir()}")
         if tool in ("kilo", "goose", "cline", "opencode", "codex", "qoder"):
             ui.print_hint("  astroai-lab agent models free")
+
+
+@agent_app.command("remove")
+def agent_remove_cmd(
+    ctx: typer.Context,
+    tool: Annotated[
+        str,
+        typer.Argument(help="Tool/agent name (omit to list).", autocompletion=_tool_completer),
+    ],
+    purge: Annotated[
+        bool,
+        typer.Option("--purge", help="Also remove the agent's home dir (~/.hermes, ~/.openclaw)."),
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
+) -> None:
+    """Uninstall an agent CLI: binary, config files, plugin files, setup stamps.
+
+    ``--purge`` additionally removes the agent's whole home config dir (e.g.
+    ``~/.hermes``, ``~/.openclaw``). Dry-run lists what would be removed.
+
+    Examples:
+        astroai-lab agent remove kilo
+        astroai-lab agent remove hermes --purge
+        astroai-lab agent remove openclaw --dry-run
+    """
+    from astroai_lab.agent.registry import remove_registry_agent
+    from astroai_lab.cli.context import merge_opts
+
+    opts = merge_opts(ctx, dry_run=dry_run)
+    try:
+        if tool in agent_install.TOOLS:
+            results = [
+                r.__dict__
+                for r in agent_install.uninstall_tool(tool, purge=purge, dry_run=opts.dry_run)
+            ]
+        else:
+            results = remove_registry_agent(tool, purge=purge, dry_run=opts.dry_run)
+    except LabError as exc:
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": False,
+                    "tool": tool,
+                    "actions": [],
+                    "errors": [str(exc)],
+                }
+            )
+        else:
+            ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": True,
+                "tool": tool,
+                "purge": purge,
+                "dry_run": opts.dry_run,
+                "actions": results,
+                "errors": [],
+            }
+        )
+        return
+    if not results:
+        ui.print_ok(f"{tool}: nothing to remove")
+        return
+    prefix = "would remove" if opts.dry_run else "removed"
+    for r in results:
+        status = r["status"]
+        if status == "error":
+            ui.print_error(f"  {r['target']}: {r['detail']}")
+        elif status == "would_remove":
+            ui.print_hint(f"  {r['target']}: {prefix} ({r['detail']})")
+        else:
+            ui.print_ok(f"  {r['target']}: {prefix} ({r['detail']})")
 
 
 models_app = typer.Typer(help="Free-tier model presets for open coding agents.")

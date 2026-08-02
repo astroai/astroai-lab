@@ -1,0 +1,25 @@
+# OpenCode (sst/opencode) — registry entry.
+# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
+# `agent catalog` / `agent list` / `agent install` / `agent remove` / `agent verify`.
+id: opencode
+name: OpenCode Interpreter
+homepage: https://github.com/sst/opencode
+summary: Terminal AI coding assistant supporting local & cloud LLMs
+binary: opencode
+tags: [agent, cli, open]
+install:
+  method: curl
+  source: https://opencode.ai/install
+  env:
+    XDG_BIN_DIR: "{bin_dir}" # land the binary in the session bin dir
+  post_binary_paths:
+    - "~/.opencode/bin/opencode"
+config:
+  path: "~/.config/opencode/opencode.json"
+  format: jsonc
+  provider_key: OPENROUTER_API_KEY
+verify:
+  - "opencode --version"
+  - "test -f ~/.config/opencode/opencode.json"
+plugins: [skill, mcp, config, addon]
+notes: Configured via ~/.config/opencode/opencode.json

@@ -191,7 +191,7 @@ def build_agent_report(home: Path | None = None) -> dict[str, Any]:
     """One-shot JSON report for wizard / automation."""
     import shutil
 
-    from astroai_lab.agent.bundles import verify_setup
+    from astroai_lab.agent.inventory import verify_setup
     from astroai_lab.core.session_resources import collect_resources
 
     home = home or Path.home()

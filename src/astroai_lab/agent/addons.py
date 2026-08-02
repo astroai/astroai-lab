@@ -13,12 +13,12 @@ from pathlib import Path
 from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
-from astroai_lab.agent.bundles import (
+from astroai_lab.agent.install import install_tool, tool_on_path
+from astroai_lab.agent.upstream import (
     _refresh_upstream_repo,
     _upstream_cache_root,
     update_github_source,
 )
-from astroai_lab.agent.install import install_tool, tool_on_path
 from astroai_lab.errors import LabError
 from astroai_lab.utils.json_utils import read_json, read_jsonc, write_json
 
@@ -78,6 +78,10 @@ def addon_installed(item: dict[str, Any], home: Path) -> bool:
     itype = install.get("type")
     addon_id = item["id"]
 
+    if itype == "agent-skill":
+        targets = _agent_skill_targets(item, home)
+        return bool(targets) and all((t / "SKILL.md").is_file() for t in targets.values())
+
     if itype == "bundled":
         if addon_id == "astroai-lab-workflow":
             return (home / ".cursor" / "skills" / "astroai-lab-workflow" / "SKILL.md").is_file()
@@ -111,6 +115,25 @@ def addon_installed(item: dict[str, Any], home: Path) -> bool:
         return tool_on_path(install.get("tool", addon_id))
 
     return False
+
+
+# Skill directories for agents that use the agentskills.io SKILL.md layout.
+AGENT_SKILL_DIRS = {
+    "hermes": ".hermes/skills",
+    "openclaw": ".openclaw/skills",
+}
+
+
+def _agent_skill_targets(item: dict[str, Any], home: Path) -> dict[str, Path]:
+    """Map each configured agent to its skill dir for this addon (known agents only)."""
+    install = item.get("install") or {}
+    agents = list(install.get("agents") or [])
+    out: dict[str, Path] = {}
+    for agent in agents:
+        rel = AGENT_SKILL_DIRS.get(agent)
+        if rel:
+            out[agent] = home / rel / item["id"]
+    return out
 
 
 def _mcp_server_present(home: Path, server: str) -> bool:
@@ -153,6 +176,27 @@ def add_addon(
 
     if not force and addon_installed(item, home):
         return AddonResult(addon_id, "skipped", "already installed")
+
+    if itype == "agent-skill":
+        targets = _agent_skill_targets(item, home)
+        if not targets:
+            raise LabError(
+                f"Addon {addon_id} has no known agent skill targets",
+                hint="known agents: " + ", ".join(sorted(AGENT_SKILL_DIRS)),
+            )
+        src = bundle_root() / "skills" / addon_id
+        if not (src / "SKILL.md").is_file():
+            raise LabError(f"Addon {addon_id} missing bundled SKILL.md at {src}")
+        if dry_run:
+            return AddonResult(addon_id, "dry-run", ", ".join(sorted(targets)))
+        installed: list[str] = []
+        for agent, dst in sorted(targets.items()):
+            if dst.exists():
+                shutil.rmtree(dst)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(src, dst)
+            installed.append(f"{agent}:{dst}")
+        return AddonResult(addon_id, "installed", "; ".join(installed))
 
     if itype == "github-skill":
         name = Path(install["path"]).name

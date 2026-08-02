@@ -1,0 +1,24 @@
+# OpenClaw (openclaw/openclaw) — registry entry.
+# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
+# `agent catalog` / `agent list` / `agent install` / `agent verify`.
+id: openclaw
+name: OpenClaw
+homepage: https://github.com/openclaw/openclaw
+summary: Personal AI assistant + multi-channel gateway (WhatsApp/Telegram/Discord)
+binary: openclaw
+tags: [agent, cli, open, gateway]
+install:
+  method: npm
+  source: openclaw@latest
+  requires_node: ">=24.15" # Node 24.18.1 LTS baked into the base image
+config:
+  path: "~/.openclaw/openclaw.json"
+  format: json5
+  provider_key: OPENROUTER_API_KEY
+setup:
+  post_install: "openclaw onboard" # interactive daemon install; opt-in in containers
+verify:
+  - "openclaw --version"
+  - "test -f ~/.openclaw/openclaw.json"
+plugins: [skill, mcp, config, addon]
+notes: Node >=24.15 (baked); ~/.openclaw/openclaw.json; openclaw agent headless

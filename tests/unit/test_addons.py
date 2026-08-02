@@ -25,6 +25,40 @@ def test_load_addons_has_ponytail_and_polars() -> None:
     assert "polars" in ids
     assert "modern-python" in ids
     assert "git-mcp" in ids
+    assert "canfar-ray" in ids
+
+
+def test_add_agent_skill_installs_to_hermes_and_openclaw(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = add_addon("canfar-ray", home=home)
+    assert result.status == "installed"
+    for rel in (".hermes/skills/canfar-ray/SKILL.md", ".openclaw/skills/canfar-ray/SKILL.md"):
+        assert (home / rel).is_file(), f"missing {rel}"
+    # Idempotent second call skips.
+    assert add_addon("canfar-ray", home=home).status == "skipped"
+    # Installed detection agrees.
+    assert addon_installed(get_addon("canfar-ray"), home)
+
+
+def test_add_agent_skill_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = add_addon("canfar-ray", home=home, dry_run=True)
+    assert result.status == "dry-run"
+    assert not (home / ".hermes").exists()
+
+
+def test_add_agent_skill_force_reinstalls(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    assert add_addon("canfar-ray", home=home).status == "installed"
+    assert add_addon("canfar-ray", home=home, force=True).status == "installed"
 
 
 def test_list_addons_filter_tag() -> None:

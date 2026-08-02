@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tarfile
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from astroai_lab.core.paths import npm_prefix_dir, user_bin_dir
@@ -15,17 +16,14 @@ from astroai_lab.shell.session_env import resolve_session_env
 from astroai_lab.utils.subprocess import run, run_capture
 
 TOOLS = {
-    "node": "Node.js + npm (pixi global)",
+    "node": "Node.js + npm (baked into base image; pixi fallback)",
     "agent": "Cursor Agent",
     "claude": "Claude Code",
     "agy": "Antigravity CLI",
-    "opencode": "OpenCode",
-    "codex": "Codex CLI",
     "copilot": "GitHub Copilot CLI",
-    "goose": "Goose",
-    "kilo": "Kilo CLI (@kilocode/cli)",
-    "cline": "Cline CLI",
     "qoder": "Qoder CLI (qodercli)",
+    "hermes": "Hermes Agent (Nous Research)",
+    "openclaw": "OpenClaw (openclaw/openclaw)",
     "freebuff": "Freebuff",
     "pi": "Pi Coding Agent",
     "codewhale": "CodeWhale",
@@ -191,6 +189,13 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
         raise LabError(f"Unsupported archive: {asset}")
     found = next(tmp.rglob(binary), None)
     if found is None:
+        # Some releases name the extracted binary after the asset basename
+        # (e.g. codex-x86_64-unknown-linux-musl) instead of the bare name.
+        stem = asset.removesuffix(".tar.gz").removesuffix(".zip")
+        candidate = tmp / stem
+        if candidate.is_file():
+            found = candidate
+    if found is None:
         raise LabError(f"Binary {binary} not found in {asset}")
     shutil.copy2(found, _bin_dir() / binary)
     with contextlib.suppress(OSError):
@@ -211,6 +216,11 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
     npm_timeout = INSTALL_TIMEOUT_SEC
 
     if name == "node":
+        # Node LTS + npm are baked into the base image (astroai-containers), so
+        # this is normally a no-op on CANFAR sessions; keep the pixi fallback
+        # for bare environments where node is not already on PATH.
+        if shutil.which("node") is not None and shutil.which("npm") is not None:
+            return
         _require("pixi")
         session = resolve_session_env(ensure=False)
         pixi_bin = session.pixi_home / "bin"
@@ -235,35 +245,6 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         _curl_pipe_bash("https://antigravity.google/cli/install.sh")
         _link_into_local_bin(Path.home() / ".local" / "bin" / "agy", "agy")
         _verify_cmd("agy")
-    elif name == "opencode":
-        env = {"XDG_BIN_DIR": str(_bin_dir())}
-        _curl_pipe_bash("https://opencode.ai/install", env=env)
-        opencode_src = _bin_dir() / "opencode"
-        if not opencode_src.is_file():
-            opencode_src = Path.home() / ".opencode" / "bin" / "opencode"
-        _link_into_local_bin(opencode_src, "opencode")
-        _verify_cmd("opencode", extra_paths=[opencode_src])
-    elif name == "codex":
-        _require("gh")
-        run_capture(["gh", "auth", "status"], timeout=30)
-        asset = f"codex-{arch}-unknown-linux-musl.tar.gz"
-        if arch not in ("x86_64", "aarch64"):
-            raise LabError(f"Unsupported architecture: {arch}")
-        tmp = Path(_session_environ().get("TMPDIR", "/tmp"))
-        run(
-            ["gh", "release", "download", "-R", "openai/codex", "-p", asset, "-D", str(tmp)],
-            env=_session_environ(),
-            timeout=npm_timeout,
-        )
-        with tarfile.open(tmp / asset, "r:gz") as tf:
-            tf.extractall(_bin_dir())
-        binary = asset.removesuffix(".tar.gz")
-        src = _bin_dir() / binary
-        if src.is_file():
-            src.rename(_bin_dir() / "codex")
-        with contextlib.suppress(OSError):
-            (_bin_dir() / "codex").chmod((_bin_dir() / "codex").stat().st_mode | 0o111)
-        _verify_cmd("codex")
     elif name == "copilot":
         env = {"PREFIX": str(_npm_prefix()), "CI": "1"}
         with contextlib.suppress(subprocess.CalledProcessError, LabError):
@@ -286,33 +267,28 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             copilot_bin = _npm_prefix() / "bin" / "copilot"
         _link_into_local_bin(copilot_bin, "copilot")
         _verify_cmd("copilot", extra_paths=[copilot_bin])
-    elif name == "goose":
-        env = {"GOOSE_BIN_DIR": str(_bin_dir()), "CONFIGURE": "false"}
-        _curl_pipe_bash(
-            "https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh",
-            env=env,
-        )
-        _verify_cmd("goose")
-    elif name == "kilo":
-        env = {"XDG_BIN_DIR": str(_bin_dir())}
-        with contextlib.suppress(subprocess.CalledProcessError, LabError):
-            _curl_pipe_bash("https://kilo.ai/cli/install", env=env)
-        if shutil.which("kilo") is None and not (_bin_dir() / "kilo").is_file():
-            _require("npm")
-            run(
-                ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "@kilocode/cli@latest"],
-                env=_session_environ(),
-                timeout=npm_timeout,
-            )
-        _verify_cmd("kilo")
-    elif name == "cline":
+    elif name == "hermes":
+        # Nous Research Hermes Agent — self-contained installer (bootstraps its
+        # own Python/uv/Node), first-class OpenRouter + headless `hermes -z`.
+        _curl_pipe_bash("https://hermes-agent.nousresearch.com/install.sh")
+        hermes_src = _bin_dir() / "hermes"
+        if not hermes_src.is_file():
+            hermes_src = Path.home() / ".local" / "bin" / "hermes"
+        if not hermes_src.is_file():
+            hermes_src = Path.home() / ".hermes" / "bin" / "hermes"
+        _link_into_local_bin(hermes_src, "hermes")
+        _verify_cmd("hermes", extra_paths=[hermes_src])
+    elif name == "openclaw":
+        # Requires Node >= 24.15 — Node 24.18.1 LTS is baked into the base image.
         _require("npm")
         run(
-            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "cline@latest"],
+            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "openclaw@latest"],
             env=_session_environ(),
             timeout=npm_timeout,
         )
-        _verify_cmd("cline")
+        openclaw_bin = _npm_prefix() / "bin" / "openclaw"
+        _link_into_local_bin(openclaw_bin, "openclaw")
+        _verify_cmd("openclaw", extra_paths=[openclaw_bin])
     elif name == "qoder":
         env = {"XDG_BIN_DIR": str(_bin_dir())}
         with contextlib.suppress(subprocess.CalledProcessError, LabError):
@@ -388,3 +364,134 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         asset = f"hyperfine-{tag}-{arch}-unknown-linux-gnu.tar.gz"
         _gh_release_bin("sharkdp/hyperfine", asset, "hyperfine")
         _verify_cmd("hyperfine")
+
+
+# ---------------------------------------------------------------------------
+# Removal (Phase 2: `agent remove`)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RemoveResult:
+    target: str
+    status: str  # removed | would_remove | error
+    detail: str = ""
+
+
+# npm package name per tool (mirrors the `npm install -g` calls in install_tool).
+TOOL_NPM_PACKAGES = {
+    "openclaw": "openclaw",
+    "copilot": "@github/copilot",
+    "qoder": "@qoder-ai/qodercli",
+    "freebuff": "freebuff",
+    "pi": "@earendil-works/pi-coding-agent",
+    "codewhale": "codewhale",
+}
+
+# Home-relative config files a tool owns (removed on `agent remove`).
+# Registry-driven agents carry their own config.path in agents/*.yaml.
+TOOL_CONFIG_PATHS = {
+    "copilot": [".copilot/mcp-config.json"],
+    "qoder": [".qoder/settings.json"],
+    "hermes": [".hermes/config.yaml"],
+    "openclaw": [".openclaw/openclaw.json"],
+}
+
+
+def _remove_file(path: Path, target: str, *, dry_run: bool) -> RemoveResult | None:
+    """Unlink a file/symlink; None when it doesn't exist."""
+    if not (path.exists() or path.is_symlink()):
+        return None
+    if dry_run:
+        return RemoveResult(target, "would_remove", str(path))
+    try:
+        path.unlink(missing_ok=True)
+        return RemoveResult(target, "removed", str(path))
+    except OSError as exc:
+        return RemoveResult(target, "error", str(exc))
+
+
+def _remove_tree(path: Path, target: str, *, dry_run: bool) -> RemoveResult | None:
+    """Remove a directory tree; None when it doesn't exist."""
+    if not path.exists():
+        return None
+    if dry_run:
+        return RemoveResult(target, "would_remove", str(path))
+    try:
+        shutil.rmtree(path)
+        return RemoveResult(target, "removed", str(path))
+    except OSError as exc:
+        return RemoveResult(target, "error", str(exc))
+
+
+def uninstall_tool(
+    name: str,
+    *,
+    home: Path | None = None,
+    purge: bool = False,
+    dry_run: bool = False,
+) -> list[RemoveResult]:
+    """Uninstall a CLI tool: binaries, config files, plugin files, setup stamps.
+
+    ``--purge`` additionally removes the tool's whole home config dir (e.g.
+    ``~/.hermes``, ``~/.openclaw``). Dry-run reports ``would_remove`` without
+    touching the filesystem. Returns one result per target.
+    """
+    if name not in TOOLS:
+        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent list  (or agent catalog)")
+    home = home or Path.home()
+    results: list[RemoveResult] = []
+    binary = tool_binary(name)
+
+    # 1. Binaries from the session bin dir + npm prefix bin.
+    for bin_path in (_bin_dir() / binary, _npm_prefix() / "bin" / binary):
+        result = _remove_file(bin_path, f"binary:{binary}", dry_run=dry_run)
+        if result:
+            results.append(result)
+
+    # 2. Best-effort npm uninstall for npm-installed tools (binary removal
+    #    above is authoritative; this just cleans the node_modules tree).
+    pkg = TOOL_NPM_PACKAGES.get(name)
+    if pkg and not dry_run and shutil.which("npm"):
+        from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
+
+        with contextlib.suppress(LabError, subprocess.CalledProcessError, OSError):
+            run(
+                ["npm", "uninstall", "-g", "--prefix", str(_npm_prefix()), pkg],
+                env=_session_environ(),
+                timeout=INSTALL_TIMEOUT_SEC,
+            )
+
+    # 3. Config files owned by the tool.
+    for rel in TOOL_CONFIG_PATHS.get(name, []):
+        result = _remove_file(home / rel, f"config:{rel}", dry_run=dry_run)
+        if result:
+            results.append(result)
+
+    # 4. Plugin-created files (agent-skill addons: ~/.<id>/skills/...).
+    plugin_dir = home / f".{name}" / "skills"
+    result = _remove_tree(plugin_dir, f"plugins:{plugin_dir}", dry_run=dry_run)
+    if result:
+        results.append(result)
+
+    # 5. Setup state stamps.
+    from astroai_lab.agent.setup_state import failed_path, stamp_path
+
+    for spath, target in (
+        (stamp_path(home), "state:stamp"),
+        (failed_path(home), "state:failed"),
+    ):
+        result = _remove_file(spath, target, dry_run=dry_run)
+        if result:
+            results.append(result)
+
+    # 6. --purge: remove the tool's whole home config dir (parent of config).
+    if purge:
+        for rel in TOOL_CONFIG_PATHS.get(name, []):
+            d = (home / rel).parent
+            if d != home:
+                result = _remove_tree(d, f"purge:{d}", dry_run=dry_run)
+                if result:
+                    results.append(result)
+
+    return results

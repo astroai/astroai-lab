@@ -1,0 +1,27 @@
+# Hermes Agent (Nous Research) — registry entry.
+# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
+# `agent catalog` / `agent list` / `agent install` / `agent verify`.
+id: hermes
+name: Hermes Agent
+homepage: https://github.com/nousresearch/hermes-agent
+summary: Self-improving autonomous coding agent (TUI, gateway, headless)
+binary: hermes
+tags: [agent, cli, open]
+install:
+  method: curl
+  source: https://hermes-agent.nousresearch.com/install.sh
+  # Self-contained installer; the CLI can land in any of these paths.
+  post_binary_paths:
+    - "~/.local/bin/hermes"
+    - "~/.hermes/bin/hermes"
+config:
+  path: "~/.hermes/config.yaml"
+  format: yaml
+  provider_key: OPENROUTER_API_KEY
+setup:
+  post_install: null # headless via `hermes -z`; interactive onboard optional
+verify:
+  - "test -x \"$(command -v hermes)\""
+  - "test -f ~/.hermes/config.yaml"
+plugins: [skill, mcp, config, addon]
+notes: Config ~/.hermes/config.yaml; set OPENROUTER_API_KEY; headless via `hermes -z`

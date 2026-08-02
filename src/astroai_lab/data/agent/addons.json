@@ -158,6 +158,17 @@
       }
     },
     {
+      "id": "canfar-ray",
+      "kind": "skill",
+      "tags": ["science", "ray", "compute", "canfar"],
+      "summary": "Drive CANFAR Ray clusters — ensure/status/stop/scale/dashboard via astroai-workload",
+      "homepage": "https://github.com/astroai/astroai-workload",
+      "install": {
+        "type": "agent-skill",
+        "agents": ["hermes", "openclaw"]
+      }
+    },
+    {
       "id": "polars",
       "kind": "skill",
       "tags": ["science", "data", "python"],

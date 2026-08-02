@@ -146,36 +146,63 @@ astroai-lab kernel list
 astroai-lab kernel unregister NAME
 ```
 
-### `astroai-lab agent setup|update|addons|add|skills|project|verify|fix|clean|interact|list|install|models|status`
+### `astroai-lab agent catalog|list|install|remove|setup|update|addons|add|skills|project|verify|fix-config|models|status`
 
 AI agent MCP, rules, skills, CLI installation, curated catalog, auto-fix, state clean, and free model presets.
+
+**The agent registry is the single source of truth.** Every agent is defined by
+one YAML file under `data/agent/agents/<id>.yaml` (schema in
+[agent-rethink-plan.md](agent-rethink-plan.md) §4 Phase 1) — `id`, `name`,
+`homepage`, `binary`, `install.method`/`source`, `config.path`, `verify`, and
+`plugins`. `catalog`, `list`, `install`, `remove`, and `verify` read from this
+registry; adding an agent means adding one YAML file, never a Python branch.
+`install.TOOLS` remains only for non-agent utilities (`node`, `claude`,
+`copilot`, `qoder`, `hermes`, `openclaw` — the last two are mirrored in the
+registry for status/verify/remove). Install dispatch:
+
+| Agent | Method | Installer |
+|-------|--------|-----------|
+| `kilo`, `opencode`, `goose` | curl | `curl \| bash` with `{bin_dir}` env (`XDG_BIN_DIR`/`GOOSE_BIN_DIR`) |
+| `cline` | npm | `npm install -g --prefix <npm_prefix> cline@latest` |
+| `codex` | gh-release | `gh release download` with `{arch}` → `platform.machine()` |
+| `hermes`, `openclaw` | TOOLS | battle-tested `install_tool` branches |
 
 Mental model:
 
 | Command | What it does |
 |---------|----------------|
-| `agent catalog` | Curated Catalog & Directory of agents, skills, rules, MCP servers, container UIs |
-| `agent list` | Overview: installable CLIs, config bundles, Cursor skills |
-| `agent install [TOOL]` | Download a CLI binary (omit TOOL to list) |
+| `agent catalog` | Curated Catalog & Directory of agents, skills, rules, MCP servers, container UIs (registry-driven agent rows) |
+| `agent list` | Overview: installable CLIs, config bundles, Cursor skills; `--json` includes a `registry` section (per-agent binary/config/installed status) |
+| `agent install [TOOL]` | Download a CLI binary via the registry (omit TOOL to list) |
+| `agent remove TOOL` | Uninstall a CLI binary + config files via the registry (`--purge` for home dirs) |
 | `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles) |
+| `agent update` | Refresh configs + upstream skills (after image upgrades) |
 | `agent addons` | Curated lean + science addons (skills/rules/MCP) |
 | `agent add NAME…` | Install curated addon(s); `--tag lean` / `--tag science` |
 | `agent skills list` | Cursor skill inventory (bundled / GitHub / pixi / extras) |
 | `agent skills update` | Refresh GitHub upstream skills only |
-| `agent status` | Binaries + configs at a glance |
-| `agent verify` | Presence checks **and** JSON/TOML/YAML syntax of configs (use `--fix` to auto-repair) |
-| `agent fix` | Auto-repair syntax errors, missing directories, and stale locks |
-| `agent clean` | Clean stale locks, failed markers, empty configs, and setup logs |
-| `agent interact` | Inspect active container UI endpoints, open ports, and active agent CLIs |
+| `agent project [DIR]` | Per-project AGENTS.md + `.cursor/` scaffold |
+| `agent status` | Binaries + configs at a glance (registry agents included) |
+| `agent status --endpoints` | Active container UI endpoints (was `agent interact`) |
+| `agent status --json` | One-shot JSON health report (was `agent report`) |
+| `agent verify` | Presence checks **and** JSON/TOML/YAML syntax of configs, incl. registry config checks for installed agents (use `--fix` to auto-repair) |
+| `agent fix-config` | Auto-repair syntax errors, missing directories, stale locks (was `agent fix`) |
+| `agent fix-config --clean` | Clean stale locks, failed markers, empty configs, setup logs (was `agent clean`) |
 | `agent models free` | OpenRouter / Kilo free-tier presets |
 
+Deprecated aliases (still work, emit a hint): `agent fix` → `fix-config`, `agent clean` →
+`fix-config --clean`, `agent report` → `status --json`, `agent interact` → `status --endpoints`.
+
 ```bash
-astroai-lab agent list
+astroai-lab agent catalog             # registry-driven catalog (agents/skills/MCPs/UIs)
+astroai-lab agent list                # CLIs + bundles + skills; --json has registry status
+astroai-lab agent list --json | jq .registry
 astroai-lab agent setup
 astroai-lab agent setup --list
 astroai-lab agent install              # list CLIs
 astroai-lab agent install kilo
-astroai-lab agent install qoder
+astroai-lab agent install opencode
+astroai-lab agent remove kilo          # uninstall (--purge removes ~/.<agent> home dirs)
 astroai-lab agent addons               # curated recommendations
 astroai-lab agent addons --tag lean
 astroai-lab agent add ponytail
@@ -184,6 +211,7 @@ astroai-lab agent add --tag lean
 astroai-lab agent skills list
 astroai-lab agent skills update
 astroai-lab agent verify
+astroai-lab agent fix-config          # auto-repair (or --clean for stale state)
 astroai-lab agent update               # full refresh after image upgrades
 astroai-lab agent models free
 astroai-lab agent models free --preset long

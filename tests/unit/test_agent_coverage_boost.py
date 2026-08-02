@@ -35,11 +35,11 @@ def test_agent_setup_records_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.run_bundle",
+        "astroai_lab.agent.setup.run_bundle",
         lambda *a, **k: None,
     )
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.verify_setup",
+        "astroai_lab.agent.setup.verify_setup",
         lambda home: [],
     )
     monkeypatch.setattr(
@@ -59,11 +59,11 @@ def test_agent_setup_verify_failure_marks_failed(
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.run_bundle",
+        "astroai_lab.agent.setup.run_bundle",
         lambda *a, **k: None,
     )
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.verify_setup",
+        "astroai_lab.agent.setup.verify_setup",
         lambda home: ["missing mcp"],
     )
     monkeypatch.setattr(
@@ -169,15 +169,15 @@ def test_agent_sync_ok_and_partial(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.default_bundle_names",
+        "astroai_lab.agent.setup.default_bundle_names",
         lambda root: ["cli"],
     )
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.run_bundle",
+        "astroai_lab.agent.setup.run_bundle",
         lambda *a, **k: None,
     )
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.update_all_github_sources",
+        "astroai_lab.agent.setup.update_all_github_sources",
         lambda *a, **k: [
             SourceUpdateResult("x", "org/x", "updated"),
         ],
@@ -187,7 +187,7 @@ def test_agent_sync_ok_and_partial(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert read_setup_state(home).ok
 
     monkeypatch.setattr(
-        "astroai_lab.agent.bundles.update_all_github_sources",
+        "astroai_lab.agent.setup.update_all_github_sources",
         lambda *a, **k: [
             SourceUpdateResult("x", "org/x", "failed", "boom"),
         ],
@@ -199,10 +199,14 @@ def test_agent_sync_ok_and_partial(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 def test_install_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from astroai_lab.agent import install as inst
 
-    assert "kilo" in inst.list_tools()
+    # kilo/goose/cline/opencode/codex migrated out of TOOLS into the YAML
+    # registry; TOOLS keeps the rest (hermes/openclaw still route through
+    # their install_tool branches). See agent/registry.
+    assert "qoder" in inst.list_tools()
+    assert "kilo" not in inst.list_tools()
     assert inst.tool_binary("qoder") == "qodercli"
     rows = inst.list_tools_status()
-    assert any(r["name"] == "kilo" for r in rows)
+    assert any(r["name"] == "qoder" for r in rows)
 
     # Timeout path for curl|bash without network
     monkeypatch.setattr(

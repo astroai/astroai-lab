@@ -11,6 +11,7 @@ from typing import Any
 
 from astroai_lab.agent.addons import list_addons
 from astroai_lab.agent.install import list_tools_status
+from astroai_lab.agent.registry import list_registry_agents, registry_agent_status
 
 
 @dataclass(frozen=True)
@@ -109,56 +110,6 @@ CATALOG_CONTAINERS = [
 
 CATALOG_AGENTS = [
     {
-        "id": "kilo",
-        "name": "Kilo CLI",
-        "kind": "agent",
-        "tags": ["agent", "cli", "open"],
-        "summary": "Open-source CLI coding agent supporting OpenRouter & custom models",
-        "homepage": "https://github.com/kilocode/kilo",
-        "install_command": "astroai-lab agent install kilo",
-        "notes": "Sign in with `kilo auth` or set OPENROUTER_API_KEY",
-    },
-    {
-        "id": "goose",
-        "name": "Goose Agent",
-        "kind": "agent",
-        "tags": ["agent", "cli", "open"],
-        "summary": "Block's open-source autonomous AI developer CLI",
-        "homepage": "https://github.com/block/goose",
-        "install_command": "astroai-lab agent install goose",
-        "notes": "Uses ~/.config/goose/config.yaml",
-    },
-    {
-        "id": "cline",
-        "name": "Cline CLI",
-        "kind": "agent",
-        "tags": ["agent", "cli"],
-        "summary": "Autonomous coding agent CLI with tool use and safety checks",
-        "homepage": "https://github.com/cline/cline",
-        "install_command": "astroai-lab agent install cline",
-        "notes": "Configured via astroai-lab agent models free",
-    },
-    {
-        "id": "opencode",
-        "name": "OpenCode Interpreter",
-        "kind": "agent",
-        "tags": ["agent", "cli", "open"],
-        "summary": "Terminal AI coding assistant supporting local & cloud LLMs",
-        "homepage": "https://github.com/sst/opencode",
-        "install_command": "astroai-lab agent install opencode",
-        "notes": "Configured via ~/.config/opencode/opencode.json",
-    },
-    {
-        "id": "codex",
-        "name": "Codex CLI",
-        "kind": "agent",
-        "tags": ["agent", "cli"],
-        "summary": "Lightweight OpenAI Codex & OpenRouter coding assistant",
-        "homepage": "https://github.com/openai/codex",
-        "install_command": "astroai-lab agent install codex",
-        "notes": "Configured via ~/.codex/config.toml",
-    },
-    {
         "id": "qoder",
         "name": "Qoder CLI (qodercli)",
         "kind": "agent",
@@ -213,6 +164,27 @@ def list_agent_catalog(
                 "installed": is_installed,
                 "install_command": a["install_command"],
                 "notes": a["notes"],
+            }
+        )
+
+    # 2b. Registry-driven agents (data/agent/agents/*.yaml, Phase 1).
+    #     Installed status uses the registry's own binary check, not the legacy
+    #     TOOLS table (migrated agents no longer live there).
+    for agent in list_registry_agents():
+        if any(a["id"] == agent["id"] for a in CATALOG_AGENTS):
+            continue
+        status = registry_agent_status(agent, home)
+        items.append(
+            {
+                "id": agent["id"],
+                "name": agent["name"],
+                "kind": "agent",
+                "tags": agent.get("tags", ["agent"]),
+                "summary": agent.get("summary", ""),
+                "homepage": agent.get("homepage", ""),
+                "installed": status["binary_ok"],
+                "install_command": f"astroai-lab agent install {agent['id']}",
+                "notes": agent.get("notes", ""),
             }
         )
 

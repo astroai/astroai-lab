@@ -235,20 +235,31 @@ enumerable, so you rarely need to guess or re-read `help`:
 
 ## AI coding agents
 
-Persists under `/arc` home (MCP, skills, tool binaries):
+Persists under `/arc` home (MCP, skills, tool binaries).
+
+**The agent registry is the single source of truth.** Each agent ships as one
+YAML file in the package (`data/agent/agents/<id>.yaml`) declaring how it
+installs (`curl` / `npm` / `gh-release`), where its config lives, and how it
+verifies. `agent catalog` lists the registry, `agent list` shows per-agent
+binary/config status, and `agent install|remove` drive off the same entries —
+adding an agent is a data change, not a code change. This covers `kilo`,
+`goose`, `cline`, `opencode`, `codex`, `hermes`, and `openclaw`.
 
 ```bash
-astroai-lab agent setup
-astroai-lab agent install kilo     # or goose, opencode, qoder, …
+astroai-lab agent catalog          # registry-driven catalog (agents/skills/MCPs/UIs)
+astroai-lab agent list             # CLIs + bundles + skills overview (+ registry status)
+astroai-lab agent install kilo     # or goose, opencode, cline, codex, hermes, openclaw, …
+astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
 astroai-lab agent addons           # curated lean + science skills/MCP
 astroai-lab agent add ponytail     # YAGNI / minimal diffs
 astroai-lab agent models free
 astroai-lab agent update           # after image upgrades
-astroai-lab agent list             # CLIs + bundles + skills overview
-astroai-lab agent verify           # catch broken JSON/TOML/YAML configs
+astroai-lab agent verify           # catch broken JSON/TOML/YAML configs (+ registry config checks)
+astroai-lab agent fix-config       # auto-repair (--clean for stale state)
 ```
 
-See [cli.md](cli.md) for `agent models free --preset long` and per-agent options.
+See [cli.md](cli.md) for `agent models free --preset long`, per-agent options,
+and the registry schema summary.
 
 ---
 

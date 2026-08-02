@@ -66,7 +66,10 @@ astroai-lab saves
 astroai-lab status --json
 astroai-lab kernel ensure
 astroai-lab agent setup
+astroai-lab agent install kilo     # or goose, opencode, qoder, …
+astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
 astroai-lab agent update
+astroai-lab agent fix-config
 ```
 
 ## Platform vs project Python
