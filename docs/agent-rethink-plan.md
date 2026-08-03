@@ -3,7 +3,7 @@
 Status: **in progress** — Phases 0–3 landed (prune + decompose, agent
 registry, lean verbs, plugin system) plus the Phase 2 `setup <agent>` /
 `config <agent>` / `update <agent>` / `fix-config <agent>` registry-driven
-verbs. Phases 4–5 remain.
+verbs, and the Phase 6 `wipe` factory reset. Phases 4–5 remain.
 Owner: astroai-lab.
 Companion docs: [cli.md](cli.md), [USAGE.md](USAGE.md), [help.md](help.md).
 
@@ -96,6 +96,7 @@ astroai-lab agent
   catalog                     # curated agents / skills / MCPs / containers (registry-driven)
   install <agent>             # registry-driven (CLI download + binary link)
   remove <agent>              # NEW: uninstall CLI + configs + state
+  wipe                        # factory reset: remove EVERY agent config + binary + state
   setup <agent>               # write configs/skills/MCP for one agent (or all)
   config <agent> [key=val]    # show/edit an agent's config file (NEW surface)
   fix-config <agent>          # repair syntax / regenerate (from verify --fix)
@@ -318,6 +319,29 @@ Specifics:
       (this doc too).
 - [ ] Deprecation shims emit a hint pointing at the new verb, then are removed.
 
+### Phase 6 — `agent wipe` (factory reset)
+
+- [x] `agent wipe` — full factory reset of the agent layer: remove EVERY
+      installed agent (binary + config + plugin files + home dirs via
+      `remove_registry_agent(..., purge=True)` / `uninstall_tool(..., purge=True)`),
+      the `~/.astroai/lab` setup state (stamps/locks/logs), and the shared
+      Cursor configs (`~/.cursor`: skills/rules/mcp.json) plus the upstream-skill
+      clone cache (`agent/wipe.py::wipe_agent_state`). Saved environments,
+      project files, and CANFAR client config are deliberately untouched.
+- [x] Confirmation gate: interactive `typer.confirm` danger summary unless
+      `--yes`; `--json` requires `--yes` (machine mode cannot prompt, like
+      `canfar auth purge`); `--dry-run` lists everything without changing
+      anything.
+- [x] Tests: `tests/unit/test_wipe.py` (dry-run no-op, real wipe, empty-home
+      no-op, saved-envs preservation, error capture, CLI confirm accept/decline,
+      `--json` requires `--yes`, `--json --yes` full wipe); the golden
+      contract test now pins `wipe` in `CANONICAL_VERBS`.
+- [x] `scripts/test-agent-local.sh` exercises the wipe surface
+      (`agent wipe --dry-run` asserts the preview lists the installed hermes
+      state as would_remove and removes nothing) on every session image;
+      `canfar-verify-agents.sh` keeps its verb-surface smoke (the live wipe is
+      intentionally not run against a real CANFAR home).
+
 ---
 
 ## 5. Acceptance criteria
@@ -325,6 +349,8 @@ Specifics:
 - `astroai-lab agent --help` fits on one screen with ≤ 11 verbs (+ `plugins`).
 - Adding an agent = adding one YAML file; no Python branch needed.
 - `agent remove <agent>` leaves no trace (binary, configs, stamps, plugins).
+- `agent wipe` (with confirmation or `--yes`) returns the agent layer to a
+  pristine state without touching saves/projects/CANFAR config.
 - `agent plugins install canfar-ray` puts the SKILL.md into every installed
   agent that supports skills, and `plugins remove` deletes it.
 - Full unit suite + coverage gate (75%) stay green at every phase.
@@ -341,3 +367,30 @@ Specifics:
   containers; document for interactive sessions.
 - **Dynamic manager URL** for the MCP plugin — resolve at session time
   (`$ASTROAI_RAY_JOBS_ADDRESS`), never bake a per-session URL into configs.
+
+## 7. Future options / evaluated-but-not-adopted
+
+### yc-software/qm — multiplayer org agent harness (evaluated, skipped for now)
+
+[yc-software/qm](https://github.com/yc-software/qm) (Y Combinator, MIT,
+pre-1.0) gives an org per-person isolated agent workspaces plus shared
+Slack/web channels, scoped memory/keychain/crons, and admin control — a
+company-internal "agent for work" runtime, multi-harness (Pi, OpenCode,
+Codex, Claude Code), self-hosted on Fly/AWS.
+
+**Verdict: skip for now.** astroai's model is per-user scientific sessions
+with agent tooling baked in (driving CANFAR Ray clusters via
+astroai-workload/MCP); `astroai-lab` already owns the agent-management layer
+(registry, plugins, skills, MCP). qm overlaps that layer, is pre-1.0 and
+self-host-ops-heavy, and its sandbox is explicitly not a hardened
+multi-tenant boundary — so it is also **not** a fit for serving external
+CANFAR users. Its one plausible niche here is *internal* dev-team
+collaboration (agents opening PRs / monitoring CI in shared rooms) — not
+needed at current team scale. Existing plugin skills (e.g. `canfar-ray`
+SKILL.md) would port 1:1 as qm "shared skill packs" if that ever changes.
+
+Revisit only when, together: (1) maintainer team grows past ~5 and wants
+shared channel-collaborative agents + org memory/governance, (2) someone
+needs cron/monitoring/web-app agents over the astroai repos, and (3) the
+org accepts operating pre-1.0 self-hosted infra. Cheap test then: one-day
+pilot on a throwaway Fly org with **strict** posture, core team only.

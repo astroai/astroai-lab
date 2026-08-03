@@ -146,7 +146,7 @@ astroai-lab kernel list
 astroai-lab kernel unregister NAME
 ```
 
-### `astroai-lab agent catalog|list|install|remove|setup|config|update|addons|add|skills|plugins|project|verify|fix-config|models|status`
+### `astroai-lab agent catalog|list|install|remove|wipe|setup|config|update|addons|add|skills|plugins|project|verify|fix-config|models|status`
 
 AI agent MCP, rules, skills, CLI installation, curated catalog, auto-fix, state clean, plugins, and free model presets.
 
@@ -175,6 +175,7 @@ Mental model:
 | `agent list` | Overview: installable CLIs, config bundles, Cursor skills; `--json` includes a `registry` section (per-agent binary/config/installed status) |
 | `agent install [TOOL]` | Download a CLI binary via the registry (omit TOOL to list) |
 | `agent remove TOOL` | Uninstall a CLI binary + config files via the registry (`--purge` for home dirs) |
+| `agent wipe` | **Factory reset** — remove EVERY agent (binary + config + plugins + home dirs), the `~/.astroai/lab` setup state, and the shared Cursor configs (skills/rules/mcp.json); interactive confirmation (or `--yes`), `--dry-run` lists everything. Saves/projects/CANFAR config are untouched |
 | `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles); a registered agent id drives per-agent registry setup, `--all` covers every installed agent, `--post-install` runs the interactive step (e.g. `openclaw onboard`) |
 | `agent config ID` | Show/edit a registered agent's config file (format-aware, JSON5-tolerant): `--key a.b` shows one value, `key=value` writes a validated edit, `--unset key` removes one |
 | `agent update [ID]` | Refresh configs + upstream skills (after image upgrades); `agent update ID` refreshes one agent registry-driven (CLI when missing or `--reinstall`, plus its plugins + state) |
@@ -212,6 +213,8 @@ astroai-lab agent install              # list CLIs
 astroai-lab agent install kilo
 astroai-lab agent install opencode
 astroai-lab agent remove kilo          # uninstall (--purge removes ~/.<agent> home dirs)
+astroai-lab agent wipe --dry-run       # preview the factory reset (nothing changes)
+astroai-lab agent wipe --yes           # factory reset: remove EVERY agent config + state
 astroai-lab agent addons               # curated recommendations
 astroai-lab agent addons --tag lean
 astroai-lab agent add ponytail

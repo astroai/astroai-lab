@@ -29,6 +29,7 @@ agent_app = typer.Typer(
         "  list       overview (tools + bundles + skills)\n"
         "  install    download a CLI binary (kilo, opencode, qoder, …)\n"
         "  remove     uninstall a CLI binary + config files\n"
+        "  wipe       factory reset: remove EVERY agent config + binary + state\n"
         "  setup      write MCP/rules/skills configs (or per-agent, registry-driven)\n"
         "  config     show/edit a registered agent's config file (JSON5-aware)\n"
         "  update     refresh configs + upstream skills (or one agent, registry-driven)\n"
@@ -56,6 +57,7 @@ def agent_root(ctx: typer.Context) -> None:
         ui.print_hint("  astroai-lab agent list              # tools, bundles, skills overview")
         ui.print_hint("  astroai-lab agent install [TOOL]    # CLI binaries (omit TOOL to list)")
         ui.print_hint("  astroai-lab agent remove TOOL       # uninstall (--purge for home dirs)")
+        ui.print_hint("  astroai-lab agent wipe              # factory reset (confirm required)")
         ui.print_hint("  astroai-lab agent setup [BUNDLE…]   # MCP/rules/skills configs")
         ui.print_hint("  astroai-lab agent setup hermes      # per-agent registry setup")
         ui.print_hint("  astroai-lab agent config hermes     # show/edit an agent's config")
@@ -1657,6 +1659,105 @@ def agent_install_cmd(
         ui.print_ok(f"Installed {tool} → {user_bin_dir()}")
         if tool in ("kilo", "goose", "cline", "opencode", "codex", "qoder"):
             ui.print_hint("  astroai-lab agent models free")
+
+
+@agent_app.command("wipe")
+def agent_wipe_cmd(
+    ctx: typer.Context,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Skip the confirmation prompt."),
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
+) -> None:
+    """Factory reset: remove EVERY agent binary, config, plugin, and setup state.
+
+    Wipes the whole agent layer back to a pristine image state: every installed
+    agent CLI (binary + config + plugin files + home dirs like ~/.hermes,
+    ~/.openclaw, ~/.config/kilo), the ~/.astroai/lab setup state (stamps,
+    locks, logs), and the shared Cursor agent configs (skills / rules / mcp.json).
+
+    Saved environments, project files, and CANFAR client config are NOT
+    touched. Requires interactive confirmation (or --yes); --dry-run lists
+    everything without changing anything.
+
+    Examples:
+        astroai-lab agent wipe --dry-run
+        astroai-lab agent wipe
+        astroai-lab agent wipe --yes
+        astroai-lab --json agent wipe --yes
+    """
+    from astroai_lab.agent.wipe import wipe_agent_state
+    from astroai_lab.cli.context import merge_opts
+
+    opts = merge_opts(ctx, yes=yes, dry_run=dry_run)
+
+    # Machine mode cannot prompt: require --yes (like `canfar auth purge`).
+    if opts.json and not opts.yes and not opts.dry_run:
+        ui.print_json(
+            {
+                "ok": False,
+                "dry_run": False,
+                "actions": [],
+                "errors": [
+                    "agent wipe --json requires --yes (no interactive prompt in machine mode)"
+                ],
+                "counts": {"removed": 0, "would_remove": 0, "errors": 1},
+            }
+        )
+        raise typer.Exit(1)
+
+    if not opts.dry_run and not opts.yes and not opts.json:
+        ui.print_warn("This PERMANENTLY removes every agent configuration:")
+        ui.print_warn("  • every installed agent CLI (binary + config + plugins + home dirs)")
+        ui.print_warn("  • ~/.astroai/lab setup state (stamps, locks, logs)")
+        ui.print_warn("  • Cursor skills, rules, and MCP configs (~/.cursor)")
+        ui.print_warn("Saved environments, projects, and CANFAR config are NOT touched.")
+        if not typer.confirm("Proceed with the full wipe?", default=False):
+            ui.print_hint("Wipe cancelled.")
+            raise typer.Exit(0)
+
+    results = wipe_agent_state(dry_run=opts.dry_run)
+    errors = [r for r in results if r["status"] == "error"]
+    removed = [r for r in results if r["status"] == "removed"]
+    would = [r for r in results if r["status"] == "would_remove"]
+
+    if opts.json:
+        ui.print_json(
+            {
+                "ok": not errors,
+                "dry_run": opts.dry_run,
+                "actions": results,
+                "errors": [r["detail"] for r in errors],
+                "counts": {
+                    "removed": len(removed),
+                    "would_remove": len(would),
+                    "errors": len(errors),
+                },
+            }
+        )
+        if errors:
+            raise typer.Exit(1)
+        return
+
+    prefix = "would remove" if opts.dry_run else "removed"
+    for r in results:
+        if r["status"] == "error":
+            ui.print_error(f"  {r['target']}: {r['detail']}")
+        else:
+            ui.print_ok(f"  {r['target']}: {prefix} ({r['detail']})")
+    if errors:
+        ui.print_error(f"Wipe finished with {len(errors)} error(s)")
+        raise typer.Exit(1)
+    if not results:
+        ui.print_ok("Nothing to wipe — agent layer already clean")
+        return
+    if opts.dry_run:
+        ui.print_ok(f"Would remove {len(would)} item(s) — run without --dry-run to apply")
+        return
+    ui.print_ok("Agent layer wiped — restart from scratch with: astroai-lab agent setup")
 
 
 @agent_app.command("remove")

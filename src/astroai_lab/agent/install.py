@@ -460,6 +460,7 @@ def uninstall_tool(
                 ["npm", "uninstall", "-g", "--prefix", str(_npm_prefix()), pkg],
                 env=_session_environ(),
                 timeout=INSTALL_TIMEOUT_SEC,
+                quiet=True,  # keep stdout clean for `--json agent remove/wipe`
             )
 
     # 3. Config files owned by the tool.

@@ -252,6 +252,7 @@ astroai-lab agent catalog          # registry-driven catalog (agents/skills/MCPs
 astroai-lab agent list             # CLIs + bundles + skills overview (+ registry status)
 astroai-lab agent install kilo     # or goose, opencode, cline, codex, hermes, openclaw, …
 astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
+astroai-lab agent wipe             # factory reset: remove EVERY agent config + binary + state (confirmation required; --dry-run to preview)
 astroai-lab agent setup hermes     # per-agent registry setup: config scaffold + skills + plugins
 astroai-lab agent setup --all      # same, for every installed agent
 astroai-lab agent config hermes    # show the agent's config file (key=value edits / --unset)
