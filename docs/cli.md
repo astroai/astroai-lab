@@ -193,6 +193,7 @@ Mental model:
 | `agent status` (with `--json` before the subcommand) | One-shot JSON health report (was `agent report`) |
 | `agent verify` | Presence checks **and** JSON/TOML/YAML syntax of configs, incl. registry config checks for installed agents (use `--fix` to auto-repair) |
 | `agent fix-config` | Auto-repair syntax errors, missing directories, stale locks (was `agent fix`) |
+| `agent fix-config ID` | Regenerate/sanitize ONE registered agent's config from the registry (missing → scaffold, broken → format-aware reset, markdown read-only); `--all` covers every installed agent |
 | `agent fix-config --clean` | Clean stale locks, failed markers, empty configs, setup logs (was `agent clean`) |
 | `agent models free` | OpenRouter / Kilo free-tier presets |
 
@@ -226,6 +227,7 @@ astroai-lab agent plugins remove canfar-ray
 astroai-lab agent plugins configure ray-manager-mcp   # MCP server entry (astroai-workload mcp serve)
 astroai-lab agent verify
 astroai-lab agent fix-config          # auto-repair (or --clean for stale state)
+astroai-lab agent fix-config hermes   # regenerate/sanitize ONE agent's config (--all for every installed)
 astroai-lab agent config hermes        # show the agent's config file
 astroai-lab agent config hermes --key model
 astroai-lab agent config hermes model=nousresearch/hermes-3-llama-3.1-405b

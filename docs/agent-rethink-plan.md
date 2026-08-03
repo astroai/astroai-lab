@@ -2,8 +2,8 @@
 
 Status: **in progress** — Phases 0–3 landed (prune + decompose, agent
 registry, lean verbs, plugin system) plus the Phase 2 `setup <agent>` /
-`config <agent>` / `update <agent>` registry-driven verbs. `fix-config
-<agent>` and Phases 4–5 remain.
+`config <agent>` / `update <agent>` / `fix-config <agent>` registry-driven
+verbs. Phases 4–5 remain.
 Owner: astroai-lab.
 Companion docs: [cli.md](cli.md), [USAGE.md](USAGE.md), [help.md](help.md).
 
@@ -226,8 +226,13 @@ live in home dirs (e.g. `~/.hermes/config.yaml`) — that's the supported split.
       comment-tolerant parse + textual targeted edits, so JSONC/JSON5 comments
       and trailing commas survive). YAML round-trips via `safe_dump`; TOML
       edits are line-based scalars; markdown is read-only (`agent/agent_config.py`).
-- [ ] `fix-config <agent>` — regenerate/sanitize the agent's config (reuse
-      `fix.py` logic); `verify --fix` remains the broad sweep.
+- [x] `fix-config <agent>` — regenerate/sanitize the agent's config from the
+      registry (missing → format-aware scaffold; broken → reset to a minimal
+      valid body; markdown read-only), `--all` covers every installed agent;
+      reuses `fix.py`'s repair pattern via `agent_config.validate_config_text`
+      (`registry.fix_registry_agent`); `verify --fix` remains the broad sweep.
+      Also fixed the jsonc/json5 scaffold to use `//` headers (JSONC/JSON5 do
+      not support `#` comments), so a scaffolded config always parses back.
 - [x] `update <agent>` — registry-driven: refresh CLI when missing (or always
       with `--reinstall`), force re-apply the agent's plugins, refresh state
       (`registry.update_registry_agent`).
@@ -302,7 +307,7 @@ Specifics:
 - [x] Plugin system tests: `tests/unit/test_plugins.py` (loader/schema, status,
       install/update/remove/configure for skill/mcp/config, recursive removal,
       CLI surface) + contract test pins the `plugins` verb.
-- [ ] Unit tests per remaining verb (setup/config/fix-config/update).
+- [x] Unit tests per remaining verb (setup/config/fix-config/update).
 - [ ] `scripts/canfar-verify-agents.sh` updated to the new verb surface
       (`agent plugins list`, `agent fix-config --all`, etc.).
 - [x] `docs/cli.md` / `docs/USAGE.md` document the registry as source of truth

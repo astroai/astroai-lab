@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 from astroai_lab.agent.catalog import list_agent_catalog
 from astroai_lab.agent.registry import (
+    fix_registry_agent,
     get_registry_agent,
     install_registry_agent,
     list_installed_registry_agents,
@@ -580,3 +581,166 @@ def test_cli_update_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert data["agent"] == "hermes"
     assert data["ok"] is True
     assert any("binary up-to-date" in a for a in data["actions"])
+
+
+# ---------------------------------------------------------------------------
+# Registry-driven fix-config (`agent fix-config <id>` / `--all`)
+# ---------------------------------------------------------------------------
+
+
+def test_fix_registry_agent_unknown() -> None:
+    with pytest.raises(LabError, match="Unknown agent"):
+        fix_registry_agent("not-an-agent")
+
+
+def test_fix_registry_agent_scaffolds_missing_config(tmp_path: Path) -> None:
+    """Missing config → scaffolded (and the scaffold must parse back)."""
+    from astroai_lab.agent import agent_config as ac
+
+    home = tmp_path / "home"
+    home.mkdir()
+    result = fix_registry_agent("hermes", home=home)
+    assert result["ok"] is True
+    cfg = home / ".hermes" / "config.yaml"
+    assert cfg.is_file()
+    assert any("created config" in a for a in result["actions"])
+    # scaffold parses as valid YAML and the skills dir was created
+    ac.validate_config_text("hermes", cfg.read_text(), home=home)
+    assert (home / ".hermes" / "skills").is_dir()
+    # stamp refreshed (failed marker cleared)
+    assert (home / ".astroai" / "lab" / "agent-setup-stamp").is_file()
+
+
+def test_fix_registry_agent_reports_healthy_existing(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    cfg = home / ".hermes" / "config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("model: mine\n", encoding="utf-8")
+    result = fix_registry_agent("hermes", home=home)
+    assert result["ok"] is True
+    assert any("config healthy" in a for a in result["actions"])
+    assert cfg.read_text() == "model: mine\n"  # never clobbers a healthy file
+
+
+def test_fix_registry_agent_repairs_broken_jsonc(tmp_path: Path) -> None:
+    from astroai_lab.agent import agent_config as ac
+
+    home = tmp_path / "home"
+    cfg = home / ".config" / "kilo" / "kilo.jsonc"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text('{\n  "model": [unclosed\n', encoding="utf-8")
+    result = fix_registry_agent("kilo", home=home)
+    assert any("repaired broken jsonc config" in a for a in result["actions"])
+    # the reset file parses again (// header scaffold is JSONC-legal)
+    text = cfg.read_text()
+    assert text.lstrip().startswith("//")
+    assert ac.validate_config_text("kilo", text, home=home) == {}
+
+
+def test_fix_registry_agent_repairs_broken_toml(tmp_path: Path) -> None:
+    from astroai_lab.agent import agent_config as ac
+
+    home = tmp_path / "home"
+    cfg = home / ".codex" / "config.toml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("model = [unclosed", encoding="utf-8")
+    result = fix_registry_agent("codex", home=home)
+    assert any("repaired broken toml config" in a for a in result["actions"])
+    ac.validate_config_text("codex", cfg.read_text(), home=home)
+
+
+def test_fix_registry_agent_markdown_read_only(tmp_path: Path) -> None:
+    """Existing markdown config is healthy (read-only); a missing one scaffolds."""
+    home = tmp_path / "home"
+    cfg = home / ".config" / "canfar" / "lab" / "cline-free.md"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("# models\n", encoding="utf-8")
+    result = fix_registry_agent("cline", home=home)
+    assert result["ok"] is True
+    assert any("markdown read-only" in a for a in result["actions"])
+    assert cfg.read_text() == "# models\n"  # never rewritten
+
+    home2 = tmp_path / "home2"
+    home2.mkdir()
+    result2 = fix_registry_agent("cline", home=home2)
+    assert any("created config" in a for a in result2["actions"])
+    assert (home2 / ".config" / "canfar" / "lab" / "cline-free.md").is_file()
+
+
+def test_fix_registry_agent_dry_run_writes_nothing(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    result = fix_registry_agent("hermes", home=home, dry_run=True)
+    assert any("would create config" in a for a in result["actions"])
+    assert not (home / ".hermes" / "config.yaml").exists()
+    assert not (home / ".hermes" / "skills").exists()
+    assert not (home / ".astroai" / "lab" / "agent-setup-stamp").exists()
+
+
+def test_fix_registry_agent_dry_run_broken_config_untouched(tmp_path: Path) -> None:
+    """Dry-run over a broken config reports 'would repair' but writes nothing."""
+    home = tmp_path / "home"
+    cfg = home / ".config" / "kilo" / "kilo.jsonc"
+    cfg.parent.mkdir(parents=True)
+    broken = '{\n  "model": [unclosed\n'
+    cfg.write_text(broken, encoding="utf-8")
+    result = fix_registry_agent("kilo", home=home, dry_run=True)
+    assert any("would repair broken jsonc config" in a for a in result["actions"])
+    assert cfg.read_text() == broken  # untouched in dry-run
+    assert not (home / ".astroai" / "lab" / "agent-setup-stamp").exists()
+
+
+def test_setup_scaffold_parses_for_json5(tmp_path: Path, _no_plugins) -> None:
+    """Regression: the json5 scaffold uses `//` headers so it parses back."""
+    from astroai_lab.agent import agent_config as ac
+
+    home = tmp_path / "home"
+    home.mkdir()
+    setup_registry_agent("openclaw", home=home)
+    cfg = home / ".openclaw" / "openclaw.json"
+    assert cfg.is_file()
+    assert cfg.read_text().lstrip().startswith("//")
+    ac.validate_config_text("openclaw", cfg.read_text(), home=home)
+
+
+def test_cli_fix_config_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["--json", "agent", "fix-config", "hermes"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["agent"] == "hermes"
+    assert data["ok"] is True
+    assert any("created config" in a for a in data["actions"])
+    assert (tmp_path / ".hermes" / "config.yaml").is_file()
+
+
+def test_cli_fix_config_agent_human_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-JSON path prints actions + the 'config OK' summary line."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["agent", "fix-config", "hermes"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "config OK" in out
+    assert (tmp_path / ".hermes" / "config.yaml").is_file()
+
+
+def test_cli_fix_config_all_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--all` with nothing installed → clean no-op (fresh image gate)."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    result = runner.invoke(app, ["--json", "agent", "fix-config", "--all"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["agents"] == []
+    assert data["ok"] is True
+
+
+def test_cli_fix_config_clean_conflicts_with_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["agent", "fix-config", "hermes", "--clean"])
+    assert result.exit_code == 2  # typer usage error (BadParameter)
+    assert "cannot be combined" in (result.stdout + result.stderr)

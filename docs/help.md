@@ -70,6 +70,7 @@ astroai-lab agent install kilo     # or goose, opencode, qoder, …
 astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
 astroai-lab agent update
 astroai-lab agent fix-config
+astroai-lab agent fix-config hermes   # regenerate/sanitize ONE agent's config (--all)
 ```
 
 ## Platform vs project Python

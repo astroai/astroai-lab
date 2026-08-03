@@ -99,6 +99,19 @@ def _parse_config(text: str, fmt: str, agent_id: str, path: Path) -> dict[str, A
     return data
 
 
+def validate_config_text(
+    agent_id: str, text: str, *, home: Path | None = None
+) -> dict[str, Any]:
+    """Parse the agent's config text by declared format; LabError when broken.
+
+    Shared by `agent fix-config <id>` (syntax check before a reset) and the
+    edit validation path in ``edit_agent_config``.
+    """
+    _, config, path = _agent_and_config(agent_id, home)
+    fmt = str(config.get("format", "json"))
+    return _parse_config(text, fmt, agent_id, path)
+
+
 def read_agent_config(agent_id: str, *, home: Path | None = None) -> tuple[Path, dict[str, Any]]:
     """Parse the agent's config file by format; LabError when missing/broken."""
     _, config, path = _agent_and_config(agent_id, home)
@@ -173,7 +186,7 @@ def edit_agent_config(
         )
     text = path.read_text(encoding="utf-8")
     # Validate first — never write through a broken file.
-    _parse_config(text, fmt, agent_id, path)
+    validate_config_text(agent_id, text, home=home)
 
     if dry_run:
         actions = [

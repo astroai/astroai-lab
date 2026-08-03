@@ -38,7 +38,7 @@ agent_app = typer.Typer(
         "  project    per-project AGENTS.md + .cursor scaffold\n"
         "  status     binaries + configs at a glance (--endpoints for container UIs)\n"
         "  verify     presence + config syntax checks (with --fix)\n"
-        "  fix-config auto-repair setup state, locks, & config syntax\n"
+        "  fix-config auto-repair (or <agent>/--all, registry-driven)\n"
         "  models     free-tier model presets\n"
         "  plugins    skills/MCP/config/addons across installed agents\n"
         "Deprecated aliases: fix, clean, report, interact — see `astroai-lab help -c agent`"
@@ -67,6 +67,9 @@ def agent_root(ctx: typer.Context) -> None:
         )
         ui.print_hint(
             "  astroai-lab agent fix-config        # auto-repair (--clean for stale state)"
+        )
+        ui.print_hint(
+            "  astroai-lab agent fix-config hermes  # per-agent config regen/sanitize (--all)"
         )
         ui.print_hint("  astroai-lab agent models free       # OpenRouter / Kilo presets")
         ui.print_hint("  astroai-lab agent plugins list     # skills/MCP/config across agents")
@@ -413,6 +416,74 @@ def _run_registry_agent_update(ctx: typer.Context, agent: str, *, reinstall: boo
     if not result["ok"]:
         raise typer.Exit(2 if result["partial"] else 1)
     ui.print_ok(f"Agent {agent} updated")
+
+
+def _run_registry_fix_config(
+    ctx: typer.Context, agent_id: str | None, *, all_agents: bool
+) -> None:
+    """Registry-driven `agent fix-config <id>` / `fix-config --all`."""
+    from astroai_lab.agent.registry import (
+        fix_registry_agent,
+        list_installed_registry_agents,
+    )
+
+    opts = get_opts(ctx)
+    ids = [agent_id] if agent_id else [a["id"] for a in list_installed_registry_agents()]
+    if not ids:
+        if opts.json:
+            ui.print_json(
+                {
+                    "ok": True,
+                    "partial": False,
+                    "agents": [],
+                    "fixed": [],
+                    "actions": [],
+                    "errors": [],
+                }
+            )
+        else:
+            ui.print_hint("No installed registry agents — install one: agent install <id>")
+        return
+
+    actions: list[str] = []
+    errors: list[str] = []
+    fixed: list[str] = []
+    for aid in ids:
+        try:
+            result = fix_registry_agent(aid, dry_run=opts.dry_run)
+        except LabError as exc:
+            errors.append(f"{aid}: {exc}")
+            continue
+        actions.extend(result["actions"])
+        errors.extend(result["errors"])
+        if result["ok"]:
+            fixed.append(aid)
+
+    payload = {
+        "ok": not errors,
+        "partial": bool(actions) and bool(errors),
+        "agents": ids,
+        "fixed": fixed,
+        "actions": actions,
+        "errors": errors,
+    }
+    if agent_id:
+        payload["agent"] = agent_id
+    if opts.json:
+        ui.print_json(payload)
+        if errors:
+            raise typer.Exit(2 if payload["partial"] else 1)
+        return
+    for action in actions:
+        ui.print_ok(f"  {action}")
+    for err in errors:
+        ui.print_error(f"  {err}")
+    if errors:
+        raise typer.Exit(2 if payload["partial"] else 1)
+    if agent_id:
+        ui.print_ok(f"Agent {agent_id} config OK")
+    else:
+        ui.print_ok(f"Agent configs OK ({len(fixed)} agent(s))")
 
 
 @agent_app.command("config")
@@ -1277,9 +1348,22 @@ def agent_catalog_cmd(
 @agent_app.command("fix-config")
 def agent_fix_config_cmd(
     ctx: typer.Context,
+    agent: Annotated[
+        str | None,
+        typer.Argument(
+            help="Registered agent id (registry-driven config fix).",
+            autocompletion=_agent_completer,
+        ),
+    ] = None,
     clean: Annotated[
         bool,
         typer.Option("--clean", help="Clean stale state instead of auto-repairing."),
+    ] = False,
+    all_agents: Annotated[
+        bool,
+        typer.Option(
+            "--all", help="Registry-driven config fix for every installed agent."
+        ),
     ] = False,
     stale_locks: Annotated[
         bool, typer.Option("--stale-locks", help="Remove stale lock files.")
@@ -1295,14 +1379,28 @@ def agent_fix_config_cmd(
 ) -> None:
     """Auto-repair agent setup (or `--clean` stale state). Replaces `fix` + `clean`.
 
+    `agent fix-config <id>` regenerates/sanitizes ONE registered agent's config
+    from the registry (scaffold when missing, format-aware reset when broken);
+    `--all` does the same for every installed agent. Without an agent argument
+    the broad sweep runs (syntax repair, missing dirs, stale locks) — the
+    former `agent fix`. `--clean` stays the stale-state cleanup (former `clean`)
+    and cannot be combined with `<agent>` / `--all`.
+
     Examples:
         astroai-lab agent fix-config
+        astroai-lab agent fix-config hermes
+        astroai-lab agent fix-config --all
         astroai-lab agent fix-config --clean
         astroai-lab agent fix-config --clean --logs
     """
     from astroai_lab.cli.context import merge_opts
 
     opts = merge_opts(ctx, dry_run=dry_run)
+    if agent or all_agents:
+        if clean:
+            raise typer.BadParameter("--clean cannot be combined with <agent> or --all")
+        _run_registry_fix_config(ctx, agent, all_agents=all_agents)
+        return
     if clean:
         results = agent_clean_mod.clean_agent_state(
             stale_locks=stale_locks,

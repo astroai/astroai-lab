@@ -433,8 +433,9 @@ def list_installed_registry_agents(home: Path | None = None) -> list[dict[str, A
 def _config_scaffold(agent: dict[str, Any]) -> str:
     """Minimal scaffold for a missing registry ``config.path``.
 
-    JSON5/JSONC get a comment header (comments are legal there); strict JSON,
-    YAML, TOML, and markdown get header-free or comment-only bodies that parse
+    JSON5/JSONC get a ``//`` comment header (JSONC/JSON5 do not support ``#``
+    comments — parse_jsonc only strips ``//`` and ``/* */``); strict JSON gets
+    a header-free body; YAML/TOML/markdown get ``#`` headers. All bodies parse
     to an empty mapping / empty file respectively.
     """
     fmt = str((agent.get("config") or {}).get("format", "json"))
@@ -442,7 +443,9 @@ def _config_scaffold(agent: dict[str, Any]) -> str:
     header = f"# {name} — scaffolded by `astroai-lab agent setup {agent['id']}`\n"
     if fmt == "json":
         return "{}\n"
-    if fmt in ("jsonc", "json5", "yaml"):
+    if fmt in ("jsonc", "json5"):
+        return f"// {name} — scaffolded by `astroai-lab agent setup {agent['id']}`\n{{}}\n"
+    if fmt == "yaml":
         return header + "{}\n"
     # toml / markdown / unknown: comment-only body stays valid.
     return header + "\n"
@@ -607,6 +610,95 @@ def update_registry_agent(
         from astroai_lab.agent.setup_state import record_setup_ok
 
         record_setup_ok(home, mode=f"update:{agent_id}")
+    return {
+        "ok": ok,
+        "partial": bool(actions) and bool(errors),
+        "agent": agent_id,
+        "actions": actions,
+        "errors": errors,
+    }
+
+
+def fix_registry_agent(
+    agent_id: str,
+    *,
+    home: Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Registry-driven `agent fix-config <id>` (docs/agent-rethink-plan.md Phase 2).
+
+    Regenerate/sanitize ONE registered agent's config from the registry,
+    reusing ``fix.py``'s repair pattern (syntax check → reset to a minimal
+    valid body) with the format-aware parse from ``agent_config``:
+
+    1. Missing config → scaffold it (format-aware; JSONC/JSON5 keep a ``//``
+       header, strict JSON gets ``{}\n``, YAML/TOML/markdown comment bodies).
+    2. Present but unparseable → reset to the scaffold (markdown is read-only:
+       no repair).
+    3. Present + parseable → nothing to fix.
+    4. Ensure the agent's skills dir exists (like `agent setup <id>`).
+    5. Refresh the setup stamp / clear the failed marker when healthy.
+
+    A repaired (reset) config loses plugin-written entries — run
+    `agent update <id>` afterwards to force re-apply the agent's plugins.
+
+    Returns ``{ok, partial, agent, actions, errors}`` for JSON output.
+    """
+    agent = get_registry_agent(agent_id)
+    if agent is None:
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+    home = home or Path.home()
+    actions: list[str] = []
+    errors: list[str] = []
+
+    config = agent.get("config") or {}
+    if config.get("path"):
+        cfg = _expand_home(str(config["path"]), home)
+        fmt = str(config.get("format", "json"))
+        if not cfg.is_file():
+            if dry_run:
+                actions.append(f"would create config ({cfg})")
+            else:
+                cfg.parent.mkdir(parents=True, exist_ok=True)
+                cfg.write_text(_config_scaffold(agent), encoding="utf-8")
+                actions.append(f"created config ({cfg})")
+        elif fmt == "markdown":
+            actions.append(f"config healthy (markdown read-only) ({cfg})")
+        else:
+            from astroai_lab.agent import agent_config as agent_config_mod
+
+            text = cfg.read_text(encoding="utf-8", errors="replace")
+            try:
+                agent_config_mod.validate_config_text(agent_id, text, home=home)
+                actions.append(f"config healthy ({cfg})")
+            except LabError:
+                if dry_run:
+                    actions.append(f"would repair broken {fmt} config ({cfg})")
+                else:
+                    cfg.parent.mkdir(parents=True, exist_ok=True)
+                    cfg.write_text(_config_scaffold(agent), encoding="utf-8")
+                    actions.append(f"repaired broken {fmt} config ({cfg})")
+    else:
+        actions.append("no config declared")
+
+    from astroai_lab.agent.addons import AGENT_SKILL_DIRS
+
+    rel = AGENT_SKILL_DIRS.get(agent_id)
+    if rel:
+        skills_dir = home / rel
+        if skills_dir.is_dir():
+            actions.append(f"skills dir present ({skills_dir})")
+        elif dry_run:
+            actions.append(f"would create skills dir ({skills_dir})")
+        else:
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            actions.append(f"created skills dir ({skills_dir})")
+
+    ok = not errors
+    if not dry_run and ok:
+        from astroai_lab.agent.setup_state import record_setup_ok
+
+        record_setup_ok(home, mode=f"fix-config:{agent_id}")
     return {
         "ok": ok,
         "partial": bool(actions) and bool(errors),

@@ -262,6 +262,7 @@ astroai-lab agent update           # after image upgrades
 astroai-lab agent update hermes    # refresh ONE agent (CLI + plugins + state)
 astroai-lab agent verify           # catch broken JSON/TOML/YAML configs (+ registry config checks)
 astroai-lab agent fix-config       # auto-repair (--clean for stale state)
+astroai-lab agent fix-config hermes  # regenerate/sanitize ONE agent's config (--all for every installed)
 ```
 
 See [cli.md](cli.md) for `agent models free --preset long`, per-agent options,
