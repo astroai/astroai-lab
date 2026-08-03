@@ -3,7 +3,8 @@
 Status: **in progress** — Phases 0–3 landed (prune + decompose, agent
 registry, lean verbs, plugin system) plus the Phase 2 `setup <agent>` /
 `config <agent>` / `update <agent>` / `fix-config <agent>` registry-driven
-verbs, and the Phase 6 `wipe` factory reset. Phases 4–5 remain.
+verbs, and the Phase 6 `wipe` factory reset (baked into the 26.08 images,
+pushed to Harbor). Phase 4 remains; Phase 5 (tests/docs/CI) is complete.
 Owner: astroai-lab.
 Companion docs: [cli.md](cli.md), [USAGE.md](USAGE.md), [help.md](help.md).
 
@@ -317,7 +318,13 @@ Specifics:
       agents.
 - [x] `docs/cli.md` / `docs/USAGE.md` document the registry as source of truth
       (this doc too).
-- [ ] Deprecation shims emit a hint pointing at the new verb, then are removed.
+- [x] Deprecation shims emit a hint pointing at the new verb, then are removed
+      from the user surface. `fix`/`clean`/`interact`/`report` are
+      `hidden=True` aliases kept for the back-compat deprecation window: they
+      emit a stderr hint via `_deprecated_alias` (e.g. `` `agent fix` is
+      deprecated — use `agent fix-config` ``), keeping stdout JSON-clean;
+      `agent --help` lists only the canonical verbs, and
+      `canfar-verify-agents.sh` no longer exercises the deprecated names.
 
 ### Phase 6 — `agent wipe` (factory reset)
 
@@ -341,6 +348,19 @@ Specifics:
       state as would_remove and removes nothing) on every session image;
       `canfar-verify-agents.sh` keeps its verb-surface smoke (the live wipe is
       intentionally not run against a real CANFAR home).
+
+**Shipped state (26.08):** `agent wipe` is baked into all **9 published
+images** — `images.canfar.net/astroai/{base,webterm,notebook,vscode,marimo,
+openresearch,openworker,ray-manager,ray-worker}:26.08`, all with
+`latest == 26.08` — pushed to Harbor. Verified against the **baked** images
+with **no source overlay**: `agent --help | grep -c wipe` = 2 on base and
+webterm, and a real `--json agent wipe --yes` on a fresh HOME returns pure
+JSON (`ok=true`, counts all 0) — this exercises the npm-uninstall path, so the
+quiet-uninstall fix is confirmed baked. The local agent matrix
+(`test-agent-local.sh`, all 7 session images, `ASTROAI_LAB_SRC` unset) and the
+remote headless CANFAR base verify both pass with the wipe surface, and the
+post-push probe `make test-canfar-agents` (astroai-containers, new in this
+cycle) gates the full verb surface on CANFAR after every image push.
 
 ---
 
