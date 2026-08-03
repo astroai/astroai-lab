@@ -189,7 +189,7 @@ Mental model:
 | `agent project [DIR]` | Per-project AGENTS.md + `.cursor/` scaffold |
 | `agent status` | Binaries + configs at a glance (registry agents included) |
 | `agent status --endpoints` | Active container UI endpoints (was `agent interact`) |
-| `agent status --json` | One-shot JSON health report (was `agent report`) |
+| `agent status` (with `--json` before the subcommand) | One-shot JSON health report (was `agent report`) |
 | `agent verify` | Presence checks **and** JSON/TOML/YAML syntax of configs, incl. registry config checks for installed agents (use `--fix` to auto-repair) |
 | `agent fix-config` | Auto-repair syntax errors, missing directories, stale locks (was `agent fix`) |
 | `agent fix-config --clean` | Clean stale locks, failed markers, empty configs, setup logs (was `agent clean`) |
@@ -201,7 +201,7 @@ Deprecated aliases (still work, emit a hint): `agent fix` → `fix-config`, `age
 ```bash
 astroai-lab agent catalog             # registry-driven catalog (agents/skills/MCPs/UIs)
 astroai-lab agent list                # CLIs + bundles + skills; --json has registry status
-astroai-lab agent list --json | jq .registry
+astroai-lab --json agent list | jq .registry   # --json is a global flag: BEFORE the subcommand
 astroai-lab agent setup
 astroai-lab agent setup --list
 astroai-lab agent install              # list CLIs
@@ -240,7 +240,7 @@ Cursor/Copilot/Claude/OpenCode configs, hermes `~/.hermes/config.yaml`, and
 openclaw `~/.openclaw/openclaw.json` — **dynamic URLs only** (e.g.
 `$ASTROAI_RAY_JOBS_ADDRESS`), never a hardcoded per-session manager URL.
 Dropping an agent (`agent remove <agent>`) also removes its plugin-applied
-files. `agent list --json` includes a `plugins` section.
+files. `astroai-lab --json agent list` includes a `plugins` section (global `--json` flag).
 
 **`ray-manager-mcp`** (the shipped `kind: mcp` example, agents
 cursor/hermes/openclaw) configures `astroai-workload mcp serve` — the
