@@ -1,7 +1,9 @@
 # astroai-agent rethink: prune, unify, plugin-ify
 
 Status: **in progress** — Phases 0–3 landed (prune + decompose, agent
-registry, lean verbs, plugin system). Phases 4–5 remain.
+registry, lean verbs, plugin system) plus the Phase 2 `setup <agent>` /
+`config <agent>` / `update <agent>` registry-driven verbs. `fix-config
+<agent>` and Phases 4–5 remain.
 Owner: astroai-lab.
 Companion docs: [cli.md](cli.md), [USAGE.md](USAGE.md), [help.md](help.md).
 
@@ -215,14 +217,20 @@ live in home dirs (e.g. `~/.hermes/config.yaml`) — that's the supported split.
       clear `setup_state` stamps + drop plugin-created files. `--purge` also
       removes `~/.hermes`, `~/.openclaw`, etc. dry-run supported (verified in
       container E2E: `agent remove hermes --purge`).
-- [ ] `setup <agent>` — registry-driven config writing (MCP/rules/skills) for a
-      single agent, or `--all` for every installed agent.
-- [ ] `config <agent>` — show the agent's config file (or a `--key` value);
-      `config <agent> key=value` writes a validated edit (JSON5-aware).
+- [x] `setup <agent>` — registry-driven config writing (config scaffold +
+      skills dir + plugin re-apply) for a single agent, or `--all` for every
+      installed agent (`registry.setup_registry_agent`). `--post-install` runs
+      the interactive setup step (e.g. `openclaw onboard`) — opt-in.
+- [x] `config <agent>` — show the agent's config file (or a `--key` value);
+      `config <agent> key=value` writes a validated edit (JSON5-aware:
+      comment-tolerant parse + textual targeted edits, so JSONC/JSON5 comments
+      and trailing commas survive). YAML round-trips via `safe_dump`; TOML
+      edits are line-based scalars; markdown is read-only (`agent/agent_config.py`).
 - [ ] `fix-config <agent>` — regenerate/sanitize the agent's config (reuse
       `fix.py` logic); `verify --fix` remains the broad sweep.
-- [ ] `update <agent>` — registry-driven: refresh CLI (same method as install),
-      re-run upstream skill sync, refresh state.
+- [x] `update <agent>` — registry-driven: refresh CLI when missing (or always
+      with `--reinstall`), force re-apply the agent's plugins, refresh state
+      (`registry.update_registry_agent`).
 
 ### Phase 3 — Plugin system (the centerpiece)
 

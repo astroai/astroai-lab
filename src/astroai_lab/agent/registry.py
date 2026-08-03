@@ -417,3 +417,200 @@ def _remove_registry_method(
     rm(failed_path(home), "state:failed")
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Registry-driven setup / update (Phase 2 `agent setup <id>` + `agent update <id>`)
+# ---------------------------------------------------------------------------
+
+
+def list_installed_registry_agents(home: Path | None = None) -> list[dict[str, Any]]:
+    """Registry agents whose binary is currently on PATH (`agent setup --all`)."""
+    home = home or Path.home()
+    return [a for a in load_registry() if registry_agent_status(a, home)["binary_ok"]]
+
+
+def _config_scaffold(agent: dict[str, Any]) -> str:
+    """Minimal scaffold for a missing registry ``config.path``.
+
+    JSON5/JSONC get a comment header (comments are legal there); strict JSON,
+    YAML, TOML, and markdown get header-free or comment-only bodies that parse
+    to an empty mapping / empty file respectively.
+    """
+    fmt = str((agent.get("config") or {}).get("format", "json"))
+    name = agent.get("name", agent["id"])
+    header = f"# {name} — scaffolded by `astroai-lab agent setup {agent['id']}`\n"
+    if fmt == "json":
+        return "{}\n"
+    if fmt in ("jsonc", "json5", "yaml"):
+        return header + "{}\n"
+    # toml / markdown / unknown: comment-only body stays valid.
+    return header + "\n"
+
+
+def _run_post_install(command: str) -> None:
+    """Run a ``setup.post_install`` shell command (interactive agents only)."""
+    import subprocess
+
+    from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
+
+    try:
+        proc = subprocess.run(command, shell=True, timeout=INSTALL_TIMEOUT_SEC)
+    except subprocess.TimeoutExpired as exc:
+        raise LabError(
+            f"post_install timed out after {INSTALL_TIMEOUT_SEC}s",
+            hint="Re-run with a higher ASTROAI_LAB_AGENT_INSTALL_TIMEOUT",
+        ) from exc
+    if proc.returncode != 0:
+        raise LabError(f"post_install exited {proc.returncode}: {command}")
+
+
+def setup_registry_agent(
+    agent_id: str,
+    *,
+    home: Path | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+    post_install: bool = False,
+) -> dict[str, Any]:
+    """Registry-driven `agent setup <id>` (docs/agent-rethink-plan.md Phase 2).
+
+    Writes configs/skills/MCP for ONE registered agent:
+
+    1. Scaffold the declared config file when missing (never clobber existing).
+    2. Create the agent's skills dir (AGENT_SKILL_DIRS, when declared).
+    3. Re-apply every plugin whose support matrix includes this agent.
+    4. Optionally run ``setup.post_install`` (interactive — opt-in).
+    5. Record the setup stamp (mode=setup:<id>).
+
+    Returns ``{ok, partial, agent, actions, errors}`` (human-readable action
+    strings) for JSON output.
+    """
+    agent = get_registry_agent(agent_id)
+    if agent is None:
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+    home = home or Path.home()
+    actions: list[str] = []
+    errors: list[str] = []
+
+    config = agent.get("config") or {}
+    if config.get("path"):
+        cfg = _expand_home(str(config["path"]), home)
+        if cfg.is_file():
+            actions.append(f"config exists ({cfg})")
+        elif dry_run:
+            actions.append(f"would create config ({cfg})")
+        else:
+            cfg.parent.mkdir(parents=True, exist_ok=True)
+            cfg.write_text(_config_scaffold(agent), encoding="utf-8")
+            actions.append(f"created config ({cfg})")
+
+    from astroai_lab.agent.addons import AGENT_SKILL_DIRS
+
+    rel = AGENT_SKILL_DIRS.get(agent_id)
+    if rel:
+        skills_dir = home / rel
+        if skills_dir.is_dir():
+            actions.append(f"skills dir present ({skills_dir})")
+        elif dry_run:
+            actions.append(f"would create skills dir ({skills_dir})")
+        else:
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            actions.append(f"created skills dir ({skills_dir})")
+
+    from astroai_lab.agent import plugins as agent_plugins
+
+    for result in agent_plugins.apply_agent_plugins(
+        agent_id, home=home, force=force, dry_run=dry_run
+    ):
+        if result.status == "failed":
+            errors.append(f"plugin {result.plugin} ({result.agent}): {result.detail}")
+        elif result.status in ("installed", "would_install", "updated"):
+            actions.append(
+                f"plugin {result.status.replace('_', ' ')} {result.plugin} "
+                f"({result.agent})"
+            )
+
+    post = (agent.get("setup") or {}).get("post_install")
+    if post and post_install:
+        if dry_run:
+            actions.append(f"would run post-install ({post})")
+        else:
+            try:
+                _run_post_install(str(post))
+                actions.append(f"ran post-install ({post})")
+            except LabError as exc:
+                errors.append(f"post-install: {exc}")
+
+    ok = not errors
+    if not dry_run and ok:
+        from astroai_lab.agent.setup_state import record_setup_ok
+
+        record_setup_ok(home, mode=f"setup:{agent_id}")
+    return {
+        "ok": ok,
+        "partial": bool(actions) and bool(errors),
+        "agent": agent_id,
+        "actions": actions,
+        "errors": errors,
+    }
+
+
+def update_registry_agent(
+    agent_id: str,
+    *,
+    home: Path | None = None,
+    force_reinstall: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Registry-driven `agent update <id>` (docs/agent-rethink-plan.md Phase 2).
+
+    1. Refresh the CLI binary (install if missing, or always with --reinstall).
+    2. Force re-apply every plugin supporting this agent (skills/MCP/config).
+    3. Refresh the setup stamp (mode=update:<id>).
+
+    Returns ``{ok, partial, agent, actions, errors}`` for JSON output.
+    """
+    agent = get_registry_agent(agent_id)
+    if agent is None:
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+    home = home or Path.home()
+    actions: list[str] = []
+    errors: list[str] = []
+
+    status = registry_agent_status(agent, home)
+    if status["binary_ok"] and not force_reinstall:
+        actions.append(f"binary up-to-date ({agent_id})")
+    else:
+        verb = "reinstall" if force_reinstall else "install"
+        try:
+            install_registry_agent(agent_id, dry_run=dry_run)
+            actions.append(f"binary {verb} ({agent_id})")
+        except LabError as exc:
+            errors.append(f"binary {agent_id}: {exc}")
+
+    from astroai_lab.agent import plugins as agent_plugins
+
+    for result in agent_plugins.apply_agent_plugins(
+        agent_id, home=home, force=True, dry_run=dry_run
+    ):
+        if result.status == "failed":
+            errors.append(f"plugin {result.plugin} ({result.agent}): {result.detail}")
+        elif result.status in ("installed", "would_install", "updated", "removed"):
+            actions.append(
+                f"plugin {result.status.replace('_', ' ')} {result.plugin} "
+                f"({result.agent})"
+            )
+
+    ok = not errors
+    if not dry_run and ok:
+        from astroai_lab.agent.setup_state import record_setup_ok
+
+        record_setup_ok(home, mode=f"update:{agent_id}")
+    return {
+        "ok": ok,
+        "partial": bool(actions) and bool(errors),
+        "agent": agent_id,
+        "actions": actions,
+        "errors": errors,
+    }

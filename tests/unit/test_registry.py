@@ -16,10 +16,13 @@ from astroai_lab.agent.catalog import list_agent_catalog
 from astroai_lab.agent.registry import (
     get_registry_agent,
     install_registry_agent,
+    list_installed_registry_agents,
     load_registry,
     registry_agent_status,
     registry_ids,
     registry_verify_issues,
+    setup_registry_agent,
+    update_registry_agent,
 )
 from astroai_lab.cli.main import app
 from astroai_lab.errors import LabError
@@ -369,3 +372,211 @@ def test_verify_setup_includes_registry_for_installed(
     assert not any("binary not found" in i and "hermes" in i for i in issues)
     # ...but the standard cursor/config checks still fire on a fresh home.
     assert issues
+
+
+# ---------------------------------------------------------------------------
+# Registry-driven setup (`agent setup <id>` / `--all`)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _no_plugins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep setup/update tests hermetic: no real plugin application."""
+    monkeypatch.setattr(
+        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
+    )
+
+
+def test_setup_registry_agent_unknown() -> None:
+    with pytest.raises(LabError, match="Unknown agent"):
+        setup_registry_agent("not-an-agent")
+
+
+def test_setup_registry_agent_scaffolds_config(tmp_path: Path, _no_plugins) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    result = setup_registry_agent("hermes", home=home)
+    assert result["ok"] is True
+    assert result["agent"] == "hermes"
+    cfg = home / ".hermes" / "config.yaml"
+    assert cfg.is_file()
+    assert any("created config" in a for a in result["actions"])
+    # second run is a no-op (config exists, plugins skipped)
+    result2 = setup_registry_agent("hermes", home=home)
+    assert any("config exists" in a for a in result2["actions"])
+
+
+def test_setup_registry_agent_never_clobbers_existing(tmp_path: Path, _no_plugins) -> None:
+    home = tmp_path / "home"
+    cfg = home / ".hermes" / "config.yaml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("model: mine\n", encoding="utf-8")
+    setup_registry_agent("hermes", home=home, force=True)
+    assert cfg.read_text() == "model: mine\n"
+
+
+def test_setup_registry_agent_dry_run_writes_nothing(tmp_path: Path, _no_plugins) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    result = setup_registry_agent("hermes", home=home, dry_run=True)
+    assert any("would create config" in a for a in result["actions"])
+    assert not (home / ".hermes" / "config.yaml").exists()
+    # no stamp written on dry-run
+    assert not (home / ".astroai" / "lab" / "agent-setup-stamp").exists()
+
+
+def test_setup_registry_agent_creates_skills_dir(tmp_path: Path, _no_plugins) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    setup_registry_agent("hermes", home=home)
+    assert (home / ".hermes" / "skills").is_dir()
+
+
+def test_setup_registry_agent_post_install_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    ran: list[str] = []
+    monkeypatch.setattr(
+        "astroai_lab.agent.registry._run_post_install", lambda cmd: ran.append(cmd)
+    )
+    # default: not run
+    setup_registry_agent("openclaw", home=home)
+    assert ran == []
+    # opt-in: run
+    result = setup_registry_agent("openclaw", home=home, post_install=True)
+    assert ran == ["openclaw onboard"]
+    assert any("ran post-install" in a for a in result["actions"])
+
+
+def test_setup_registry_agent_plugin_errors_mark_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astroai_lab.agent.plugins import PluginResult
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(
+        "astroai_lab.agent.plugins.apply_agent_plugins",
+        lambda *a, **k: [PluginResult("canfar-ray", "hermes", "failed", "boom")],
+    )
+    result = setup_registry_agent("hermes", home=home)
+    assert result["ok"] is False
+    assert any("plugin canfar-ray" in e for e in result["errors"])
+
+
+def test_list_installed_registry_agents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    ids = [a["id"] for a in list_installed_registry_agents(home)]
+    assert "hermes" in ids
+    assert "openclaw" in ids
+
+
+def test_cli_setup_agent_registry_driven(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
+    )
+    result = runner.invoke(app, ["--json", "agent", "setup", "hermes"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["ok"] is True
+    assert any("created config" in a for a in data["actions"])
+    assert (tmp_path / ".hermes" / "config.yaml").is_file()
+
+
+def test_cli_setup_mixed_bundle_and_agent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
+    )
+    result = runner.invoke(app, ["--json", "--dry-run", "agent", "setup", "cli", "hermes"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert any("would create config" in a for a in data["actions"])
+
+
+# ---------------------------------------------------------------------------
+# Registry-driven update (`agent update <id>`)
+# ---------------------------------------------------------------------------
+
+
+def test_update_registry_agent_up_to_date(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, _no_plugins
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "astroai_lab.agent.registry.install_registry_agent",
+        lambda name, dry_run=False: calls.append(name),
+    )
+    result = update_registry_agent("hermes", home=home)
+    assert calls == []  # up-to-date → no reinstall
+    assert any("binary up-to-date" in a for a in result["actions"])
+
+
+def test_update_registry_agent_installs_when_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, _no_plugins
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "astroai_lab.agent.registry.install_registry_agent",
+        lambda name, dry_run=False: calls.append(name) or name,
+    )
+    result = update_registry_agent("hermes", home=home)
+    assert calls == ["hermes"]
+    assert any("binary install" in a for a in result["actions"])
+
+
+def test_update_registry_agent_reinstall_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, _no_plugins
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "astroai_lab.agent.registry.install_registry_agent",
+        lambda name, dry_run=False: calls.append(name) or name,
+    )
+    result = update_registry_agent("hermes", home=home, force_reinstall=True)
+    assert calls == ["hermes"]
+    assert any("binary reinstall" in a for a in result["actions"])
+
+
+def test_update_registry_agent_install_failure_marks_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, _no_plugins
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+
+    def boom(name, dry_run=False):  # pragma: no cover
+        raise LabError("install failed")
+
+    monkeypatch.setattr("astroai_lab.agent.registry.install_registry_agent", boom)
+    result = update_registry_agent("hermes", home=home)
+    assert result["ok"] is False
+    assert any("install failed" in e for e in result["errors"])
+
+
+def test_cli_update_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    monkeypatch.setattr(
+        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
+    )
+    result = runner.invoke(app, ["--json", "--dry-run", "agent", "update", "hermes"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["agent"] == "hermes"
+    assert data["ok"] is True
+    assert any("binary up-to-date" in a for a in data["actions"])

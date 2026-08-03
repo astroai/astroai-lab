@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -29,8 +29,9 @@ agent_app = typer.Typer(
         "  list       overview (tools + bundles + skills)\n"
         "  install    download a CLI binary (kilo, opencode, qoder, …)\n"
         "  remove     uninstall a CLI binary + config files\n"
-        "  setup      write MCP/rules/skills configs\n"
-        "  update     refresh configs + upstream skills\n"
+        "  setup      write MCP/rules/skills configs (or per-agent, registry-driven)\n"
+        "  config     show/edit a registered agent's config file (JSON5-aware)\n"
+        "  update     refresh configs + upstream skills (or one agent, registry-driven)\n"
         "  addons     curated addons via the plugin registry (lean + science)\n"
         "  add        install curated addon(s) — delegates to `plugins install`\n"
         "  skills     Cursor skill inventory / refresh upstream\n"
@@ -56,6 +57,8 @@ def agent_root(ctx: typer.Context) -> None:
         ui.print_hint("  astroai-lab agent install [TOOL]    # CLI binaries (omit TOOL to list)")
         ui.print_hint("  astroai-lab agent remove TOOL       # uninstall (--purge for home dirs)")
         ui.print_hint("  astroai-lab agent setup [BUNDLE…]   # MCP/rules/skills configs")
+        ui.print_hint("  astroai-lab agent setup hermes      # per-agent registry setup")
+        ui.print_hint("  astroai-lab agent config hermes     # show/edit an agent's config")
         ui.print_hint("  astroai-lab agent addons            # curated lean + science addons")
         ui.print_hint("  astroai-lab agent add ponytail      # install curated addon(s)")
         ui.print_hint("  astroai-lab agent skills list       # Cursor skills inventory")
@@ -100,10 +103,25 @@ def _tool_completer(ctx, incomplete: str) -> list[str]:
 
 
 def _bundle_completer(ctx, incomplete: str) -> list[str]:
-    """Offer config bundle names (`agent setup NAME`)."""
+    """Offer config bundle names + registered agent ids (`agent setup NAME`)."""
     incomplete = incomplete or ""
     try:
         names = list(agent_setup_mod.agent_list_bundles())
+        from astroai_lab.agent.registry import registry_ids
+
+        names += sorted(registry_ids())
+    except Exception:  # noqa: BLE001 — completion must never crash the CLI
+        return []
+    return [n for n in names if n.startswith(incomplete)]
+
+
+def _agent_completer(ctx, incomplete: str) -> list[str]:
+    """Offer registered agent ids (`agent config NAME` / `agent update NAME`)."""
+    incomplete = incomplete or ""
+    try:
+        from astroai_lab.agent.registry import registry_ids
+
+        names = sorted(registry_ids())
     except Exception:  # noqa: BLE001 — completion must never crash the CLI
         return []
     return [n for n in names if n.startswith(incomplete)]
@@ -149,18 +167,44 @@ def _catalog_kind_completer(ctx, incomplete: str) -> list[str]:
 @agent_app.command("setup")
 def agent_setup_cmd(
     ctx: typer.Context,
-    bundle: Annotated[list[str] | None, typer.Argument(autocompletion=_bundle_completer)] = None,
+    bundle: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help="Config bundle(s) or registered agent id(s).",
+            autocompletion=_bundle_completer,
+        ),
+    ] = None,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
     list_bundles: Annotated[
         bool,
         typer.Option("--list", "-l", help="List config bundles (not installable CLIs)."),
     ] = False,
+    all_agents: Annotated[
+        bool,
+        typer.Option(
+            "--all", help="Registry-driven setup for every installed agent."
+        ),
+    ] = False,
+    post_install: Annotated[
+        bool,
+        typer.Option(
+            "--post-install",
+            help="Run the agent's interactive setup.post_install (e.g. openclaw onboard).",
+        ),
+    ] = False,
 ) -> None:
     """Write MCP, rules, and skills configs for AI coding agents.
+
+    Bundle args keep the classic behavior (``agent setup cursor claude``); a
+    registered agent id drives per-agent registry setup (``agent setup hermes``)
+    — or ``--all`` for every installed agent. ``--post-install`` runs the
+    agent's interactive setup step (e.g. ``openclaw onboard``) — opt-in.
 
     Examples:
         astroai-lab agent setup
         astroai-lab agent setup cursor claude
+        astroai-lab agent setup hermes
+        astroai-lab agent setup --all
         astroai-lab agent setup --list
         astroai-lab --json agent setup
     """
@@ -168,6 +212,96 @@ def agent_setup_cmd(
         _print_bundles(get_opts(ctx).json)
         return
     opts = get_opts(ctx)
+
+    from astroai_lab.agent.registry import (
+        list_installed_registry_agents,
+        registry_ids,
+        setup_registry_agent,
+    )
+
+    names = list(bundle) if bundle else []
+    registry = registry_ids()
+    if all_agents:
+        agent_ids = [a["id"] for a in list_installed_registry_agents()]
+        bundle_names: list[str] = []
+        if names:
+            ui.print_warn(f"--all ignores bundle names: {', '.join(names)}")
+    else:
+        agent_ids = [n for n in names if n in registry]
+        bundle_names = [n for n in names if n not in registry]
+
+    agent_actions: list[str] = []
+    agent_errors: list[str] = []
+    for agent_id in agent_ids:
+        try:
+            res = setup_registry_agent(
+                agent_id,
+                force=force or opts.yes,
+                dry_run=opts.dry_run,
+                post_install=post_install,
+            )
+        except LabError as exc:
+            agent_errors.append(f"{agent_id}: {exc}")
+            continue
+        agent_actions.extend(res["actions"])
+        agent_errors.extend(res["errors"])
+
+    if agent_ids or all_agents:
+        # Registry-driven path (optionally mixed with explicit bundle names).
+        bundle_result = None
+        if bundle_names:
+            try:
+                bundle_result = agent_setup_mod.agent_setup(
+                    mode="install",
+                    bundles=bundle_names,
+                    force=force or opts.yes,
+                    dry_run=opts.dry_run,
+                )
+            except LabError as exc:
+                agent_errors.append(f"bundles: {exc}")
+        if bundle_result is not None:
+            payload = bundle_result.to_dict()
+            payload["actions"] = agent_actions + payload["actions"]
+            payload["errors"] = agent_errors + payload["errors"]
+        else:
+            payload = {
+                "ok": not agent_errors,
+                "partial": bool(agent_actions) and bool(agent_errors),
+                "mode": "install",
+                "actions": agent_actions,
+                "errors": agent_errors,
+                "warnings": [],
+                "stamp": None,
+            }
+        ok = payload["ok"] and not agent_errors
+        partial = payload["partial"] or (bool(agent_actions) and bool(agent_errors))
+        payload["ok"] = ok
+        payload["partial"] = partial
+        exit_code = 0 if ok and not partial else (2 if (partial or payload["actions"]) else 1)
+        if opts.json:
+            ui.print_json(payload)
+            if exit_code:
+                raise typer.Exit(exit_code)
+            return
+        for err in payload["errors"]:
+            ui.print_error(err)
+        if ok and not partial:
+            ui.print_ok("Agent setup complete")
+        elif partial:
+            ui.print_warn(
+                f"Partial setup — {len(payload['actions'])} ok, {len(payload['errors'])} failed"
+            )
+        else:
+            ui.print_error("Agent setup failed")
+        if all_agents and not agent_ids:
+            ui.print_hint("  No installed registry agents — install one: agent install <id>")
+        if agent_ids:
+            ui.print_hint("  astroai-lab agent verify        # confirm configs are healthy")
+            ui.print_hint("  astroai-lab agent config <id>   # show/edit an agent's config")
+        if exit_code:
+            raise typer.Exit(exit_code)
+        return
+
     try:
         result = agent_setup_mod.agent_setup(
             mode="install",
@@ -218,16 +352,181 @@ def agent_setup_cmd(
 
 
 @agent_app.command("update")
-def agent_update_cmd(ctx: typer.Context) -> None:
+def agent_update_cmd(
+    ctx: typer.Context,
+    agent: Annotated[
+        str | None,
+        typer.Argument(
+            help="Registered agent id (registry-driven update).",
+            autocompletion=_agent_completer,
+        ),
+    ] = None,
+    reinstall: Annotated[
+        bool,
+        typer.Option(
+            "--reinstall", help="Force CLI reinstall even when the binary is up to date."
+        ),
+    ] = False,
+) -> None:
     """Refresh agent MCP, rules, skills, and GitHub skill clones.
 
     Run after an AstroAI image upgrade so ~/.cursor skills match current
     astroai-lab workflow (paths, upgrade-cadc-tools, CLI flags).
 
+    `agent update <id>` refreshes ONE registered agent registry-driven:
+    CLI when missing (or always with --reinstall), plus its skills/MCP/config
+    plugins and setup state.
+
     Examples:
         astroai-lab agent update
+        astroai-lab agent update hermes
+        astroai-lab agent update openclaw --reinstall
     """
+    if agent:
+        _run_registry_agent_update(ctx, agent, reinstall=reinstall)
+        return
     _run_agent_sync(ctx)
+
+
+def _run_registry_agent_update(ctx: typer.Context, agent: str, *, reinstall: bool) -> None:
+    from astroai_lab.agent.registry import update_registry_agent
+
+    opts = get_opts(ctx)
+    try:
+        result = update_registry_agent(agent, force_reinstall=reinstall, dry_run=opts.dry_run)
+    except LabError as exc:
+        if opts.json:
+            ui.print_json({"ok": False, "agent": agent, "actions": [], "errors": [str(exc)]})
+        else:
+            ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    if opts.json:
+        ui.print_json(result)
+        if not result["ok"]:
+            raise typer.Exit(2 if result["partial"] else 1)
+        return
+    prefix = "would" if opts.dry_run else ""
+    for action in result["actions"]:
+        ui.print_ok(f"{prefix} {action}")
+    for err in result["errors"]:
+        ui.print_error(err)
+    if not result["ok"]:
+        raise typer.Exit(2 if result["partial"] else 1)
+    ui.print_ok(f"Agent {agent} updated")
+
+
+@agent_app.command("config")
+def agent_config_cmd(
+    ctx: typer.Context,
+    agent: Annotated[
+        str,
+        typer.Argument(
+            help="Registered agent id.", autocompletion=_agent_completer
+        ),
+    ],
+    pairs: Annotated[
+        list[str] | None,
+        typer.Argument(help="key=value pairs to write (dotted keys allowed)."),
+    ] = None,
+    key: Annotated[
+        str | None,
+        typer.Option(
+            "--key",
+            "-k",
+            help="Show one dotted key value instead of the whole file.",
+        ),
+    ] = None,
+    unset: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--unset",
+            "-u",
+            help="Remove a dotted key (repeatable).",
+        ),
+    ] = None,
+) -> None:
+    """Show or edit a registered agent's config file (format-aware, JSON5-tolerant).
+
+    With no edit args the file is printed; `--key a.b` prints one value;
+    `key=value` pairs write a validated edit; `--unset key` removes one.
+    JSON5/JSONC edits are textual so comments and trailing commas survive.
+
+    Examples:
+        astroai-lab agent config hermes
+        astroai-lab agent config openclaw --key model
+        astroai-lab agent config hermes model=nousresearch/hermes-3-llama-3.1-405b
+        astroai-lab agent config openclaw --unset model
+    """
+    from astroai_lab.agent import agent_config as agent_config_mod
+
+    opts = get_opts(ctx)
+    set_items: dict[str, Any] = {}
+    for raw in pairs or []:
+        if "=" not in raw:
+            raise typer.BadParameter(f"expected key=value, got {raw!r}")
+        k, _, v = raw.partition("=")
+        set_items[k.strip()] = agent_config_mod.parse_value(v)
+    unsets = list(unset or [])
+
+    try:
+        if set_items or unsets:
+            actions = agent_config_mod.edit_agent_config(
+                agent, set_items=set_items, unsets=unsets, dry_run=opts.dry_run
+            )
+        elif key:
+            value, found = agent_config_mod.get_config_value(agent, key)
+            if not found:
+                raise LabError(f"{agent} has no key {key!r}")
+            if opts.json:
+                ui.print_json({"agent": agent, "key": key, "value": value})
+            else:
+                ui.print_ok(f"{key} = {agent_config_mod.fmt_value(value)}")
+            return
+        else:
+            path, data = agent_config_mod.read_agent_config(agent)
+            if opts.json:
+                ui.print_json(
+                    {
+                        "agent": agent,
+                        "path": str(path),
+                        "format": agent_config_mod.config_format(agent),
+                        "data": data,
+                    }
+                )
+            else:
+                ui.print_hint(f"{agent} config — {path}")
+                typer.echo(path.read_text(encoding="utf-8").rstrip() or "(empty)")
+            return
+    except LabError as exc:
+        if opts.json:
+            ui.print_json({"ok": False, "agent": agent, "errors": [str(exc)]})
+        else:
+            ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+
+    if opts.json:
+        ui.print_json(
+            {
+                "agent": agent,
+                "actions": actions,
+                "dry_run": opts.dry_run,
+                "ok": not any(a["status"] in ("error",) for a in actions),
+            }
+        )
+        return
+    prefix = "would" if opts.dry_run else ""
+    for a in actions:
+        if a["status"] == "set":
+            ui.print_ok(f"set {a['key']} = {a['detail']}")
+        elif a["status"] == "unset":
+            ui.print_ok(f"unset {a['key']}")
+        elif a["status"] == "would_set":
+            ui.print_ok(f"{prefix} set {a['key']} = {a['detail']}")
+        elif a["status"] == "would_unset":
+            ui.print_ok(f"{prefix} unset {a['key']}")
+        else:
+            ui.print_hint(f"{a['key']}: {a['detail']}")
+    ui.print_ok("Config updated")
 
 
 def _print_interact(opts) -> None:

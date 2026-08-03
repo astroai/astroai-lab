@@ -146,7 +146,7 @@ astroai-lab kernel list
 astroai-lab kernel unregister NAME
 ```
 
-### `astroai-lab agent catalog|list|install|remove|setup|update|addons|add|skills|plugins|project|verify|fix-config|models|status`
+### `astroai-lab agent catalog|list|install|remove|setup|config|update|addons|add|skills|plugins|project|verify|fix-config|models|status`
 
 AI agent MCP, rules, skills, CLI installation, curated catalog, auto-fix, state clean, plugins, and free model presets.
 
@@ -175,8 +175,9 @@ Mental model:
 | `agent list` | Overview: installable CLIs, config bundles, Cursor skills; `--json` includes a `registry` section (per-agent binary/config/installed status) |
 | `agent install [TOOL]` | Download a CLI binary via the registry (omit TOOL to list) |
 | `agent remove TOOL` | Uninstall a CLI binary + config files via the registry (`--purge` for home dirs) |
-| `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles) |
-| `agent update` | Refresh configs + upstream skills (after image upgrades) |
+| `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles); a registered agent id drives per-agent registry setup, `--all` covers every installed agent, `--post-install` runs the interactive step (e.g. `openclaw onboard`) |
+| `agent config ID` | Show/edit a registered agent's config file (format-aware, JSON5-tolerant): `--key a.b` shows one value, `key=value` writes a validated edit, `--unset key` removes one |
+| `agent update [ID]` | Refresh configs + upstream skills (after image upgrades); `agent update ID` refreshes one agent registry-driven (CLI when missing or `--reinstall`, plus its plugins + state) |
 | `agent addons` | Curated lean + science addons (skills/rules/MCP) — reads the plugin registry (`addon: true` entries) |
 | `agent add NAME…` | Install curated addon(s); `--tag lean` / `--tag science` — delegates to `plugins install` |
 | `agent skills list` | Cursor skill inventory (bundled / GitHub / pixi / extras) |
@@ -204,6 +205,8 @@ astroai-lab agent list                # CLIs + bundles + skills; --json has regi
 astroai-lab --json agent list | jq .registry   # --json is a global flag: BEFORE the subcommand
 astroai-lab agent setup
 astroai-lab agent setup --list
+astroai-lab agent setup hermes         # per-agent registry setup (config scaffold + skills + plugins)
+astroai-lab agent setup --all          # same, for every installed agent
 astroai-lab agent install              # list CLIs
 astroai-lab agent install kilo
 astroai-lab agent install opencode
@@ -223,7 +226,13 @@ astroai-lab agent plugins remove canfar-ray
 astroai-lab agent plugins configure ray-manager-mcp   # MCP server entry (astroai-workload mcp serve)
 astroai-lab agent verify
 astroai-lab agent fix-config          # auto-repair (or --clean for stale state)
+astroai-lab agent config hermes        # show the agent's config file
+astroai-lab agent config hermes --key model
+astroai-lab agent config hermes model=nousresearch/hermes-3-llama-3.1-405b
+astroai-lab agent config openclaw --unset model
 astroai-lab agent update               # full refresh after image upgrades
+astroai-lab agent update hermes        # refresh ONE agent (CLI + plugins + state)
+astroai-lab agent update openclaw --reinstall
 astroai-lab agent models free
 astroai-lab agent models free --preset long
 ```

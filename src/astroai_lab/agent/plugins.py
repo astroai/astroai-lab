@@ -590,6 +590,39 @@ def update_plugin(
     )
 
 
+def apply_agent_plugins(
+    agent_id: str,
+    *,
+    home: Path | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+    installed_only: bool = True,
+) -> list[PluginResult]:
+    """Apply every plugin whose support matrix includes this agent.
+
+    Used by ``agent setup <id>`` (force=False, skip already-applied) and
+    ``agent update <id>`` (force=True, refresh) to keep skills/MCP/config in
+    sync for ONE agent. ``installed_only`` keeps the setup surface quiet for
+    agents whose CLI is not installed yet.
+    """
+    home = home or Path.home()
+    results: list[PluginResult] = []
+    for plugin in load_plugins():
+        if agent_id not in plugin.get("agents", []):
+            continue
+        results.extend(
+            install_plugin(
+                plugin["id"],
+                agent=agent_id,
+                home=home,
+                force=force,
+                dry_run=dry_run,
+                installed_only=installed_only,
+            )
+        )
+    return results
+
+
 def remove_plugin(
     plugin_id: str,
     *,

@@ -216,12 +216,14 @@ enumerable, so you rarely need to guess or re-read `help`:
   astroai-lab kernel unregister <TAB>   # → kernels you have registered
   ```
 
-- **Installable CLIs** for `agent install`, **bundles** for `agent setup`,
+- **Installable CLIs** for `agent install`, **bundles + registered agent ids**
+  for `agent setup`, **registered agent ids** for `agent config`/`agent update`,
   and **addon ids** for `agent add`:
 
   ```bash
   astroai-lab agent install <TAB>       # → kilo, goose, opencode, …
-  astroai-lab agent setup <TAB>         # → cursor, claude, …
+  astroai-lab agent setup <TAB>         # → cursor, claude, hermes, …
+  astroai-lab agent config <TAB>        # → kilo, goose, hermes, openclaw, …
   astroai-lab agent add <TAB>           # → ponytail, polars, …
   ```
 
@@ -250,10 +252,14 @@ astroai-lab agent catalog          # registry-driven catalog (agents/skills/MCPs
 astroai-lab agent list             # CLIs + bundles + skills overview (+ registry status)
 astroai-lab agent install kilo     # or goose, opencode, cline, codex, hermes, openclaw, …
 astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
+astroai-lab agent setup hermes     # per-agent registry setup: config scaffold + skills + plugins
+astroai-lab agent setup --all      # same, for every installed agent
+astroai-lab agent config hermes    # show the agent's config file (key=value edits / --unset)
 astroai-lab agent addons           # curated lean + science skills/MCP
 astroai-lab agent add ponytail     # YAGNI / minimal diffs
 astroai-lab agent models free
 astroai-lab agent update           # after image upgrades
+astroai-lab agent update hermes    # refresh ONE agent (CLI + plugins + state)
 astroai-lab agent verify           # catch broken JSON/TOML/YAML configs (+ registry config checks)
 astroai-lab agent fix-config       # auto-repair (--clean for stale state)
 ```
