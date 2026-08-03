@@ -308,8 +308,12 @@ Specifics:
       install/update/remove/configure for skill/mcp/config, recursive removal,
       CLI surface) + contract test pins the `plugins` verb.
 - [x] Unit tests per remaining verb (setup/config/fix-config/update).
-- [ ] `scripts/canfar-verify-agents.sh` updated to the new verb surface
-      (`agent plugins list`, `agent fix-config --all`, etc.).
+- [x] `scripts/canfar-verify-agents.sh` updated to the new verb surface
+      (`agent plugins list`, `agent fix-config --all`, `agent status
+      --endpoints`; deprecated `fix`/`clean`/`interact` aliases dropped from
+      the smoke), plus a post-install `fix-config --all` + `agent config kilo`
+      pass that exercises the registry verbs against the freshly installed
+      agents.
 - [x] `docs/cli.md` / `docs/USAGE.md` document the registry as source of truth
       (this doc too).
 - [ ] Deprecation shims emit a hint pointing at the new verb, then are removed.
