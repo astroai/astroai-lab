@@ -98,7 +98,10 @@ def user_bin_dir(work: Path, scratch: Path | None) -> Path:
             return path
         except OSError:
             pass
-    path = Path.home() / ".local" / "bin"
+    # Never install into the user home (~/.local/bin). Last resort: the
+    # session runtime root — scratch-backed when scratch exists, else
+    # work-dir-backed (same pattern as uv/pixi/mamba runtime dirs).
+    path = runtime_root(work, scratch) / "bin"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

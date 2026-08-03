@@ -200,6 +200,12 @@ registry (`registry_agent_status` → `tool_on_path` + `config.path` presence);
 uninstalls per method and drops config/plugin files. Adding a new agent is one
 YAML file — no Python branch required.
 
+**Installs never target `~/.local`.** The session bin dir is
+`$ASTROAI_LAB_BIN_DIR` → scratch `.local/bin` → team project `.local/bin` →
+runtime root `work/.runtime-$USER/bin` (last resort). The user-home fallback
+was removed so package installs never pollute `~/.local`; config files still
+live in home dirs (e.g. `~/.hermes/config.yaml`) — that's the supported split.
+
 ### Phase 2 — Lean agent verbs
 
 - [x] `install <agent>` — registry-driven; dispatches on `install.method` and

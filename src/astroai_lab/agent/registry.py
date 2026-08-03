@@ -226,7 +226,8 @@ def _install_curl(agent: dict[str, Any]) -> str:
     if found is None:
         raise LabError(
             f"{binary} not found after install — open a new shell",
-            hint="Check the installer output; binary should land under ~/.local/bin",
+            hint="Check the installer output; binary should land in the session bin dir "
+            "(see `astroai-lab env export` / ASTROAI_LAB_BIN_DIR)",
         )
     _link_into_local_bin(found, binary)
     _verify_cmd(binary, extra_paths=candidates)

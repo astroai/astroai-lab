@@ -45,6 +45,45 @@ def test_user_bin_dir_prefers_scratch(tmp_path: Path, monkeypatch: pytest.Monkey
     assert user_bin_dir() == scratch / ".local" / "bin"
 
 
+def test_user_bin_dir_never_falls_back_to_home_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without scratch/project/env, installs land in the runtime root, NOT ~/.local."""
+    monkeypatch.chdir(tmp_path)  # no /arc mount reachable from the cwd
+    work = tmp_path / "work"
+    work.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("WORK", str(work))
+    monkeypatch.delenv("SCRATCH", raising=False)
+    monkeypatch.delenv("ASTROAI_LAB_BIN_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("ASTROAI_LAB_RUNTIME_ROOT", str(work / ".runtime-test"))
+
+    bin_dir = user_bin_dir()
+    assert bin_dir == work / ".runtime-test" / "bin"
+    assert str(bin_dir).startswith(str(work))
+    assert not (home / ".local" / "bin").exists()
+
+
+def test_user_bin_dir_runtime_root_default_without_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default runtime root (work/.runtime-<user>/bin) when no overrides at all."""
+    monkeypatch.chdir(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.setenv("WORK", str(work))
+    monkeypatch.delenv("SCRATCH", raising=False)
+    monkeypatch.delenv("ASTROAI_LAB_BIN_DIR", raising=False)
+    monkeypatch.delenv("ASTROAI_LAB_RUNTIME_ROOT", raising=False)
+
+    bin_dir = user_bin_dir()
+    assert bin_dir.name == "bin"
+    assert ".runtime-" in str(bin_dir)
+    assert str(bin_dir).startswith(str(work))
+
+
 def test_find_arc_project_root_no_mount(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     assert find_arc_project_root() is None

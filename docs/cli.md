@@ -305,7 +305,7 @@ or set explicitly.
 |----------|---------|
 | `WORK` / `SCRATCH` / `PROJECT` | Set explicitly to override detected session paths |
 | `ASTROAI_LAB_SAVE_DIR` | Env saves dir (default: `~/.astroai/lab/saves`) |
-| `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`) |
+| `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`; last resort: work `.runtime-$USER/bin` — never `~/.local`) |
 | `ASTROAI_LAB_RUNTIME_ROOT` | Runtime uv/pixi/mamba roots (default: scratch `.runtime-$USER`) |
 | `ASTROAI_LAB_NPM_PREFIX` | npm global prefix (default: `.local` under scratch) |
 | `NPM_CONFIG_PREFIX` | Fallback npm prefix when `ASTROAI_LAB_NPM_PREFIX` is unset |
