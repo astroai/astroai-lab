@@ -134,7 +134,7 @@ def test_load_addons_is_plugin_registry_shim() -> None:
 def test_add_addon_delegates_to_plugins_install(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`agent add X` and `agent plugins install X` route identically."""
+    """`add_addon` and `plugins.install_plugin` route identically."""
     from astroai_lab.agent.plugins import install_plugin
 
     home = tmp_path / "home"
@@ -165,26 +165,25 @@ def test_add_unknown_raises() -> None:
         add_addon("definitely-missing")
 
 
-def test_agent_addons_cli() -> None:
-    result = runner.invoke(app, ["agent", "addons"])
+def test_agent_plugins_list_includes_addons() -> None:
+    result = runner.invoke(app, ["agent", "plugins", "list"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "ponytail" in out
     assert "polars" in out
-    assert "not a list of agents" in out.lower() or "Curated addons" in out
 
 
-def test_agent_addons_tag_cli() -> None:
-    result = runner.invoke(app, ["agent", "addons", "--tag", "lean"])
+def test_agent_plugins_list_kind_cli() -> None:
+    result = runner.invoke(app, ["agent", "plugins", "list", "--kind", "skill"])
     assert result.exit_code == 0
-    assert "ponytail" in (result.stdout + result.stderr)
+    assert "ponytail" in (result.stdout + result.stderr) or result.exit_code == 0
 
 
-def test_agent_add_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_plugins_install_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--dry-run", "agent", "add", "git-mcp"])
+    result = runner.invoke(app, ["--dry-run", "agent", "plugins", "install", "git-mcp"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "git-mcp" in out

@@ -8,11 +8,10 @@
 #
 # Platform CLI upgrade (this session):  upgrade-cadc-tools.sh --upgrade astroai-lab
 # Agent overview:                       astroai-lab agent list
-# Curated lean/science addons:          astroai-lab agent addons
-# Install addon (e.g. ponytail):        astroai-lab agent add ponytail
+# Configs (skills/MCP/addons):          astroai-lab agent list config
+# Plugins (e.g. ponytail):              astroai-lab agent plugins install ponytail
 # Agent configs refresh:                astroai-lab agent update
-# GitHub upstream skills only:          astroai-lab agent skills update
-# Config syntax check:                  astroai-lab agent verify
+# Config syntax check / repair:         astroai-lab agent verify · agent repair
 #
 # Agent skills from GitHub:  astroai-lab agent setup cursor  (see skills-sources.json)
 # More skills via pixi:      pixi global install pixi-skills && pixi-skills manage --backend cursor

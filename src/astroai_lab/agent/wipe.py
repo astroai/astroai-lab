@@ -96,7 +96,7 @@ def wipe_agent_state(*, home: Path | None = None, dry_run: bool = False) -> list
     #    entry): skills, rules, and the MCP server manifest — the whole dir.
     _rm(home / ".cursor", "cursor")
 
-    # 4. Upstream skill clone cache (re-cloned by `agent skills update`).
+    # 4. Upstream skill clone cache (re-cloned by `agent update`).
     _rm(home / ".cache" / "astroai-lab" / "upstream-skills", "cache:upstream-skills")
 
     # 5. Shared agent configs not owned by a single registry entry

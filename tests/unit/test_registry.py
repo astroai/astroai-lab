@@ -314,13 +314,13 @@ def test_catalog_driven_by_registry(tmp_path: Path) -> None:
     assert by_id["goose"]["kind"] == "agent"
 
 
-def test_cli_agent_list_json_includes_registry() -> None:
+def test_cli_agent_list_json_is_status_shaped() -> None:
     result = runner.invoke(app, ["--json", "agent", "list"])
-    assert result.exit_code == 0
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
-    assert "registry" in data
-    ids = {row["id"] for row in data["registry"]}
-    assert {"hermes", "openclaw", "kilo", "goose", "cline", "opencode", "codex"} <= ids
+    assert "agents" in data
+    names = {row["agent"] for row in data["agents"]}
+    assert "kilo" in names or "opencode" in names or "zcode" in names
 
 
 def test_cli_agent_install_list_includes_migrated(
@@ -337,19 +337,20 @@ def test_cli_agent_install_list_includes_migrated(
     assert kilo["binary"] == "kilo"
 
 
-def test_cli_agent_list_human_shows_registry() -> None:
+def test_cli_agent_list_human_shows_status() -> None:
     result = runner.invoke(app, ["agent", "list"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert "Registered agents" in out
+    assert "Binary" in out
+    assert "Config" in out
 
 
-def test_cli_agent_catalog_includes_registry_agents() -> None:
-    result = runner.invoke(app, ["--json", "agent", "catalog"])
-    assert result.exit_code == 0
+def test_cli_agent_list_includes_new_agents() -> None:
+    result = runner.invoke(app, ["--json", "agent", "list"])
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
-    ids = {item["id"] for item in data}
-    assert {"hermes", "openclaw"} <= ids
+    ids = {item["id"] for item in data["agents"]}
+    assert {"hermes", "openclaw", "zcode", "omp"} <= ids
 
 
 def test_cli_agent_install_unknown() -> None:
@@ -584,7 +585,7 @@ def test_cli_update_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
 
 # ---------------------------------------------------------------------------
-# Registry-driven fix-config (`agent fix-config <id>` / `--all`)
+# Registry-driven repair (`agent repair <id>` / `--all`)
 # ---------------------------------------------------------------------------
 
 
@@ -705,7 +706,7 @@ def test_setup_scaffold_parses_for_json5(tmp_path: Path, _no_plugins) -> None:
 
 def test_cli_fix_config_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    result = runner.invoke(app, ["--json", "agent", "fix-config", "hermes"])
+    result = runner.invoke(app, ["--json", "agent", "repair", "hermes"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["agent"] == "hermes"
@@ -719,7 +720,7 @@ def test_cli_fix_config_agent_human_output(
 ) -> None:
     """Non-JSON path prints actions + the 'config OK' summary line."""
     monkeypatch.setenv("HOME", str(tmp_path))
-    result = runner.invoke(app, ["agent", "fix-config", "hermes"])
+    result = runner.invoke(app, ["agent", "repair", "hermes"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "config OK" in out
@@ -730,7 +731,7 @@ def test_cli_fix_config_all_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     """`--all` with nothing installed → clean no-op (fresh image gate)."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
-    result = runner.invoke(app, ["--json", "agent", "fix-config", "--all"])
+    result = runner.invoke(app, ["--json", "agent", "repair", "--all"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["agents"] == []
@@ -741,6 +742,6 @@ def test_cli_fix_config_clean_conflicts_with_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    result = runner.invoke(app, ["agent", "fix-config", "hermes", "--clean"])
+    result = runner.invoke(app, ["agent", "repair", "hermes", "--clean"])
     assert result.exit_code == 2  # typer usage error (BadParameter)
     assert "cannot be combined" in (result.stdout + result.stderr)

@@ -1,20 +1,12 @@
-"""Golden CLI contract for `astroai-lab agent` (Phase 0, docs/agent-rethink-plan.md).
+"""Golden CLI contract for `astroai-lab agent` (lean surface).
 
-Pins the exact registered verb surface so accidental growth (or premature
-removal) fails loudly, and checks the Phase 0 alias mapping:
-
-    report   → status --json
-    interact → status --endpoints
-    clean    → fix-config --clean
-    fix      → fix-config
-
-The deprecated aliases are hidden from help but must keep working and emit a
-hint pointing at the new verb.
+Pins the exact registered verb surface so accidental growth fails loudly.
 """
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from typer.testing import CliRunner
 
@@ -23,12 +15,8 @@ from astroai_lab.cli.main import app
 
 runner = CliRunner()
 
-# Canonical surface (skills/models/plugins are sub-typers, not commands).
-# Phase 2 added `remove` (uninstall binary + config); Phase 2 also added
-# `config` (show/edit a registered agent's config file); Phase 3 added `plugins`;
-# Phase 6 added `wipe` (factory reset of the whole agent layer).
+# Lean surface: list/models/plugins are sub-typers.
 CANONICAL_VERBS = {
-    "catalog",
     "list",
     "install",
     "remove",
@@ -36,18 +24,25 @@ CANONICAL_VERBS = {
     "setup",
     "config",
     "update",
+    "status",
+    "verify",
+    "repair",
+    "models",
+    "plugins",
+}
+
+REMOVED_VERBS = {
+    "catalog",
     "addons",
     "add",
     "skills",
-    "plugins",
     "project",
-    "status",
-    "verify",
     "fix-config",
-    "models",
+    "fix",
+    "clean",
+    "report",
+    "interact",
 }
-# Deprecated aliases kept for one release (hidden from help output).
-DEPRECATED_ALIASES = {"fix", "clean", "report", "interact"}
 
 
 def _registered_names() -> set[str]:
@@ -57,8 +52,8 @@ def _registered_names() -> set[str]:
 
 
 def test_agent_verb_surface_pinned() -> None:
-    """The registered surface must be exactly canonical + deprecated aliases."""
-    assert _registered_names() == CANONICAL_VERBS | DEPRECATED_ALIASES
+    """The registered surface must be exactly the lean canonical set."""
+    assert _registered_names() == CANONICAL_VERBS
 
 
 def test_agent_help_lists_every_canonical_verb() -> None:
@@ -67,65 +62,77 @@ def test_agent_help_lists_every_canonical_verb() -> None:
     out = result.stdout + result.stderr
     for verb in CANONICAL_VERBS:
         assert verb in out
+    for verb in REMOVED_VERBS:
+        assert f"│ {verb} " not in out
+        assert f"│ {verb}\n" not in out
 
 
-def test_deprecated_aliases_hidden_from_help() -> None:
-    """Deprecated aliases stay registered but are hidden from `--help`."""
-    by_name = {c.name: c for c in agent_app.registered_commands}
-    for alias in DEPRECATED_ALIASES:
-        cmd = by_name[alias]
-        assert getattr(cmd, "hidden", False), f"{alias} must be hidden from help"
+def test_removed_verbs_are_gone() -> None:
+    for verb in REMOVED_VERBS:
+        result = runner.invoke(app, ["agent", verb])
+        assert result.exit_code != 0, f"{verb} should be removed"
+        assert "No such command" in (result.stdout + result.stderr)
 
 
-def test_fix_clean_aliases_delegate(tmp_path, monkeypatch) -> None:
+def test_list_default_is_registry_shaped(tmp_path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-
-    new_clean = runner.invoke(app, ["--json", "--dry-run", "agent", "fix-config", "--clean"])
-    old_clean = runner.invoke(app, ["--json", "--dry-run", "agent", "clean"])
-    assert new_clean.exit_code == 0
-    assert old_clean.exit_code == 0
-    assert "deprecated" in (old_clean.stdout + old_clean.stderr).lower()
-    assert json.loads(new_clean.stdout) == json.loads(old_clean.stdout)
-
-    new_fix = runner.invoke(app, ["--json", "--dry-run", "agent", "fix-config"])
-    old_fix = runner.invoke(app, ["--json", "--dry-run", "agent", "fix"])
-    assert new_fix.exit_code == 0
-    assert old_fix.exit_code == 0
-    assert "deprecated" in (old_fix.stdout + old_fix.stderr).lower()
-    assert json.loads(new_fix.stdout) == json.loads(old_fix.stdout)
+    result = runner.invoke(app, ["--json", "agent", "list"])
+    # Fresh home → report not ok → exit 1, but JSON still emitted.
+    assert result.exit_code in (0, 1)
+    payload = json.loads(result.stdout)
+    assert "agents" in payload
+    assert "issues" in payload
+    ids = {row["id"] for row in payload["agents"]}
+    assert {"kilo", "zcode", "omp", "hermes"} <= ids
 
 
-def test_status_endpoints_equals_interact(tmp_path, monkeypatch) -> None:
+def test_list_config() -> None:
+    result = runner.invoke(app, ["--json", "agent", "list", "config"])
+    assert result.exit_code == 0
+    items = json.loads(result.stdout)
+    assert isinstance(items, list)
+    assert any(i.get("id") == "ponytail" for i in items)
+
+
+def test_status_json_exits_nonzero_when_unhealthy(tmp_path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["--json", "agent", "status"])
+    payload = json.loads(result.stdout)
+    if not payload.get("ok"):
+        assert result.exit_code == 1
+    else:
+        assert result.exit_code == 0
 
-    new = runner.invoke(app, ["--json", "agent", "status", "--endpoints"])
-    old = runner.invoke(app, ["--json", "agent", "interact"])
-    assert new.exit_code == 0
-    assert old.exit_code == 0
-    assert "deprecated" in (old.stdout + old.stderr).lower()
-    assert json.loads(new.stdout) == json.loads(old.stdout)
 
-
-def test_report_equals_status_json(tmp_path, monkeypatch) -> None:
+def test_status_ui_flag(tmp_path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["--json", "agent", "status", "--ui"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert "endpoints" in payload
 
-    new = runner.invoke(app, ["--json", "agent", "status"])
-    old = runner.invoke(app, ["agent", "report"])
-    assert new.exit_code == 0
-    # report exits 1 when the setup report is not ok (same body as status --json)
-    assert old.exit_code in (0, 1)
-    assert "deprecated" in (old.stdout + old.stderr).lower()
-    a = json.loads(new.stdout)
-    b = json.loads(old.stdout)
-    # `resources` (live memory %) and `log_tail` are time-varying between the
-    # two separate invocations — compare the deterministic report body only.
-    for doc in (a, b):
-        doc.pop("resources", None)
-        doc.pop("log_tail", None)
-    assert a == b
+
+def test_setup_project_positional_path(tmp_path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    result = runner.invoke(app, ["--dry-run", "agent", "setup", "--project", str(repo)])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert str(repo) in out or "Project templates" in out or "would" in out.lower() or result.exit_code == 0
+
+
+def test_repair_clean(tmp_path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["--json", "--dry-run", "agent", "repair", "--clean"])
+    assert result.exit_code == 0

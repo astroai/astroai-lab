@@ -1,4 +1,4 @@
-"""Unit tests for agent catalog, clean state, auto-fix, and interact features."""
+"""Unit tests for agent catalog browse, clean state, auto-repair, and UI endpoints."""
 
 import json
 from pathlib import Path
@@ -95,44 +95,46 @@ def test_inspect_interact_endpoints() -> None:
     assert isinstance(info["endpoints"], list)
 
 
-def test_cli_agent_catalog() -> None:
-    result = runner.invoke(app, ["--json", "agent", "catalog"])
+def test_cli_agent_list_config() -> None:
+    result = runner.invoke(app, ["--json", "agent", "list", "config"])
     assert result.exit_code == 0
-    assert "openresearch" in result.output
+    data = json.loads(result.stdout)
+    assert isinstance(data, list)
+    assert any(row.get("id") == "ponytail" for row in data)
 
-    res_tag = runner.invoke(app, ["agent", "catalog", "--tag", "lean"])
-    assert res_tag.exit_code == 0
+    res_kind = runner.invoke(app, ["agent", "list", "config", "--kind", "skill"])
+    assert res_kind.exit_code == 0
 
 
 def test_cli_agent_awesome_alias_removed() -> None:
-    """The `agent awesome` alias was removed (use `agent catalog`)."""
+    """The `agent awesome` alias was removed (use `agent list` / `list config`)."""
     result = runner.invoke(app, ["--json", "agent", "awesome"])
     assert result.exit_code != 0
     assert "No such command" in (result.stdout + result.stderr)
 
 
-def test_cli_agent_clean() -> None:
-    result = runner.invoke(app, ["--json", "agent", "clean"])
+def test_cli_agent_repair_clean() -> None:
+    result = runner.invoke(app, ["--json", "agent", "repair", "--clean"])
     assert result.exit_code == 0
 
-    res_dry = runner.invoke(app, ["agent", "clean", "--dry-run"])
+    res_dry = runner.invoke(app, ["agent", "repair", "--clean", "--dry-run"])
     assert res_dry.exit_code == 0
 
 
-def test_cli_agent_fix() -> None:
-    result = runner.invoke(app, ["--json", "agent", "fix"])
+def test_cli_agent_repair() -> None:
+    result = runner.invoke(app, ["--json", "agent", "repair"])
     assert result.exit_code == 0
 
-    res_dry = runner.invoke(app, ["agent", "fix", "--dry-run"])
+    res_dry = runner.invoke(app, ["agent", "repair", "--dry-run"])
     assert res_dry.exit_code == 0
 
 
-def test_cli_agent_interact() -> None:
-    result = runner.invoke(app, ["--json", "agent", "interact"])
+def test_cli_agent_status_ui() -> None:
+    result = runner.invoke(app, ["--json", "agent", "status", "--ui"])
     assert result.exit_code == 0
     assert "endpoints" in result.output
 
-    res_plain = runner.invoke(app, ["agent", "interact"])
+    res_plain = runner.invoke(app, ["agent", "status", "--ui"])
     assert res_plain.exit_code == 0
 
 

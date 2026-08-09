@@ -1,5 +1,5 @@
 # token-efficient — legacy addon migrated from addons.json (Phase 3).
-# `agent addons` / `agent add` surface this via the plugin registry.
+# `agent plugins list` / `agent plugins install` surface this via the plugin registry.
 id: token-efficient
 kind: rule
 addon: true

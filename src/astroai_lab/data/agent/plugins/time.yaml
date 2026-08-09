@@ -1,5 +1,5 @@
 # time — legacy addon migrated from addons.json (Phase 3).
-# `agent addons` / `agent add` surface this via the plugin registry.
+# `agent plugins list` / `agent plugins install` surface this via the plugin registry.
 id: time
 kind: mcp
 addon: true

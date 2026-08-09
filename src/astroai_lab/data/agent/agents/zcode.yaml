@@ -1,0 +1,15 @@
+# ZCode CLI (zcode-app-cli) — unofficial terminal client for Z.AI ZCode runtime.
+# Schema: docs/agent-rethink-plan.md §4 Phase 1.
+id: zcode
+name: ZCode CLI
+homepage: https://github.com/kingsword09/zcode-cli
+summary: Unofficial terminal client for the Z.AI ZCode / GLM agent runtime
+binary: zcode
+tags: [agent, cli, open, glm]
+install:
+  method: npm
+  source: zcode-app-cli@latest
+verify:
+  - "zcode --version"
+plugins: [skill, mcp, config, addon]
+notes: npm package zcode-app-cli; run `zcode` after install. Config is created on first launch.

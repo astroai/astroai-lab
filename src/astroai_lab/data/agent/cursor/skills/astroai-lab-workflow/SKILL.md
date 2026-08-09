@@ -16,11 +16,10 @@ astroai-lab agent models free        # OpenRouter + Kilo free-tier model presets
 gh auth login                       # GitHub for gh + GitHub MCP
 ```
 
-Discover what’s available: `astroai-lab agent list`  
-Curated lean/science addons: `astroai-lab agent addons` · `astroai-lab agent add ponytail`  
+Discover what’s available: `astroai-lab agent list` · configs: `astroai-lab agent list config`  
+Plugins: `astroai-lab agent plugins install ponytail`  
 Refresh after an image upgrade: `astroai-lab agent update`  
-GitHub upstream skills only: `astroai-lab agent skills update`  
-Broken agent configs (esp. OpenCode JSON): `astroai-lab agent verify`
+Broken agent configs (esp. OpenCode JSON): `astroai-lab agent verify` · `astroai-lab agent repair`
 
 ## Daily workflow
 

@@ -107,26 +107,23 @@ def test_agent_install_json_dry_run() -> None:
     assert data["tool"] == "kilo"
 
 
-def test_agent_addons_and_list_json() -> None:
-    result = runner.invoke(app, ["--json", "agent", "addons"])
+def test_agent_plugins_and_list_json() -> None:
+    result = runner.invoke(app, ["--json", "agent", "plugins", "list"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert isinstance(data, list)
     result = runner.invoke(app, ["--json", "agent", "list"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert "tools" in data
-    assert "addons" in data
+    assert "agents" in data
 
 
-def test_agent_add_json_dry_run() -> None:
-    result = runner.invoke(app, ["--json", "--dry-run", "agent", "add", "ponytail"])
-    # may be 0 with dry-run result
+def test_agent_plugins_install_json_dry_run() -> None:
+    result = runner.invoke(app, ["--json", "--dry-run", "agent", "plugins", "install", "ponytail"])
     assert result.exit_code in (0, 1, 2)
     if result.stdout.strip().startswith("{") or result.stdout.strip().startswith("["):
         pass
     else:
-        # rich may wrap; still ensure command ran
         assert "ponytail" in (result.stdout + result.stderr).lower() or result.exit_code == 0
 
 
@@ -288,7 +285,7 @@ def test_agent_project_json_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
             __import__("astroai_lab.errors", fromlist=["LabError"]).LabError("nope")
         ),
     )
-    result = runner.invoke(app, ["--json", "agent", "project", str(tmp_path)])
+    result = runner.invoke(app, ["--json", "agent", "setup", "--project", "--path", str(tmp_path)])
     assert result.exit_code == 1
     data = json.loads(result.stdout)
     assert data["ok"] is False

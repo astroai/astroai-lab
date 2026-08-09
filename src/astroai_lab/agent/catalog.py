@@ -192,7 +192,7 @@ def list_agent_catalog(
     addons = list_addons(home=home)
     for add in addons:
         kind_name = add["kind"]
-        install_cmd = f"astroai-lab agent add {add['id']}"
+        install_cmd = f"astroai-lab agent plugins install {add['id']}"
         items.append(
             {
                 "id": add["id"],

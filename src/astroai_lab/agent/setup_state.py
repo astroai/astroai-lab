@@ -192,34 +192,32 @@ def _lock_is_stale(path: Path) -> bool:
     return not _lock_holder_alive(path)
 
 
-def build_agent_report(home: Path | None = None) -> dict[str, Any]:
-    """One-shot JSON report for wizard / automation."""
-    import shutil
-
+def build_agent_report(home: Path | None = None, *, probe_ver: bool = False) -> dict[str, Any]:
+    """One-shot JSON report for wizard / automation (registry-driven)."""
     from astroai_lab.agent.inventory import verify_setup
+    from astroai_lab.agent.registry import list_registry_agents, registry_agent_status
     from astroai_lab.core.session_resources import collect_resources
 
     home = home or Path.home()
     state = read_setup_state(home)
     issues = verify_setup(home)
     agents = []
-    for name, binary, config_path in (
-        ("opencode", "opencode", home / ".config" / "opencode" / "opencode.json"),
-        ("claude", "claude", home / ".claude.json"),
-        ("goose", "goose", home / ".config" / "goose" / "config.yaml"),
-        ("kilo", "kilo", home / ".config" / "kilo" / "kilo.jsonc"),
-        ("codex", "codex", home / ".codex" / "config.toml"),
-        ("copilot", "copilot", home / ".copilot" / "mcp-config.json"),
-        ("cline", "cline", home / ".config" / "canfar" / "lab" / "cline-free.md"),
-        ("qoder", "qodercli", home / ".qoder" / "settings.json"),
-        ("agent", "agent", home / ".cursor" / "mcp.json"),
-    ):
+    for agent in list_registry_agents():
+        status = registry_agent_status(agent, home, probe_ver=probe_ver)
         agents.append(
             {
-                "agent": name,
-                "binary": shutil.which(binary) is not None,
-                "config": config_path.is_file(),
-                "config_path": str(config_path),
+                "agent": status["id"],
+                "id": status["id"],
+                "name": status["name"],
+                "binary": status["binary_ok"],
+                "binary_name": status["binary"],
+                "config": status["config_ok"],
+                "config_path": status["config"],
+                "binary_ok": status["binary_ok"],
+                "config_ok": status["config_ok"],
+                "config_declared": status.get("config_declared", True),
+                "version": status.get("version"),
+                "summary": status.get("summary", ""),
             }
         )
     return {

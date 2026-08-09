@@ -69,16 +69,16 @@ def test_install_upstream_skills_dry_run() -> None:
     assert count >= 0
 
 
-def test_agent_project_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_project_via_setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = tmp_path / "repo"
     project.mkdir()
     monkeypatch.chdir(project)
-    result = runner.invoke(app, ["--dry-run", "agent", "project"])
+    result = runner.invoke(app, ["--dry-run", "agent", "setup", "--project"])
     assert result.exit_code == 0
 
 
 def test_project_command_removed() -> None:
-    """The `project` command was removed in the 0.3 simplification."""
+    """The top-level `project` command was removed in the 0.3 simplification."""
     result = runner.invoke(app, ["project", "init", "mygroup"])
     assert result.exit_code != 0
     assert "No such command" in (result.stdout + result.stderr)
@@ -106,13 +106,15 @@ def test_list_skills_inventory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert workflow["source"] == "bundled"
 
 
-def test_agent_skills_list_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_list_default_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["agent", "skills", "list"])
+    result = runner.invoke(app, ["agent", "list"])
     assert result.exit_code == 0
-    assert "ast-grep" in (result.stdout + result.stderr)
+    out = result.stdout + result.stderr
+    assert "Binary" in out
+    assert "plugins" in out.lower()
 
 
 def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -130,15 +132,6 @@ def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.Monkey
     assert result.status == "dry-run"
 
 
-def test_agent_skills_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--dry-run", "agent", "skills", "update"])
-    assert result.exit_code == 0
-    assert "ast-grep" in (result.stdout + result.stderr)
-
-
 def test_agent_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -147,10 +140,11 @@ def test_agent_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "refreshed skill" in out or "would refresh skill" in out
+    assert "ast-grep" in out
 
 
 def test_agent_sources_alias_removed() -> None:
-    """The `agent sources` alias was removed (use `agent skills`)."""
+    """The `agent sources` alias was removed (use `agent update`)."""
     result = runner.invoke(app, ["agent", "sources", "list"])
     assert result.exit_code != 0
     assert "No such command" in (result.stdout + result.stderr)

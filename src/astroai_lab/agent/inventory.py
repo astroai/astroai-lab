@@ -196,7 +196,7 @@ def list_skills_inventory(home: Path | None = None) -> list[dict[str, Any]]:
                 "homepage": data.get("pixi_skills", {}).get(
                     "homepage", "https://github.com/pavelzw/pixi-skills"
                 ),
-                "note": "install via pixi-skills, not agent skills update",
+                "note": "install via pixi-skills, not agent update",
             }
 
     skills_dir = home / ".cursor" / "skills"

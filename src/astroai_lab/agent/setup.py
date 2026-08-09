@@ -348,7 +348,7 @@ def run_bundle(
         )
     elif name == "project":
         if project_dir is None:
-            raise LabError("Project directory required.", hint="astroai-lab agent project [dir]")
+            raise LabError("Project directory required.", hint="astroai-lab agent setup --project")
         merge_mcp_servers(
             root / "project" / ".cursor" / "mcp.json",
             project_dir / ".cursor" / "mcp.json",

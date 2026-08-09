@@ -37,7 +37,7 @@ def _agent_and_config(
 
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
     config = agent.get("config") or {}
     path = config.get("path")
     if not path:
@@ -104,7 +104,7 @@ def validate_config_text(
 ) -> dict[str, Any]:
     """Parse the agent's config text by declared format; LabError when broken.
 
-    Shared by `agent fix-config <id>` (syntax check before a reset) and the
+    Shared by `agent repair <id>` (syntax check before a reset) and the
     edit validation path in ``edit_agent_config``.
     """
     _, config, path = _agent_and_config(agent_id, home)

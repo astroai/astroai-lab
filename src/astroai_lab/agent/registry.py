@@ -1,6 +1,6 @@
 """Agent registry: YAML single source of truth (docs/agent-rethink-plan.md Phase 1).
 
-One file per agent under ``data/agent/agents/*.yaml`` drives ``agent catalog``,
+One file per agent under ``data/agent/agents/*.yaml`` drives ``agent list``,
 ``agent list``, ``agent install``, and ``agent verify`` for registered agents.
 The schema is validated on load so a bad entry fails loudly instead of silently
 degrading the CLI.
@@ -115,25 +115,74 @@ def registry_ids(root: Path | None = None) -> set[str]:
     return {a["id"] for a in load_registry(root)}
 
 
+_VERSION_RE = re.compile(r"(\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9.]+)?)")
+
+
+def probe_version(binary: str, *, timeout: float = 0.8) -> str | None:
+    """Best-effort installed version from ``binary --version`` (no network).
+
+    Returns the first semver-ish token, or None when the binary is missing /
+    hangs / prints nothing parseable. ponytail: sub-second ceiling — upgrade
+    path is a per-agent version command in the registry YAML.
+    """
+    import os
+    import shutil
+    import subprocess
+
+    # Skip probes in unit tests unless explicitly enabled (avoids hung CLIs).
+    if os.environ.get("ASTROAI_LAB_PROBE_VERSION", "1") in ("0", "false", "no"):
+        return None
+
+    resolved = shutil.which(binary)
+    if resolved is None and not tool_on_path(binary):
+        return None
+    cmd = resolved or binary
+    try:
+        proc = subprocess.run(
+            [cmd, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    text = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    match = _VERSION_RE.search(text)
+    return match.group(1) if match else None
+
+
 def registry_agent_status(
     agent: dict[str, Any],
     home: Path | None = None,
+    *,
+    probe_ver: bool = False,
 ) -> dict[str, Any]:
     """Installed status for a registry agent: binary on PATH + config present.
 
     Binary detection reuses ``install.tool_on_path`` (session bin dirs +
     npm prefix + PATH), so it matches what `agent install` actually produces.
+    Version probing is opt-in (``probe_ver=True``) — some CLIs hang on
+    ``--version``.
     """
     home = home or Path.home()
     binary = str(agent["binary"])
-    binary_ok = tool_on_path(binary)
+    from astroai_lab.agent.install import TOOLS
+
+    # Prefer TOOLS key (handles remaps like qoder→qodercli) when the agent id
+    # is also a TOOLS entry; otherwise probe the declared binary name.
+    path_key = agent["id"] if agent["id"] in TOOLS else binary
+    binary_ok = tool_on_path(path_key)
     config = agent.get("config") or {}
     cfg_path: Path | None = None
-    # No config declared → nothing to check, so config is OK by default.
-    config_ok = not bool(config.get("path"))
-    if config.get("path"):
+    config_declared = bool(config.get("path"))
+    # No config declared → N/A (ok for health, shown as "·" in the table).
+    config_ok = True
+    if config_declared:
         cfg_path = _expand_home(str(config["path"]), home)
         config_ok = cfg_path.is_file()
+    version = probe_version(binary) if (probe_ver and binary_ok) else None
     return {
         "id": agent["id"],
         "name": agent["name"],
@@ -141,8 +190,18 @@ def registry_agent_status(
         "binary_ok": binary_ok,
         "config": str(cfg_path) if cfg_path else "",
         "config_ok": config_ok,
-        "installed": binary_ok and config_ok,
+        "config_declared": config_declared,
+        "installed": binary_ok and (config_ok if config_declared else binary_ok),
+        "version": version,
+        "summary": agent.get("summary", ""),
     }
+
+
+def tool_on_path(name: str) -> bool:
+    """Re-export of install.tool_on_path so registry callers can mock it locally."""
+    from astroai_lab.agent.install import tool_on_path as _tool_on_path
+
+    return _tool_on_path(name)
 
 
 def registry_verify_issues(
@@ -272,7 +331,7 @@ def install_registry_agent(agent_id: str, *, dry_run: bool = False) -> str:
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
 
     from astroai_lab.agent.install import TOOLS, install_tool
 
@@ -294,13 +353,6 @@ def install_registry_agent(agent_id: str, *, dry_run: bool = False) -> str:
     raise LabError(f"Agent {agent_id} has unsupported install.method={method!r}")
 
 
-def tool_on_path(name: str) -> bool:
-    """Re-export of install.tool_on_path so registry callers can mock it locally."""
-    from astroai_lab.agent.install import tool_on_path as _tool_on_path
-
-    return _tool_on_path(name)
-
-
 def remove_registry_agent(
     agent_id: str,
     *,
@@ -316,7 +368,7 @@ def remove_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
 
     from astroai_lab.agent.install import TOOLS, uninstall_tool
 
@@ -492,7 +544,7 @@ def setup_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
     home = home or Path.home()
     actions: list[str] = []
     errors: list[str] = []
@@ -577,7 +629,7 @@ def update_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
     home = home or Path.home()
     actions: list[str] = []
     errors: list[str] = []
@@ -626,7 +678,7 @@ def fix_registry_agent(
     home: Path | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Registry-driven `agent fix-config <id>` (docs/agent-rethink-plan.md Phase 2).
+    """Registry-driven `agent repair <id>` (docs/agent-rethink-plan.md Phase 2).
 
     Regenerate/sanitize ONE registered agent's config from the registry,
     reusing ``fix.py``'s repair pattern (syntax check → reset to a minimal
@@ -647,7 +699,7 @@ def fix_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent catalog")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
     home = home or Path.home()
     actions: list[str] = []
     errors: list[str] = []
@@ -699,7 +751,7 @@ def fix_registry_agent(
     if not dry_run and ok:
         from astroai_lab.agent.setup_state import record_setup_ok
 
-        record_setup_ok(home, mode=f"fix-config:{agent_id}")
+        record_setup_ok(home, mode=f"repair:{agent_id}")
     return {
         "ok": ok,
         "partial": bool(actions) and bool(errors),

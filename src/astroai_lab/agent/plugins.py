@@ -33,7 +33,7 @@ github-bundle / github-rule / mcp-snippet / cli-tool / agent-skill) is a
 legacy addon migrated from addons.json: it routes through the shared
 ``addons._apply_addon`` dispatcher so `agent plugins install` and
 `agent add` behave identically. Entries also carry ``addon: true`` so the
-`agent addons` / `agent add` surface sees them (see ``addons.load_addons``).
+`agent plugins list` surfaces them (see ``addons.load_addons``).
 
 Removal is recursive: dropping an agent removes its plugin-applied files
 (see ``remove_agent_plugin_files``, wired into ``registry._remove_registry_method``).
@@ -651,7 +651,7 @@ def _remove_from_agent(
             plugin["id"],
             agent,
             "no-op",
-            "legacy addon has no removal — remove files manually (agent addons)",
+            "legacy addon has no removal — remove files manually (agent plugins list)",
         )
     kind = plugin["kind"]
     if kind == "skill":

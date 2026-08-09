@@ -1,6 +1,6 @@
 # Codex CLI (openai/codex) — registry entry.
 # Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
-# `agent catalog` / `agent list` / `agent install` / `agent remove` / `agent verify`.
+# `agent list` / `agent install` / `agent remove` / `agent verify`.
 id: codex
 name: Codex CLI
 homepage: https://github.com/openai/codex

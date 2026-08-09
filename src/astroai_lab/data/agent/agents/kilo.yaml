@@ -1,6 +1,6 @@
 # Kilo CLI (@kilocode/cli) — registry entry.
 # Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
-# `agent catalog` / `agent list` / `agent install` / `agent remove` / `agent verify`.
+# `agent list` / `agent install` / `agent remove` / `agent verify`.
 id: kilo
 name: Kilo CLI
 homepage: https://github.com/kilocode/kilo

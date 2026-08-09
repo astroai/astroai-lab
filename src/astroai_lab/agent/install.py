@@ -438,7 +438,7 @@ def uninstall_tool(
     touching the filesystem. Returns one result per target.
     """
     if name not in TOOLS:
-        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent list  (or agent catalog)")
+        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent list")
     home = home or Path.home()
     results: list[RemoveResult] = []
     binary = tool_binary(name)

@@ -47,7 +47,7 @@ def test_help_single_command() -> None:
     assert result.exit_code == 0
     assert "Usage: astroai-lab agent" in result.output
     # Scoped: agent group help shows agent subcommands, not save/resume ones.
-    assert "catalog" in result.output
+    assert "plugins" in result.output
     assert "Usage: astroai-lab save" not in result.output
 
 

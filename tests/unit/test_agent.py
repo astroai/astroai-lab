@@ -76,17 +76,20 @@ def test_agent_install_list() -> None:
     result = runner.invoke(app, ["agent", "install"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert "claude" in out
-    assert "qoder" in out
+    assert "kilo" in out
+    assert "zcode" in out or "omp" in out
 
 
 def test_agent_list_overview() -> None:
     result = runner.invoke(app, ["agent", "list"])
-    assert result.exit_code == 0
+    assert result.exit_code in (0, 1)
     out = result.stdout + result.stderr
-    assert "Installable CLIs" in out or "kilo" in out
-    assert "Config bundles" in out or "cursor" in out
-    assert "astroai-lab-workflow" in out
+    assert "Binary" in out and "Config" in out
+    assert "list config" in out.lower() or "Version" in out
+    cfg = runner.invoke(app, ["agent", "list", "config"])
+    assert cfg.exit_code == 0
+    bout = cfg.stdout + cfg.stderr
+    assert "ponytail" in bout or "Configs" in bout
 
 
 def test_agent_setup_list() -> None:

@@ -456,15 +456,18 @@ def test_cli_plugins_help_mentions_verb() -> None:
     assert "plugins" in (result.stdout + result.stderr)
 
 
-def test_cli_agent_list_json_includes_plugins(
+def test_cli_agent_list_json_is_status_shaped(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     result = runner.invoke(app, ["--json", "agent", "list"])
-    assert result.exit_code == 0
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
-    assert "plugins" in data
-    ids = {row["id"] for row in data["plugins"]}
+    assert "agents" in data
+    # Plugins live under `agent list config` / `agent plugins list`.
+    plugins = runner.invoke(app, ["--json", "agent", "list", "config"])
+    assert plugins.exit_code == 0
+    ids = {row["id"] for row in json.loads(plugins.stdout)}
     assert "canfar-ray" in ids
 
 

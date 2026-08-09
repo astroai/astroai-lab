@@ -1,10 +1,10 @@
 # astroai-agent rethink: prune, unify, plugin-ify
 
-Status: **in progress** — Phases 0–3 landed (prune + decompose, agent
-registry, lean verbs, plugin system) plus the Phase 2 `setup <agent>` /
-`config <agent>` / `update <agent>` / `fix-config <agent>` registry-driven
-verbs, and the Phase 6 `wipe` factory reset (baked into the 26.08 images,
-pushed to Harbor). Phase 4 remains; Phase 5 (tests/docs/CI) is complete.
+Status: **lean cut landed** — hard-removed parallel verbs (`catalog`, `addons`,
+`add`, `skills`, `project`, `fix-config`, and deprecated `fix`/`clean`/`report`/
+`interact`). Canonical surface is `list|install|remove|wipe|setup|config|update|
+status|verify|repair|models|plugins`. Browse via `list --all`; repair via
+`repair`; UI endpoints via `status --ui`; project scaffold via `setup --project`.
 Owner: astroai-lab.
 Companion docs: [cli.md](cli.md), [USAGE.md](USAGE.md), [help.md](help.md).
 

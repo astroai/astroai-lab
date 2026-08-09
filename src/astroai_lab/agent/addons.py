@@ -191,7 +191,7 @@ def add_addon(
     if item is None:
         raise LabError(
             f"Unknown addon: {addon_id}",
-            hint="astroai-lab agent addons",
+            hint="astroai-lab agent plugins list",
         )
     return _apply_addon(item, home=home, force=force, dry_run=dry_run)
 
@@ -297,7 +297,7 @@ def add_addons(
     if not ordered:
         raise LabError(
             "Specify addon id(s) or --tag",
-            hint="astroai-lab agent addons",
+            hint="astroai-lab agent plugins list",
         )
     return [add_addon(aid, home=home, force=force, dry_run=dry_run) for aid in ordered]
 

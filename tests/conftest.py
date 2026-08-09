@@ -26,6 +26,9 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in keys_to_remove:
         monkeypatch.delenv(key, raising=False)
 
+    # Version probes can hang on some installed CLIs; keep unit tests offline.
+    monkeypatch.setenv("ASTROAI_LAB_PROBE_VERSION", "0")
+
     # get_settings() caches a pydantic model that snapshots env vars at first
     # call; clear it so a previous test's monkeypatched WORK/SCRATCH cannot
     # leak into later tests through the cached object.

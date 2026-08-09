@@ -16,7 +16,7 @@ gh auth login
 
 Refresh bundles after an image upgrade: `astroai-lab agent update`
 Overview / broken configs: `astroai-lab agent list` · `astroai-lab agent verify`
-Curated lean/science addons: `astroai-lab agent addons` · `astroai-lab agent add ponytail`
+Curated lean/science plugins: `astroai-lab agent plugins list` · `astroai-lab agent plugins install ponytail`
 
 ## This repo
 

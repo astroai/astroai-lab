@@ -2,10 +2,10 @@
 # Schema: docs/agent-rethink-plan.md §4 Phase 3. One YAML per plugin under
 # data/agent/plugins/*.yaml; `agent plugins install/update/remove/configure`
 # drive every kind. Dynamic URLs only — never bake a per-session manager URL.
-# `addon: true` surfaces it via the legacy `agent addons` / `agent add` verbs.
+# `addon: true` marks it as a curated plugin (`plugins list` / `plugins install`).
 id: canfar-ray
 kind: skill                    # skill | bundle | mcp | tool | rule | config | addon
-addon: true                    # legacy addon marker (agent addons / agent add)
+addon: true
 tags: [science, ray, compute, canfar]
 summary: Drive CANFAR Ray clusters — ensure/status/stop/scale/dashboard via astroai-workload
 homepage: https://github.com/astroai/astroai-workload

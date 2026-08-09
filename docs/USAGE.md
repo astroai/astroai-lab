@@ -218,19 +218,20 @@ enumerable, so you rarely need to guess or re-read `help`:
 
 - **Installable CLIs** for `agent install`, **bundles + registered agent ids**
   for `agent setup`, **registered agent ids** for `agent config`/`agent update`,
-  and **addon ids** for `agent add`:
+  and **plugin ids** for `agent plugins install`:
 
   ```bash
   astroai-lab agent install <TAB>       # → kilo, goose, opencode, …
   astroai-lab agent setup <TAB>         # → cursor, claude, hermes, …
   astroai-lab agent config <TAB>        # → kilo, goose, hermes, openclaw, …
-  astroai-lab agent add <TAB>           # → ponytail, polars, …
+  astroai-lab agent plugins install <TAB>  # → ponytail, polars, …
   ```
 
-- **`--kind` filters** for `agent addons` and `agent catalog`:
+- **`--kind` filters** for `agent list config` and `agent plugins list`:
 
   ```bash
-  astroai-lab agent addons --kind <TAB> # → skill, bundle, mcp, tool, rule
+  astroai-lab agent list config --kind <TAB>   # → skill, rule, mcp, tool, …
+  astroai-lab agent plugins list --kind <TAB>  # → skill, mcp, …
   ```
 
 ---
@@ -242,28 +243,30 @@ Persists under `/arc` home (MCP, skills, tool binaries).
 **The agent registry is the single source of truth.** Each agent ships as one
 YAML file in the package (`data/agent/agents/<id>.yaml`) declaring how it
 installs (`curl` / `npm` / `gh-release`), where its config lives, and how it
-verifies. `agent catalog` lists the registry, `agent list` shows per-agent
-binary/config status, and `agent install|remove` drive off the same entries —
-adding an agent is a data change, not a code change. This covers `kilo`,
-`goose`, `cline`, `opencode`, `codex`, `hermes`, and `openclaw`.
+verifies. `agent list` shows registered agents (binary / config / version);
+`agent list config` shows skills/MCP/addons; `agent install|remove` drive off
+the same registry entries — adding an agent is a data change, not a code
+change. This covers `kilo`, `goose`, `cline`, `opencode`, `codex`, `hermes`,
+`openclaw`, `zcode`, and `omp`.
 
 ```bash
-astroai-lab agent catalog          # registry-driven catalog (agents/skills/MCPs/UIs)
-astroai-lab agent list             # CLIs + bundles + skills overview (+ registry status)
-astroai-lab agent install kilo     # or goose, opencode, cline, codex, hermes, openclaw, …
+astroai-lab agent list             # registered agents (binary / config / version)
+astroai-lab agent list config      # skills/MCP/addons
+astroai-lab agent install kilo     # or goose, opencode, cline, codex, hermes, openclaw, zcode, omp, …
 astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
 astroai-lab agent wipe             # factory reset: remove EVERY agent config + binary + state (confirmation required; --dry-run to preview)
 astroai-lab agent setup hermes     # per-agent registry setup: config scaffold + skills + plugins
 astroai-lab agent setup --all      # same, for every installed agent
+astroai-lab agent setup --project  # per-repo AGENTS.md + .cursor scaffold
 astroai-lab agent config hermes    # show the agent's config file (key=value edits / --unset)
-astroai-lab agent addons           # curated lean + science skills/MCP
-astroai-lab agent add ponytail     # YAGNI / minimal diffs
+astroai-lab agent plugins list     # same catalog as `list config`
+astroai-lab agent plugins install ponytail
 astroai-lab agent models free
 astroai-lab agent update           # after image upgrades
 astroai-lab agent update hermes    # refresh ONE agent (CLI + plugins + state)
 astroai-lab agent verify           # catch broken JSON/TOML/YAML configs (+ registry config checks)
-astroai-lab agent fix-config       # auto-repair (--clean for stale state)
-astroai-lab agent fix-config hermes  # regenerate/sanitize ONE agent's config (--all for every installed)
+astroai-lab agent repair           # auto-repair (--clean for stale state)
+astroai-lab agent repair hermes    # regenerate/sanitize ONE agent's config (--all for every installed)
 ```
 
 See [cli.md](cli.md) for `agent models free --preset long`, per-agent options,

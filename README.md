@@ -102,7 +102,7 @@ gh auth login
 ```
 
 After an image upgrade: `astroai-lab agent update`. Overview: `astroai-lab agent list`.
-Curated addons: `astroai-lab agent addons` · `astroai-lab agent add ponytail`.
+Plugins: `astroai-lab agent plugins list` · `astroai-lab agent plugins install ponytail`.
 Broken configs: `astroai-lab agent verify`. Details in [docs/cli.md](docs/cli.md).
 
 ## Scope

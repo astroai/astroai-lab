@@ -2,7 +2,7 @@
 
 Covers the `autocompletion=` callables added for enumerable values:
 `agent models free --preset` presets, `kernel` names, `agent install` tools,
-`agent setup` bundles, `agent add` addons, and the `--kind` filters.
+`agent setup` bundles, `agent plugins install`, and the `--kind` filters.
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ def test_kernel_ensure_name_option_wired() -> None:
     assert getattr(param, "_custom_shell_complete", None) is not None
 
 
-# --- tool / bundle / addon completions --------------------------------------
+# --- tool / bundle / plugin completions -------------------------------------
 
 
 def test_tool_completer_offers_installable_clis() -> None:
@@ -148,58 +148,34 @@ def test_agent_setup_bundle_argument_wired() -> None:
     assert getattr(param, "_custom_shell_complete", None) is not None
 
 
-def test_addon_completer_offers_addon_ids() -> None:
-    from astroai_lab.cli.agent_cmd import _addon_completer
+def test_plugin_completer_offers_plugin_ids() -> None:
+    from astroai_lab.cli.agent_cmd import _plugin_completer
 
     with patch(
-        "astroai_lab.cli.agent_cmd.agent_addons.list_addons",
-        return_value=[
-            {
-                "id": "ponytail",
-                "kind": "rule",
-                "default": False,
-                "installed": False,
-                "tags": ["lean"],
-                "summary": "",
-            }
-        ],
+        "astroai_lab.cli.agent_cmd.agent_plugins.plugin_ids",
+        return_value=["ponytail", "canfar-ray"],
     ):
-        offered = _addon_completer(None, "")
+        offered = _plugin_completer(None, "")
     assert "ponytail" in offered
+    assert "canfar-ray" in offered
 
 
-def test_agent_add_names_argument_wired() -> None:
-    param = _param("agent add", "names")
+def test_agent_plugins_install_argument_wired() -> None:
+    param = _param("agent plugins install", "plugin")
     assert getattr(param, "_custom_shell_complete", None) is not None
 
 
 # --- --kind filter completions ----------------------------------------------
 
 
-def test_addon_kind_completer_offers_kinds() -> None:
-    from astroai_lab.cli.agent_cmd import _addon_kind_completer
+def test_plugin_kind_completer_offers_kinds() -> None:
+    from astroai_lab.cli.agent_cmd import _plugin_kind_completer
 
-    assert set(_addon_kind_completer(None, "")) == {"skill", "bundle", "mcp", "tool", "rule"}
-
-
-def test_catalog_kind_completer_offers_kinds() -> None:
-    from astroai_lab.cli.agent_cmd import _catalog_kind_completer
-
-    assert set(_catalog_kind_completer(None, "")) == {
-        "agent",
-        "skill",
-        "rule",
-        "mcp",
-        "tool",
-        "container",
-    }
+    offered = set(_plugin_kind_completer(None, ""))
+    assert "skill" in offered
+    assert "mcp" in offered
 
 
-def test_addons_kind_option_wired() -> None:
-    param = _param("agent addons", "kind")
-    assert getattr(param, "_custom_shell_complete", None) is not None
-
-
-def test_catalog_kind_option_wired() -> None:
-    param = _param("agent catalog", "kind")
+def test_list_config_kind_option_wired() -> None:
+    param = _param("agent list config", "kind")
     assert getattr(param, "_custom_shell_complete", None) is not None

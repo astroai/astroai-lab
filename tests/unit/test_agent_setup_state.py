@@ -80,12 +80,14 @@ def test_agent_status_json_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     result = runner.invoke(app, ["--json", "agent", "status"])
-    assert result.exit_code == 0
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     assert "ok" in data
     assert "agents" in data
     assert "issues" in data
     assert "setup" in data
+    if not data["ok"]:
+        assert result.exit_code == 1
 
 
 def test_agent_verify_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,22 +113,23 @@ def test_agent_setup_json_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert "errors" in data
 
 
-def test_agent_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_status_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["agent", "report"])
-    assert result.exit_code == 1
+    result = runner.invoke(app, ["--json", "agent", "status"])
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     assert "agents" in data
     assert build_agent_report(home)["ok"] is False
+    assert result.exit_code == 1
 
 
-def test_agent_report_includes_resources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_status_includes_resources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["agent", "report"])
+    result = runner.invoke(app, ["--json", "agent", "status"])
     data = json.loads(result.stdout)
     assert "resources" in data
     assert "mem_pct" in data["resources"]
