@@ -55,9 +55,7 @@ def wipe_agent_state(*, home: Path | None = None, dry_run: bool = False) -> list
                     for r in uninstall_tool(agent_id, home=home, purge=True, dry_run=dry_run)
                 ]
         except LabError as exc:
-            results.append(
-                {"target": f"agent:{agent_id}", "status": "error", "detail": str(exc)}
-            )
+            results.append({"target": f"agent:{agent_id}", "status": "error", "detail": str(exc)})
             continue
         results.extend(rows)
 

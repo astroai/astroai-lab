@@ -113,7 +113,8 @@ def test_agent_plugins_and_list_json() -> None:
     data = json.loads(result.stdout)
     assert isinstance(data, list)
     result = runner.invoke(app, ["--json", "agent", "list"])
-    assert result.exit_code == 0
+    # Incomplete setup exits 1 with ok:false; body is still valid JSON.
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     assert "agents" in data
 

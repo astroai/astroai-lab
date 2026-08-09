@@ -384,9 +384,7 @@ def test_verify_setup_includes_registry_for_installed(
 @pytest.fixture
 def _no_plugins(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep setup/update tests hermetic: no real plugin application."""
-    monkeypatch.setattr(
-        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
-    )
+    monkeypatch.setattr("astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: [])
 
 
 def test_setup_registry_agent_unknown() -> None:
@@ -440,9 +438,7 @@ def test_setup_registry_agent_post_install_opt_in(
     home = tmp_path / "home"
     home.mkdir()
     ran: list[str] = []
-    monkeypatch.setattr(
-        "astroai_lab.agent.registry._run_post_install", lambda cmd: ran.append(cmd)
-    )
+    monkeypatch.setattr("astroai_lab.agent.registry._run_post_install", lambda cmd: ran.append(cmd))
     # default: not run
     setup_registry_agent("openclaw", home=home)
     assert ran == []
@@ -479,9 +475,7 @@ def test_list_installed_registry_agents(tmp_path: Path, monkeypatch: pytest.Monk
 
 def test_cli_setup_agent_registry_driven(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(
-        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
-    )
+    monkeypatch.setattr("astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: [])
     result = runner.invoke(app, ["--json", "agent", "setup", "hermes"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
@@ -492,9 +486,7 @@ def test_cli_setup_agent_registry_driven(tmp_path: Path, monkeypatch: pytest.Mon
 
 def test_cli_setup_mixed_bundle_and_agent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(
-        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
-    )
+    monkeypatch.setattr("astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: [])
     result = runner.invoke(app, ["--json", "--dry-run", "agent", "setup", "cli", "hermes"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
@@ -573,9 +565,7 @@ def test_update_registry_agent_install_failure_marks_error(
 def test_cli_update_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
-    monkeypatch.setattr(
-        "astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: []
-    )
+    monkeypatch.setattr("astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: [])
     result = runner.invoke(app, ["--json", "--dry-run", "agent", "update", "hermes"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
@@ -715,9 +705,7 @@ def test_cli_fix_config_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert (tmp_path / ".hermes" / "config.yaml").is_file()
 
 
-def test_cli_fix_config_agent_human_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_fix_config_agent_human_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Non-JSON path prints actions + the 'config OK' summary line."""
     monkeypatch.setenv("HOME", str(tmp_path))
     result = runner.invoke(app, ["agent", "repair", "hermes"])

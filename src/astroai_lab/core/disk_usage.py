@@ -29,9 +29,12 @@ class DiskUsage:
 
 
 def _xattr_int(path: Path, name: str) -> int | None:
+    getxattr = getattr(os, "getxattr", None)
+    if getxattr is None:
+        return None
     try:
-        raw = os.getxattr(path, name)
-    except (OSError, AttributeError):
+        raw = getxattr(path, name)
+    except OSError:
         return None
     try:
         text = raw.decode("utf-8", errors="ignore").strip() if isinstance(raw, bytes) else str(raw)

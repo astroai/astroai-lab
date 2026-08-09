@@ -30,7 +30,8 @@ def test_disk_usage_prefers_ceph_xattrs(tmp_path: Path, monkeypatch: pytest.Monk
             return b"250"
         raise OSError("missing")
 
-    monkeypatch.setattr("os.getxattr", fake_getxattr)
+    # macOS has no os.getxattr — raise=False installs the attribute for the test.
+    monkeypatch.setattr("os.getxattr", fake_getxattr, raising=False)
     info = disk_usage(home)
     assert info is not None
     assert info.source == "ceph-xattr"

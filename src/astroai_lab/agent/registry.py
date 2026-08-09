@@ -583,8 +583,7 @@ def setup_registry_agent(
             errors.append(f"plugin {result.plugin} ({result.agent}): {result.detail}")
         elif result.status in ("installed", "would_install", "updated"):
             actions.append(
-                f"plugin {result.status.replace('_', ' ')} {result.plugin} "
-                f"({result.agent})"
+                f"plugin {result.status.replace('_', ' ')} {result.plugin} ({result.agent})"
             )
 
     post = (agent.get("setup") or {}).get("post_install")
@@ -654,8 +653,7 @@ def update_registry_agent(
             errors.append(f"plugin {result.plugin} ({result.agent}): {result.detail}")
         elif result.status in ("installed", "would_install", "updated", "removed"):
             actions.append(
-                f"plugin {result.status.replace('_', ' ')} {result.plugin} "
-                f"({result.agent})"
+                f"plugin {result.status.replace('_', ' ')} {result.plugin} ({result.agent})"
             )
 
     ok = not errors

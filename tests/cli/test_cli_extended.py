@@ -205,7 +205,8 @@ def test_agent_status_human(lab_env: Path) -> None:
 
 def test_agent_status_json(lab_env: Path) -> None:
     result = runner.invoke(app, ["--json", "agent", "status"])
-    assert result.exit_code == 0
+    # Fresh / incomplete setup → ok:false → exit 1; JSON still emitted.
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     assert isinstance(data, dict)
     assert "agents" in data

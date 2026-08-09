@@ -95,7 +95,8 @@ def test_agent_install_list_includes_kilo_cline() -> None:
     assert "kilo" in out
     assert "cline" in out
     assert "goose" in out
-    assert "qoder" in out
+    assert "omp" in out
+    assert "zcode" in out
 
 
 def test_apply_free_models_writes(tmp_path: Path) -> None:

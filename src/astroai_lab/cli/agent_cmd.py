@@ -131,7 +131,9 @@ def _print_interact(opts) -> None:
         ui.print_hint(f"          {ep['description']}")
 
 
-def _print_status_table(report: dict, *, stamp: str | None = None, failed: str | None = None) -> None:
+def _print_status_table(
+    report: dict, *, stamp: str | None = None, failed: str | None = None
+) -> None:
     ui.print_hint("  Agent        Binary  Config  Version")
     ui.print_hint("  ───────────  ──────  ──────  ──────────")
     for row in report["agents"]:
@@ -234,9 +236,7 @@ def _print_plugins(
     if not rows:
         ui.print_hint("Plugins: none in the registry (data/agent/plugins/*.yaml)")
         return
-    ui.print_hint(
-        "Plugins (skills/MCP/config) — apply: astroai-lab agent plugins install ID"
-    )
+    ui.print_hint("Plugins (skills/MCP/config) — apply: astroai-lab agent plugins install ID")
     ui.print_hint("  Id          Kind     Status   Agents")
     ui.print_hint("  ──────────  ───────  ───────  ──────────────")
     for row in rows:
@@ -575,9 +575,7 @@ def agent_update_cmd(
     ] = None,
     reinstall: Annotated[
         bool,
-        typer.Option(
-            "--reinstall", help="Force CLI reinstall even when the binary is up to date."
-        ),
+        typer.Option("--reinstall", help="Force CLI reinstall even when the binary is up to date."),
     ] = False,
 ) -> None:
     """Refresh agent MCP, rules, skills, and GitHub skill clones."""
@@ -864,9 +862,7 @@ def agent_verify_cmd(
         return
     if issues:
         ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
-        ui.print_hint(
-            "Tip: Run `astroai-lab agent repair` or `astroai-lab agent verify --fix`."
-        )
+        ui.print_hint("Tip: Run `astroai-lab agent repair` or `astroai-lab agent verify --fix`.")
         raise typer.Exit(1)
     if state.stamp:
         ui.print_hint(f"  last run: {state.stamp}")
@@ -1219,9 +1215,7 @@ def plugins_install_cmd(
         )
     except LabError as exc:
         if opts.json:
-            ui.print_json(
-                {"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]}
-            )
+            ui.print_json({"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]})
         else:
             ui.print_error(str(exc))
         raise typer.Exit(1) from exc
@@ -1293,9 +1287,7 @@ def plugins_remove_cmd(
         results = agent_plugins.remove_plugin(plugin, agent=agent, dry_run=opts.dry_run)
     except LabError as exc:
         if opts.json:
-            ui.print_json(
-                {"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]}
-            )
+            ui.print_json({"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]})
         else:
             ui.print_error(str(exc))
         raise typer.Exit(1) from exc
@@ -1333,9 +1325,7 @@ def plugins_configure_cmd(
         )
     except LabError as exc:
         if opts.json:
-            ui.print_json(
-                {"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]}
-            )
+            ui.print_json({"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]})
         else:
             ui.print_error(str(exc))
         raise typer.Exit(1) from exc
@@ -1404,9 +1394,7 @@ def models_free_cmd(
         )
     except LabError as exc:
         if opts.json:
-            ui.print_json(
-                {"ok": False, "preset": preset, "actions": [], "errors": [str(exc)]}
-            )
+            ui.print_json({"ok": False, "preset": preset, "actions": [], "errors": [str(exc)]})
         else:
             ui.print_error(str(exc))
         raise typer.Exit(1) from exc

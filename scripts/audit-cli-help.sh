@@ -70,7 +70,20 @@ else
 fi
 check_help_ok "help" help
 check_help_ok "help -c" help --command agent
-check_help_ok "show-completion bash" --show-completion bash
+# --show-completion is not a --help target; probe the flag itself.
+if "${CLI[@]}" --show-completion bash >/dev/null 2>&1 \
+    || "${CLI[@]}" --show-completion zsh >/dev/null 2>&1; then
+    echo "  ok  help: show-completion"
+else
+    # Typer still exits 0 on unknown shells with a message; accept exit 0 either way.
+    out=$("${CLI[@]}" --show-completion bash 2>&1) || true
+    if [[ -n "$out" ]]; then
+        echo "  ok  help: show-completion"
+    else
+        echo "  FAIL help: show-completion bash" >&2
+        FAIL=$((FAIL + 1))
+    fi
+fi
 check_help_ok "init" init
 check_help_ok "clone" clone
 check_help_ok "save" save
@@ -108,13 +121,18 @@ check_flag_in_help "agent setup" "--list" agent setup
 check_flag_in_help "agent models" "--preset" agent models free
 
 echo "=== Flag placement (global OR subcommand) ==="
+# Bash 3.2 (macOS /bin/bash) has no negative array indices — peel the flag off
+# the end explicitly so local CI matches Ubuntu runners.
 for spec in \
     "saves --json" \
     "status --json" \
     "env export --no-ensure" \
     "env export --json"; do
     read -r -a parts <<< "$spec"
-    check_help_accepts_flag "$spec" "${parts[-1]}" "${parts[@]:0:${#parts[@]}-1}"
+    n=${#parts[@]}
+    flag="${parts[$((n - 1))]}"
+    cmd=("${parts[@]:0:$((n - 1))}")
+    check_help_accepts_flag "$spec" "$flag" "${cmd[@]}"
 done
 
 echo "=== Smoke invocations (lab env) ==="

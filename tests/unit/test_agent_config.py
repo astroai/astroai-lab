@@ -117,7 +117,7 @@ def test_read_jsonc_tolerates_comments(tmp_path: Path) -> None:
 
 
 def test_read_broken_json_raises(tmp_path: Path) -> None:
-    home = _home(tmp_path, "kilo", ".config/kilo/kilo.jsonc", "{\n  \"model\": [unclosed\n")
+    home = _home(tmp_path, "kilo", ".config/kilo/kilo.jsonc", '{\n  "model": [unclosed\n')
     with pytest.raises(LabError, match="Cannot parse"):
         ac.read_agent_config("kilo", home=home)
 
@@ -150,9 +150,7 @@ def test_parse_value_literals() -> None:
 
 def test_set_jsonc_existing_key_preserves_comments(tmp_path: Path) -> None:
     home = _home(tmp_path, "kilo", ".config/kilo/kilo.jsonc", KILO_JSONC)
-    actions = ac.edit_agent_config(
-        "kilo", home=home, set_items={"model": "kilo-new"}
-    )
+    actions = ac.edit_agent_config("kilo", home=home, set_items={"model": "kilo-new"})
     assert actions == [{"key": "model", "status": "set", "detail": "kilo-new"}]
     text = (home / ".config/kilo/kilo.jsonc").read_text(encoding="utf-8")
     assert "// kilo settings" in text  # comment preserved
@@ -227,9 +225,7 @@ def test_unset_jsonc_last_entry_no_dangling_comma(tmp_path: Path) -> None:
 
 def test_edit_dry_run_writes_nothing(tmp_path: Path) -> None:
     home = _home(tmp_path, "kilo", ".config/kilo/kilo.jsonc", KILO_JSONC)
-    actions = ac.edit_agent_config(
-        "kilo", home=home, set_items={"model": "x"}, dry_run=True
-    )
+    actions = ac.edit_agent_config("kilo", home=home, set_items={"model": "x"}, dry_run=True)
     assert actions[0]["status"] == "would_set"
     assert '"model": "kilo-default"' in (home / ".config/kilo/kilo.jsonc").read_text()
 
@@ -292,9 +288,7 @@ def test_set_toml_new_table(tmp_path: Path) -> None:
 def test_set_toml_complex_value_raises(tmp_path: Path) -> None:
     home = _home(tmp_path, "codex", ".codex/config.toml", CODEX_TOML)
     with pytest.raises(LabError, match="scalar"):
-        ac.edit_agent_config(
-            "codex", home=home, set_items={"model": {"a": 1}}
-        )
+        ac.edit_agent_config("codex", home=home, set_items={"model": {"a": 1}})
 
 
 def test_unset_toml(tmp_path: Path) -> None:
@@ -335,9 +329,7 @@ def test_cli_config_key_value(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 def test_cli_config_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     _materialize(tmp_path, ".hermes/config.yaml", HERMES_YAML)
-    result = runner.invoke(
-        app, ["--json", "agent", "config", "hermes", "model=new-model"]
-    )
+    result = runner.invoke(app, ["--json", "agent", "config", "hermes", "model=new-model"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)["actions"][0]["status"] == "set"
     assert "new-model" in (tmp_path / ".hermes/config.yaml").read_text()
@@ -346,9 +338,7 @@ def test_cli_config_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 def test_cli_config_unset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     _materialize(tmp_path, ".hermes/config.yaml", HERMES_YAML)
-    result = runner.invoke(
-        app, ["--json", "agent", "config", "hermes", "--unset", "provider"]
-    )
+    result = runner.invoke(app, ["--json", "agent", "config", "hermes", "--unset", "provider"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)["actions"][0]["status"] == "unset"
     assert "provider" not in (tmp_path / ".hermes/config.yaml").read_text()

@@ -114,7 +114,7 @@ def test_agent_list_default_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "Binary" in out
-    assert "plugins" in out.lower()
+    assert "list config" in out.lower()
 
 
 def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

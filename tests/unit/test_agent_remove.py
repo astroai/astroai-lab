@@ -132,9 +132,7 @@ def test_uninstall_tool_not_installed_reports_empty(
     assert uninstall_tool("copilot", home=tmp_path / "home") == []
 
 
-def test_uninstall_tool_npm_run_is_quiet(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_uninstall_tool_npm_run_is_quiet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`npm uninstall` runs with quiet=True so `--json` stdout stays pure.
 
     Regression: `agent wipe --yes` (and `agent remove` for npm-installed
@@ -145,12 +143,8 @@ def test_uninstall_tool_npm_run_is_quiet(
     home = tmp_path / "home"
     _make_installed(bin_dir, "openclaw", home, ".openclaw/openclaw.json")
     calls: list[dict] = []
-    monkeypatch.setattr(
-        "astroai_lab.agent.install.run", lambda *a, **k: calls.append(k)
-    )
-    monkeypatch.setattr(
-        "astroai_lab.agent.install.shutil.which", lambda _: "/usr/bin/npm"
-    )
+    monkeypatch.setattr("astroai_lab.agent.install.run", lambda *a, **k: calls.append(k))
+    monkeypatch.setattr("astroai_lab.agent.install.shutil.which", lambda _: "/usr/bin/npm")
 
     uninstall_tool("openclaw", home=home)
     assert calls, "npm uninstall should fire for npm-installed tools"
@@ -228,9 +222,7 @@ def test_remove_registry_agent_method_npm_run_is_quiet(
         "config": {"path": "~/.regonly/config.json"},
     }
     calls: list[dict] = []
-    monkeypatch.setattr(
-        "astroai_lab.agent.install.run", lambda *a, **k: calls.append(k)
-    )
+    monkeypatch.setattr("astroai_lab.agent.install.run", lambda *a, **k: calls.append(k))
     monkeypatch.setattr(registry_mod, "get_registry_agent", lambda _: agent)
     # registry._remove_registry_method imports stdlib shutil directly.
     import shutil

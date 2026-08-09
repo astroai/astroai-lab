@@ -99,9 +99,7 @@ def _parse_config(text: str, fmt: str, agent_id: str, path: Path) -> dict[str, A
     return data
 
 
-def validate_config_text(
-    agent_id: str, text: str, *, home: Path | None = None
-) -> dict[str, Any]:
+def validate_config_text(agent_id: str, text: str, *, home: Path | None = None) -> dict[str, Any]:
     """Parse the agent's config text by declared format; LabError when broken.
 
     Shared by `agent repair <id>` (syntax check before a reset) and the
@@ -125,9 +123,7 @@ def read_agent_config(agent_id: str, *, home: Path | None = None) -> tuple[Path,
     return path, data
 
 
-def get_config_value(
-    agent_id: str, key: str, *, home: Path | None = None
-) -> tuple[Any, bool]:
+def get_config_value(agent_id: str, key: str, *, home: Path | None = None) -> tuple[Any, bool]:
     """Dotted-path lookup into the parsed config; returns (value, found)."""
     _, data = read_agent_config(agent_id, home=home)
     cur: Any = data
@@ -392,9 +388,7 @@ def _set_jsonc_key(text: str, dotted: str, value: Any) -> str:
         # Root segment missing — insert the whole dotted structure at top level.
         nested: dict[str, Any] = {}
         _set_path(nested, dotted, value)
-        return _insert_before_last_brace(
-            text, json.dumps(nested, ensure_ascii=False)[1:-1]
-        )
+        return _insert_before_last_brace(text, json.dumps(nested, ensure_ascii=False)[1:-1])
 
     inner = text[open_idx + 1 : close_idx]
     leaf_m = re.search(r'"' + re.escape(leaf) + r'"\s*:', inner)

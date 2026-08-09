@@ -6,7 +6,6 @@ Pins the exact registered verb surface so accidental growth fails loudly.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from typer.testing import CliRunner
 
@@ -127,7 +126,12 @@ def test_setup_project_positional_path(tmp_path, monkeypatch) -> None:
     result = runner.invoke(app, ["--dry-run", "agent", "setup", "--project", str(repo)])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert str(repo) in out or "Project templates" in out or "would" in out.lower() or result.exit_code == 0
+    assert (
+        str(repo) in out
+        or "Project templates" in out
+        or "would" in out.lower()
+        or result.exit_code == 0
+    )
 
 
 def test_repair_clean(tmp_path, monkeypatch) -> None:
