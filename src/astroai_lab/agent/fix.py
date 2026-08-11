@@ -102,6 +102,40 @@ def fix_agent_setup(*, home: Path | None = None, dry_run: bool = False) -> list[
                             detail=f"Failed repairing {cfg}: {write_err}",
                         )
                     )
+            continue
+
+        # 3b. OpenCode semantic sanitize (lsp/formatter booleans → schema objects)
+        if cfg.name == "opencode.json":
+            from astroai_lab.agent.opencode_config import sanitize_opencode_config
+
+            cleaned, changes = sanitize_opencode_config(parsed)
+            if changes:
+                if dry_run:
+                    results.append(
+                        FixResult(
+                            target=cfg.name,
+                            fixed=True,
+                            detail="Would sanitize OpenCode config: " + "; ".join(changes[:4]),
+                        )
+                    )
+                else:
+                    try:
+                        write_json(cfg, cleaned)
+                        results.append(
+                            FixResult(
+                                target=cfg.name,
+                                fixed=True,
+                                detail="Sanitized OpenCode config: " + "; ".join(changes[:4]),
+                            )
+                        )
+                    except OSError as write_err:
+                        results.append(
+                            FixResult(
+                                target=cfg.name,
+                                fixed=False,
+                                detail=f"Failed sanitizing OpenCode config: {write_err}",
+                            )
+                        )
 
     # If failed marker exists and no issues remain, unlink it
     fpath = failed_path(home)
@@ -136,7 +170,17 @@ def repair_installed_agents(*, home: Path | None = None, dry_run: bool = False) 
         errors.extend(result["errors"])
         # Only count agents that actually changed something (not "healthy" no-ops).
         changed = any(
-            any(tok in a for tok in ("created ", "repaired ", "would create", "would repair"))
+            any(
+                tok in a
+                for tok in (
+                    "created ",
+                    "repaired ",
+                    "sanitized ",
+                    "would create",
+                    "would repair",
+                    "would sanitize",
+                )
+            )
             for a in result["actions"]
         )
         if result["ok"] and changed:

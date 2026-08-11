@@ -99,8 +99,17 @@ def merge_opencode_mcp(src: Path, dst: Path, *, force: bool, dry_run: bool) -> N
     overlay = read_jsonc(src)
     if not isinstance(overlay, dict):
         overlay = {}
-    data["mcp"] = merge_dicts(data.get("mcp", {}), overlay.get("mcp", {}))
-    data["lsp"] = merge_dicts(data.get("lsp", {}), overlay.get("lsp", {}))
+    data["mcp"] = merge_dicts(data.get("mcp", {}) or {}, overlay.get("mcp", {}) or {})
+    if "lsp" in overlay:
+        overlay_lsp = overlay["lsp"]
+        base_lsp = data.get("lsp")
+        if isinstance(overlay_lsp, bool) or not isinstance(base_lsp, dict):
+            data["lsp"] = overlay_lsp
+        elif isinstance(overlay_lsp, dict):
+            data["lsp"] = merge_dicts(base_lsp, overlay_lsp)
+    from astroai_lab.agent.opencode_config import sanitize_opencode_config
+
+    data, _ = sanitize_opencode_config(data)
     write_json(dst, data)
 
 

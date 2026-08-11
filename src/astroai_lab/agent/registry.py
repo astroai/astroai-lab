@@ -867,7 +867,6 @@ def fix_registry_agent(
             text = cfg.read_text(encoding="utf-8", errors="replace")
             try:
                 agent_config_mod.validate_config_text(agent_id, text, home=home)
-                actions.append(f"config healthy ({cfg})")
             except LabError:
                 if dry_run:
                     actions.append(f"would repair broken {fmt} config ({cfg})")
@@ -875,6 +874,31 @@ def fix_registry_agent(
                     cfg.parent.mkdir(parents=True, exist_ok=True)
                     cfg.write_text(_config_scaffold(agent), encoding="utf-8")
                     actions.append(f"repaired broken {fmt} config ({cfg})")
+            else:
+                # Parseable — still may need semantic sanitize (OpenCode lsp maps).
+                if agent_id == "opencode":
+                    from astroai_lab.agent.opencode_config import sanitize_opencode_config
+                    from astroai_lab.utils.json_utils import parse_jsonc, write_json
+
+                    parsed = parse_jsonc(text)
+                    if isinstance(parsed, dict):
+                        cleaned, changes = sanitize_opencode_config(parsed)
+                        if changes:
+                            if dry_run:
+                                actions.append(
+                                    "would sanitize OpenCode config: " + "; ".join(changes[:4])
+                                )
+                            else:
+                                write_json(cfg, cleaned)
+                                actions.append(
+                                    "sanitized OpenCode config: " + "; ".join(changes[:4])
+                                )
+                        else:
+                            actions.append(f"config healthy ({cfg})")
+                    else:
+                        actions.append(f"config healthy ({cfg})")
+                else:
+                    actions.append(f"config healthy ({cfg})")
     else:
         actions.append("no config declared")
 
