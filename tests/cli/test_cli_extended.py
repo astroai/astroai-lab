@@ -200,7 +200,8 @@ def test_config_show_human(lab_env: Path) -> None:
 def test_agent_status_human(lab_env: Path) -> None:
     result = runner.invoke(app, ["agent", "status"])
     assert result.exit_code == 0
-    assert "Binary" in result.output or "binary" in result.output.lower()
+    out = result.output.lower()
+    assert "bin" in out and "cfg" in out
 
 
 def test_agent_status_json(lab_env: Path) -> None:

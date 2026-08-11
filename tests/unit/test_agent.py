@@ -128,8 +128,8 @@ def test_agent_list_overview() -> None:
     result = runner.invoke(app, ["agent", "list"])
     assert result.exit_code in (0, 1)
     out = result.stdout + result.stderr
-    assert "Binary" in out and "Config" in out
-    assert "list config" in out.lower() or "Version" in out
+    assert "Bin" in out and "Cfg" in out
+    assert "list config" in out.lower() or "agent install kilo" in out
     cfg = runner.invoke(app, ["agent", "list", "config"])
     assert cfg.exit_code == 0
     bout = cfg.stdout + cfg.stderr

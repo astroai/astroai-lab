@@ -113,7 +113,7 @@ def test_agent_list_default_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     result = runner.invoke(app, ["agent", "list"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert "Binary" in out
+    assert "Bin" in out
     assert "list config" in out.lower()
 
 
