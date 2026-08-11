@@ -65,6 +65,11 @@ def print_hint(message: str) -> None:
     console.print(f"[dim]{_format_text(message)}[/dim]")
 
 
+def print_markup(message: str) -> None:
+    """Print Rich markup without dimming (status tables with selective bold)."""
+    console.print(_format_text(message))
+
+
 def print_info(message: str) -> None:
     console.print(f"[bold #00d7ff]{_format_text(message)}[/bold #00d7ff]")
 

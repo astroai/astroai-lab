@@ -174,6 +174,44 @@ def probe_version(binary: str, *, timeout: float | None = None) -> str | None:
     return match.group(1) if match else None
 
 
+def probe_launch(binary: str, *, timeout: float | None = None) -> str | None:
+    """Return an error string if ``binary --version`` cannot run, else None.
+
+    Used by ``agent verify`` so a present-but-broken CLI fails the gate.
+    Skipped when ``ASTROAI_LAB_PROBE_VERSION=0`` (same opt-out as version probe).
+    """
+    import os
+    import subprocess
+
+    if os.environ.get("ASTROAI_LAB_PROBE_VERSION", "1") in ("0", "false", "no"):
+        return None
+
+    cmd = resolve_agent_binary(binary)
+    if cmd is None:
+        return f"not found ({binary})"
+    try:
+        proc = subprocess.run(
+            [cmd, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=_probe_timeout_sec(timeout),
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired:
+        return f"{binary} hung on --version"
+    except OSError as exc:
+        return f"{binary} failed to launch: {exc}"
+    text = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    if proc.returncode != 0 and not text:
+        return f"{binary} --version exited {proc.returncode}"
+    if proc.returncode != 0 and not _VERSION_RE.search(text):
+        # Non-zero with no version token — treat as launch failure (e.g. bad config).
+        detail = text.splitlines()[0][:120] if text else f"exit {proc.returncode}"
+        return f"{binary} --version failed ({detail})"
+    return None
+
+
 def registry_agent_status(
     agent: dict[str, Any],
     home: Path | None = None,
@@ -233,22 +271,19 @@ def registry_verify_issues(
     *,
     root: Path | None = None,
     installed_only: bool = False,
+    probe_binaries: bool = True,
 ) -> list[str]:
-    """Config-verify issues for every registered agent (binary + config checks).
+    """Config + launch issues for registered agents.
 
     With ``installed_only=True``, agents whose binary is not on PATH are
     skipped (no issue). `agent verify` uses this so fresh images that don't
     ship hermes/openclaw still pass the container gate; agents that ARE
-    installed still get their config checked.
+    installed (managed, home, or other PATH) still get config + launch checked.
     """
     home = home or Path.home()
     issues: list[str] = []
     for agent in load_registry(root):
         status = registry_agent_status(agent, home)
-        # Home-owned CLIs are visible in `agent list` but not managed — skip
-        # them for verify-when-installed so we don't nag about their configs.
-        if installed_only and not status.get("managed"):
-            continue
         if not status["binary_ok"]:
             if installed_only:
                 continue
@@ -259,6 +294,28 @@ def registry_verify_issues(
             continue
         if agent.get("config", {}).get("path") and not status["config_ok"]:
             issues.append(f"{agent['name']} config missing ({status['config']})")
+        elif status.get("config") and agent.get("config", {}).get("path"):
+            fmt = str((agent.get("config") or {}).get("format", "json"))
+            if fmt != "markdown":
+                # Present config: catch broken syntax so repair has something to fix.
+                from astroai_lab.agent import agent_config as agent_config_mod
+                from astroai_lab.errors import LabError as _LabError
+
+                cfg = Path(status["config"])
+                try:
+                    text = cfg.read_text(encoding="utf-8", errors="replace")
+                    agent_config_mod.validate_config_text(agent["id"], text, home=home)
+                except _LabError as exc:
+                    issues.append(f"{agent['name']} config broken ({cfg}): {exc}")
+                except OSError as exc:
+                    issues.append(f"{agent['name']} config unreadable ({cfg}): {exc}")
+        if probe_binaries:
+            from astroai_lab.agent.install import TOOLS, tool_binary
+
+            probe_name = tool_binary(agent["id"]) if agent["id"] in TOOLS else status["binary"]
+            launch_err = probe_launch(probe_name)
+            if launch_err:
+                issues.append(f"{agent['name']} failed to launch: {launch_err}")
     return issues
 
 
@@ -563,9 +620,9 @@ def _remove_registry_method(
 
 
 def list_installed_registry_agents(home: Path | None = None) -> list[dict[str, Any]]:
-    """Registry agents with a **managed** (scratch) CLI — not home-owned copies."""
+    """Registry agents with a CLI on PATH (managed, home, or other)."""
     home = home or Path.home()
-    return [a for a in load_registry() if registry_agent_status(a, home)["managed"]]
+    return [a for a in load_registry() if registry_agent_status(a, home)["binary_ok"]]
 
 
 def _config_scaffold(agent: dict[str, Any]) -> str:

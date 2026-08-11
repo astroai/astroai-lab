@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from astroai_lab.agent.clean_agent import clean_agent_state
@@ -16,8 +17,10 @@ runner = CliRunner()
 
 
 def test_list_covers_all_installable_agents() -> None:
+    # node stays in TOOLS (image/pixi fallback) but is not an installable agent.
     ids = {a["id"] for a in list_registry_agents()}
-    assert set(TOOLS) <= ids
+    assert set(TOOLS) - {"node"} <= ids
+    assert "node" not in ids
     assert any(a.get("summary") for a in list_registry_agents())
 
 
@@ -110,12 +113,59 @@ def test_cli_agent_repair_clean() -> None:
     assert res_dry.exit_code == 0
 
 
-def test_cli_agent_repair() -> None:
+def test_cli_agent_repair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        lambda *a, **k: {
+            "binary": "x",
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        },
+    )
     result = runner.invoke(app, ["--json", "agent", "repair"])
     assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "setup" in data
+    assert "agents" in data
+    assert "actions" in data
+    assert data["ok"] is True
 
     res_dry = runner.invoke(app, ["agent", "repair", "--dry-run"])
     assert res_dry.exit_code == 0
+
+
+def test_cli_agent_list_hides_description_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["agent", "list"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    # Registry summaries mention "agent" tooling; without --description they stay hidden.
+    assert "Descriptions: agent list --description" in out
+    # A known long summary fragment from hermes.yaml should not appear by default.
+    from astroai_lab.agent.registry import get_registry_agent
+
+    summary = (get_registry_agent("hermes") or {}).get("summary") or ""
+    assert summary
+    assert summary not in out
+
+
+def test_cli_agent_list_description_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    from astroai_lab.agent.registry import get_registry_agent
+
+    summary = (get_registry_agent("hermes") or {}).get("summary") or ""
+    for flag in ("--description", "--long", "-l"):
+        result = runner.invoke(app, ["agent", "list", flag])
+        assert result.exit_code == 0
+        assert summary in (result.stdout + result.stderr)
 
 
 def test_cli_agent_status_ui() -> None:

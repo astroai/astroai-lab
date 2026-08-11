@@ -427,11 +427,15 @@ def test_install_registry_agent_curl_dispatch(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_agent_list_includes_every_tools_entry() -> None:
-    """`agent list` is the only catalog: every TOOLS install id is listed."""
+    """`agent list` is the only catalog: every TOOLS install id is listed.
+
+    Exception: ``node`` is image-baked (TOOLS fallback only), not a list agent.
+    """
     from astroai_lab.agent.install import TOOLS
 
     ids = {a["id"] for a in list_registry_agents()}
-    assert set(TOOLS) <= ids
+    assert set(TOOLS) - {"node"} <= ids
+    assert "node" not in ids
     assert "claude" in ids and "copilot" in ids and "qoder" in ids
     assert "cursor" in ids and "kilo" in ids
 
@@ -447,7 +451,8 @@ def test_cli_agent_list_covers_installable_set(
     assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     names = {row["id"] for row in data["agents"]}
-    assert set(TOOLS) <= names
+    assert set(TOOLS) - {"node"} <= names
+    assert "node" not in names
 
 
 def test_cli_agent_install_list_includes_migrated(
@@ -606,6 +611,132 @@ def test_list_installed_registry_agents(tmp_path: Path, monkeypatch: pytest.Monk
     ids = [a["id"] for a in list_installed_registry_agents(home)]
     assert "hermes" in ids
     assert "openclaw" in ids
+
+
+def test_list_installed_includes_home_owned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="home", managed=False, home_install=True, path="/home/x/bin/kilo"),
+    )
+    ids = [a["id"] for a in list_installed_registry_agents(home)]
+    assert "hermes" in ids
+
+
+def test_verify_issues_includes_home_owned_missing_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="home", managed=False, home_install=True, path="/home/x/bin/x"),
+    )
+    issues = registry_verify_issues(home=home, installed_only=True)
+    assert any("config missing" in i and "hermes" in i for i in issues)
+
+
+def test_repair_restores_agent_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Broken config → launch fails → repair → launch works (before/after proof)."""
+    import os
+    import stat
+    import subprocess
+
+    from astroai_lab.agent.fix import repair_installed_agents
+    from astroai_lab.agent.inventory import verify_setup
+    from astroai_lab.agent.registry import probe_launch
+
+    home = tmp_path / "home"
+    bin_dir = tmp_path / "bin"
+    home.mkdir()
+    bin_dir.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("ASTROAI_LAB_BIN_DIR", str(bin_dir))
+    # Prefer fake bin dir, but keep system tools (cat) for the stub script.
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}/usr/bin{os.pathsep}/bin")
+    # Enable launch probing for this test only (conftest sets 0).
+    monkeypatch.setenv("ASTROAI_LAB_PROBE_VERSION", "1")
+    from astroai_lab.config.settings import get_settings
+
+    get_settings.cache_clear()
+
+    # Only kilo looks installed — ignore host CLIs on PATH.
+    def _classify(binary: str, *, home=None):
+        if binary == "kilo":
+            return {
+                "binary": binary,
+                "path": str(bin_dir / "kilo"),
+                "source": "managed",
+                "managed": True,
+                "home_install": False,
+                "home_path": None,
+            }
+        return {
+            "binary": binary,
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _classify)
+
+    # Fake kilo: --version fails when config has no `{` (broken / missing).
+    kilo = bin_dir / "kilo"
+    kilo.write_text(
+        "#!/bin/sh\n"
+        'CFG="${HOME}/.config/kilo/kilo.jsonc"\n'
+        'if [ "$1" = "--version" ]; then\n'
+        '  case "$(cat "$CFG" 2>/dev/null)" in\n'
+        '    *"{"*) echo "kilo 9.9.9"; exit 0 ;;\n'
+        '    *) echo "bad config" >&2; exit 1 ;;\n'
+        "  esac\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    kilo.chmod(kilo.stat().st_mode | stat.S_IEXEC)
+
+    cfg = home / ".config" / "kilo" / "kilo.jsonc"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("NOT JSON broken\n", encoding="utf-8")
+
+    before = subprocess.run(
+        [str(kilo), "--version"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "HOME": str(home)},
+        check=False,
+    )
+    assert before.returncode != 0
+    assert probe_launch("kilo") is not None
+
+    issues = verify_setup(home)
+    assert any(
+        "kilo" in i.lower() or "syntax" in i.lower() or "broken" in i.lower() for i in issues
+    )
+
+    repair = repair_installed_agents(home=home, dry_run=False)
+    assert repair["ok"] is True
+    assert "kilo" in repair["fixed"] or any("repaired" in a for a in repair["actions"])
+
+    after = subprocess.run(
+        [str(kilo), "--version"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "HOME": str(home)},
+        check=False,
+    )
+    assert after.returncode == 0
+    assert "9.9.9" in after.stdout
+    assert probe_launch("kilo") is None
+    assert not any("failed to launch" in i and "kilo" in i.lower() for i in verify_setup(home))
 
 
 def test_cli_setup_agent_registry_driven(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

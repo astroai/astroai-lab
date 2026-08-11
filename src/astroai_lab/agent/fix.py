@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from astroai_lab.agent.clean_agent import clean_agent_state
 from astroai_lab.agent.setup_state import failed_path
@@ -108,3 +109,41 @@ def fix_agent_setup(*, home: Path | None = None, dry_run: bool = False) -> list[
         fpath.unlink(missing_ok=True)
 
     return results
+
+
+def repair_installed_agents(
+    *, home: Path | None = None, dry_run: bool = False
+) -> dict[str, Any]:
+    """Repair shared setup plus every installed registry agent's config.
+
+    Used by bare ``agent repair`` and ``agent verify --fix``.
+    """
+    from astroai_lab.agent.registry import fix_registry_agent, list_installed_registry_agents
+    from astroai_lab.errors import LabError
+
+    home = home or Path.home()
+    setup_results = fix_agent_setup(home=home, dry_run=dry_run)
+    actions: list[str] = []
+    errors: list[str] = []
+    fixed: list[str] = []
+    agents = list_installed_registry_agents(home)
+    for agent in agents:
+        aid = agent["id"]
+        try:
+            result = fix_registry_agent(aid, home=home, dry_run=dry_run)
+        except LabError as exc:
+            errors.append(f"{aid}: {exc}")
+            continue
+        actions.extend(result["actions"])
+        errors.extend(result["errors"])
+        if result["ok"]:
+            fixed.append(aid)
+    return {
+        "ok": not errors,
+        "partial": bool(actions) and bool(errors),
+        "setup": setup_results,
+        "agents": [a["id"] for a in agents],
+        "fixed": fixed,
+        "actions": actions,
+        "errors": errors,
+    }
