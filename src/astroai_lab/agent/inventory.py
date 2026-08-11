@@ -146,10 +146,10 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
                 pass
 
     oc = home / ".config" / "opencode" / "opencode.json"
-    if oc.is_file():
+    if oc.is_file() and _agent_installed("opencode"):
         try:
             data = read_jsonc(oc)
-            if _agent_installed("opencode") and isinstance(data, dict) and not data.get("mcp"):
+            if isinstance(data, dict) and not data.get("mcp"):
                 issues.append("OpenCode MCP empty (~/.config/opencode/opencode.json)")
             if isinstance(data, dict):
                 from astroai_lab.agent.opencode_config import opencode_config_issues

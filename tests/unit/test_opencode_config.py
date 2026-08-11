@@ -39,7 +39,9 @@ def test_sanitize_preserves_valid_command_entries() -> None:
     assert "pyright" in "".join(changes)
 
 
-def test_verify_reports_opencode_lsp_booleans(tmp_path: Path) -> None:
+def test_verify_reports_opencode_lsp_booleans(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     home = tmp_path / "home"
     cfg = home / ".config" / "opencode" / "opencode.json"
     cfg.parent.mkdir(parents=True)
@@ -47,9 +49,56 @@ def test_verify_reports_opencode_lsp_booleans(tmp_path: Path) -> None:
         '{\n  "lsp": {"pyright": true, "clangd": true, "bash": true},\n  "mcp": {}\n}\n',
         encoding="utf-8",
     )
+
+    def _classify(binary: str, *, home=None):
+        if binary == "opencode":
+            return {
+                "binary": binary,
+                "path": "/tmp/opencode",
+                "source": "managed",
+                "managed": True,
+                "home_install": False,
+                "home_path": None,
+            }
+        return {
+            "binary": binary,
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _classify)
     issues = verify_setup(home)
     assert any("lsp.pyright" in i for i in issues)
     assert any("lsp.clangd" in i for i in issues)
+
+
+def test_verify_skips_opencode_lsp_when_not_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Leftover opencode.json must not fail day-one verify without the binary."""
+    home = tmp_path / "home"
+    cfg = home / ".config" / "opencode" / "opencode.json"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(
+        '{\n  "lsp": {"pyright": true},\n  "mcp": {}\n}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        lambda *a, **k: {
+            "binary": "x",
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        },
+    )
+    issues = verify_setup(home)
+    assert not any("lsp." in i or "OpenCode" in i for i in issues)
 
 
 def test_fix_agent_setup_sanitizes_opencode_lsp(tmp_path: Path) -> None:
