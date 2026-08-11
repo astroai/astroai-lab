@@ -91,14 +91,26 @@ def test_agent_status_json_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 
 def test_agent_verify_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fresh home with no agents installed → verify passes (day-one gate)."""
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        lambda *a, **k: {
+            "binary": "x",
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        },
+    )
     result = runner.invoke(app, ["--json", "agent", "verify"])
-    assert result.exit_code == 1
+    assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["ok"] is False
-    assert isinstance(data["issues"], list)
+    assert data["ok"] is True
+    assert data["issues"] == []
 
 
 def test_agent_setup_json_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
