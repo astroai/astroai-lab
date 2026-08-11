@@ -903,7 +903,7 @@ def agent_verify_cmd(
                     prefix = "would fix" if opts.dry_run else "repaired"
                     ui.print_ok(f"  {r.target}: {prefix} — {r.detail}")
 
-    issues = agent_inventory.verify_setup(home)
+    issues = agent_inventory.verify_setup(home, probe_binaries=True)
     state = read_setup_state(home)
     payload = {
         "ok": not issues,

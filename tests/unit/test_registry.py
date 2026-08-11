@@ -722,7 +722,15 @@ def test_repair_restores_agent_launch(tmp_path: Path, monkeypatch: pytest.Monkey
 
     repair = repair_installed_agents(home=home, dry_run=False)
     assert repair["ok"] is True
-    assert "kilo" in repair["fixed"] or any("repaired" in a for a in repair["actions"])
+    assert (
+        any(
+            (r.fixed and "kilo" in r.detail) or (r.fixed and r.target == "kilo.jsonc")
+            for r in repair["setup"]
+        )
+        or "kilo" in repair["fixed"]
+        or any("repaired" in a for a in repair["actions"])
+    )
+    assert "{" in cfg.read_text()
 
     after = subprocess.run(
         [str(kilo), "--version"],

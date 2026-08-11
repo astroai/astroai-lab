@@ -93,8 +93,12 @@ def verify_config_syntax(home: Path) -> list[str]:
     return issues
 
 
-def verify_setup(home: Path) -> list[str]:
-    """Presence + content checks, then syntax validation of configs that exist."""
+def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
+    """Presence + content checks, then syntax validation of configs that exist.
+
+    ``probe_binaries`` is off by default so ``agent list`` / status reports stay
+    fast; ``agent verify`` turns it on to exercise installed CLIs.
+    """
     issues: list[str] = []
     # Syntax first — broken configs often look "empty" to content checks.
     issues.extend(verify_config_syntax(home))
@@ -153,7 +157,7 @@ def verify_setup(home: Path) -> list[str]:
 
     # Phase 1 registry: verify config of installed registered agents only, so
     # fresh images without hermes/openclaw don't fail the container gate.
-    issues.extend(registry_verify_issues(home, installed_only=True))
+    issues.extend(registry_verify_issues(home, installed_only=True, probe_binaries=probe_binaries))
 
     return issues
 

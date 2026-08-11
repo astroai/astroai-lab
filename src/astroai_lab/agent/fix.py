@@ -134,7 +134,12 @@ def repair_installed_agents(*, home: Path | None = None, dry_run: bool = False) 
             continue
         actions.extend(result["actions"])
         errors.extend(result["errors"])
-        if result["ok"]:
+        # Only count agents that actually changed something (not "healthy" no-ops).
+        changed = any(
+            any(tok in a for tok in ("created ", "repaired ", "would create", "would repair"))
+            for a in result["actions"]
+        )
+        if result["ok"] and changed:
             fixed.append(aid)
     return {
         "ok": not errors,

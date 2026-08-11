@@ -116,15 +116,22 @@ def _probe_timeout_sec(override: float | None = None) -> float:
 
 
 def resolve_agent_binary(binary: str) -> str | None:
-    """Absolute path to an agent CLI: PATH, then session bin / npm prefix.
+    """Absolute path to an agent CLI, matching list/status classification order.
 
-    Matches ``install.tool_on_path`` lookup so ``agent list`` version probes
-    see the same binary the Binary column marks ✓ for.
+    Prefer a managed (scratch) or home-owned copy from ``classify_binary`` so
+    version/launch probes hit the same binary the Binary column marks ✓ for —
+    not a different same-name tool earlier on PATH.
     """
     import os
     import shutil
 
+    from astroai_lab.agent.install import classify_binary
     from astroai_lab.shell.session_env import resolve_session_env
+
+    info = classify_binary(binary)
+    classified = info.get("path")
+    if classified and Path(str(classified)).is_file() and os.access(str(classified), os.X_OK):
+        return str(classified)
 
     resolved = shutil.which(binary)
     if resolved is not None:
@@ -271,14 +278,15 @@ def registry_verify_issues(
     *,
     root: Path | None = None,
     installed_only: bool = False,
-    probe_binaries: bool = True,
+    probe_binaries: bool = False,
 ) -> list[str]:
-    """Config + launch issues for registered agents.
+    """Config (+ optional launch) issues for registered agents.
 
     With ``installed_only=True``, agents whose binary is not on PATH are
     skipped (no issue). `agent verify` uses this so fresh images that don't
     ship hermes/openclaw still pass the container gate; agents that ARE
-    installed (managed, home, or other PATH) still get config + launch checked.
+    installed (managed, home, or other PATH) still get config checked.
+    Pass ``probe_binaries=True`` from ``agent verify`` to also smoke-launch.
     """
     home = home or Path.home()
     issues: list[str] = []
