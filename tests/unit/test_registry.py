@@ -475,8 +475,9 @@ def test_cli_agent_list_human_shows_status() -> None:
     result = runner.invoke(app, ["agent", "list"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert "Binary" in out
-    assert "Config" in out
+    assert "Bin" in out
+    assert "Cfg" in out
+    assert "agent install kilo" in out
 
 
 def test_cli_agent_list_includes_new_agents() -> None:
@@ -498,7 +499,7 @@ def test_cli_agent_install_unknown() -> None:
 def test_verify_setup_includes_registry_for_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Fresh home, nothing on PATH → verify_setup reports no registry issues.
+    # Fresh home, nothing on PATH → verify_setup reports nothing (day-one pass).
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(
@@ -509,8 +510,28 @@ def test_verify_setup_includes_registry_for_installed(
 
     issues = verify_setup(home)
     assert not any("binary not found" in i and "hermes" in i for i in issues)
-    # ...but the standard cursor/config checks still fire on a fresh home.
-    assert issues
+    assert issues == []
+
+
+def test_classify_ignores_system_sg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Linux /usr/bin/sg (newgrp) must not count as ast-grep."""
+    from pathlib import Path as P
+
+    from astroai_lab.agent.install import _is_system_sg_impostor, classify_binary
+    from astroai_lab.config.settings import get_settings
+
+    monkeypatch.setenv("ASTROAI_LAB_BIN_DIR", str(tmp_path / "nobin"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    get_settings.cache_clear()
+    monkeypatch.setattr("astroai_lab.agent.install.managed_bin_roots", list)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.shutil.which",
+        lambda name: "/usr/bin/sg" if name == "sg" else None,
+    )
+    info = classify_binary("sg", home=tmp_path / "home")
+    assert info["source"] == "missing"
+    assert _is_system_sg_impostor(P("/usr/bin/sg")) is True
 
 
 # ---------------------------------------------------------------------------

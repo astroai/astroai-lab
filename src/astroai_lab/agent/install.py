@@ -172,6 +172,10 @@ def classify_binary(
     Config may live on ``$HOME`` (/arc/home); managed binaries live under
     ``ASTROAI_LAB_BIN_DIR`` (scratch). A home-tree CLI is user-owned: lab will
     not install/overwrite it, but ``agent remove --clean-home`` can delete it.
+
+    Special case: Linux ``/usr/bin/sg`` is shadow-utils ``newgrp``, not
+    ast-grep — treat it as missing unless a managed/home ``sg`` or ``ast-grep``
+    is present.
     """
     home = home or Path.home()
     managed_roots = managed_bin_roots()
@@ -181,14 +185,31 @@ def classify_binary(
         if candidate.is_file():
             managed_hit = candidate
             break
+        # ast-grep install also drops an ``ast-grep`` symlink next to ``sg``.
+        if binary == "sg":
+            alt = root / "ast-grep"
+            if alt.is_file():
+                managed_hit = alt
+                break
 
     home_hit = next(
         (p for p in home_bin_candidates(binary, home=home) if p.is_file()),
         None,
     )
+    if home_hit is None and binary == "sg":
+        home_hit = next(
+            (p for p in home_bin_candidates("ast-grep", home=home) if p.is_file()),
+            None,
+        )
 
     which = shutil.which(binary)
     which_path = Path(which) if which else None
+    if which_path is not None and binary == "sg" and _is_system_sg_impostor(which_path):
+        which_path = None
+        # Prefer a real ast-grep binary on PATH when sg is the impostor.
+        alt_which = shutil.which("ast-grep")
+        if alt_which is not None:
+            which_path = Path(alt_which)
 
     if managed_hit is not None:
         path = managed_hit
@@ -217,6 +238,22 @@ def classify_binary(
         or (which_path is not None and _path_under(which_path, home)),
         "home_path": str(home_hit) if home_hit else None,
     }
+
+
+def _is_system_sg_impostor(path: Path) -> bool:
+    """True when ``path`` is the Linux shadow-utils ``sg`` (newgrp), not ast-grep."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    # ``sg`` is commonly a symlink to ``newgrp``.
+    if resolved.name == "newgrp":
+        return True
+    text = str(resolved)
+    return resolved.name == "sg" and (
+        text in ("/usr/bin/sg", "/bin/sg", "/usr/sbin/sg")
+        or text.endswith(("/usr/bin/sg", "/bin/sg"))
+    )
 
 
 def refuse_if_home_owned(name: str, *, home: Path | None = None) -> None:

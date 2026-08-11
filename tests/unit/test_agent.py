@@ -39,12 +39,56 @@ def test_agent_setup_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert not (home / ".config" / "canfar" / "lab" / "agent-env.sh").is_file()
 
 
-def test_agent_verify_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_verify_fresh_home_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agents installed → verify passes (no Cursor nag)."""
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        lambda *a, **k: {
+            "binary": "x",
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        },
+    )
     issues = verify_setup(home)
-    assert issues
+    assert issues == []
+
+
+def test_agent_verify_cursor_required_when_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+
+    def _classify(binary: str, *, home=None):
+        # Cursor Agent upstream binary is still named `agent`.
+        if binary in ("agent", "cursor"):
+            return {
+                "binary": binary,
+                "path": "/tmp/agent",
+                "source": "managed",
+                "managed": True,
+                "home_install": False,
+                "home_path": None,
+            }
+        return {
+            "binary": binary,
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _classify)
+    issues = verify_setup(home)
+    assert any("Cursor MCP not configured" in i for i in issues)
 
 
 def test_agent_verify_opencode_syntax(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

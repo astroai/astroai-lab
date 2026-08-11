@@ -98,40 +98,58 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
 
     ``probe_binaries`` is off by default so ``agent list`` / status reports stay
     fast; ``agent verify`` turns it on to exercise installed CLIs.
+
+    Fresh homes with no agents installed pass (no Cursor MCP nag). Presence
+    checks for Cursor / Claude / OpenCode / Goose only run when that agent's
+    binary is on PATH.
     """
+    from astroai_lab.agent.install import classify_binary, tool_binary
+    from astroai_lab.agent.registry import get_registry_agent
+
+    def _agent_installed(agent_id: str) -> bool:
+        agent = get_registry_agent(agent_id)
+        if agent is None:
+            return False
+        from astroai_lab.agent.install import TOOLS
+
+        probe = tool_binary(agent_id) if agent_id in TOOLS else str(agent["binary"])
+        return classify_binary(probe, home=home)["source"] != "missing"
+
     issues: list[str] = []
     # Syntax first — broken configs often look "empty" to content checks.
     issues.extend(verify_config_syntax(home))
 
-    mcp = home / ".cursor" / "mcp.json"
-    if mcp.is_file():
-        try:
-            data = read_jsonc(mcp)
-            if isinstance(data, dict) and not data.get("mcpServers"):
-                issues.append("Cursor MCP empty (~/.cursor/mcp.json)")
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
-    else:
-        issues.append("Cursor MCP not configured (~/.cursor/mcp.json)")
+    if _agent_installed("cursor"):
+        mcp = home / ".cursor" / "mcp.json"
+        if mcp.is_file():
+            try:
+                data = read_jsonc(mcp)
+                if isinstance(data, dict) and not data.get("mcpServers"):
+                    issues.append("Cursor MCP empty (~/.cursor/mcp.json)")
+            except (OSError, ValueError, json.JSONDecodeError):
+                pass
+        else:
+            issues.append("Cursor MCP not configured (~/.cursor/mcp.json)")
 
-    skill = home / ".cursor" / "skills" / "astroai-lab-workflow" / "SKILL.md"
-    if not skill.is_file():
-        issues.append("Cursor astroai-lab-workflow skill missing")
+        skill = home / ".cursor" / "skills" / "astroai-lab-workflow" / "SKILL.md"
+        if not skill.is_file():
+            issues.append("Cursor astroai-lab-workflow skill missing")
 
-    claude = home / ".claude.json"
-    if claude.is_file():
-        try:
-            data = read_json(claude)
-            if not data.get("mcpServers"):
-                issues.append("Claude MCP empty (~/.claude.json)")
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
+    if _agent_installed("claude"):
+        claude = home / ".claude.json"
+        if claude.is_file():
+            try:
+                data = read_json(claude)
+                if not data.get("mcpServers"):
+                    issues.append("Claude MCP empty (~/.claude.json)")
+            except (OSError, ValueError, json.JSONDecodeError):
+                pass
 
     oc = home / ".config" / "opencode" / "opencode.json"
     if oc.is_file():
         try:
             data = read_jsonc(oc)
-            if isinstance(data, dict) and not data.get("mcp"):
+            if _agent_installed("opencode") and isinstance(data, dict) and not data.get("mcp"):
                 issues.append("OpenCode MCP empty (~/.config/opencode/opencode.json)")
             if isinstance(data, dict):
                 from astroai_lab.agent.opencode_config import opencode_config_issues
@@ -140,14 +158,17 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
         except (OSError, ValueError, json.JSONDecodeError):
             pass
 
-    goose_cfg = home / ".config" / "goose" / "config.yaml"
-    if goose_cfg.is_file():
-        try:
-            text = goose_cfg.read_text(encoding="utf-8")
-            if "GOOSE_PROVIDER:" not in text or "GOOSE_MODEL:" not in text:
-                issues.append("Goose provider not fully configured (~/.config/goose/config.yaml)")
-        except OSError:
-            pass
+    if _agent_installed("goose"):
+        goose_cfg = home / ".config" / "goose" / "config.yaml"
+        if goose_cfg.is_file():
+            try:
+                text = goose_cfg.read_text(encoding="utf-8")
+                if "GOOSE_PROVIDER:" not in text or "GOOSE_MODEL:" not in text:
+                    issues.append(
+                        "Goose provider not fully configured (~/.config/goose/config.yaml)"
+                    )
+            except OSError:
+                pass
 
     marimo = home / ".marimo.toml"
     if marimo.is_file():

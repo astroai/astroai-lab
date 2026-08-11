@@ -146,7 +146,7 @@ def test_cli_agent_list_hides_description_by_default(
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     # Registry summaries mention "agent" tooling; without --description they stay hidden.
-    assert "Descriptions: agent list --description" in out
+    assert "agent list --description" in out
     # A known long summary fragment from hermes.yaml should not appear by default.
     from astroai_lab.agent.registry import get_registry_agent
 

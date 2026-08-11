@@ -134,8 +134,8 @@ def _print_status_table(
     failed: str | None = None,
     show_description: bool = False,
 ) -> None:
-    ui.print_hint("  Agent        Binary  Config  Source   Version")
-    ui.print_hint("  ───────────  ──────  ──────  ───────  ──────────")
+    ui.print_hint("  Agent         Bin  Cfg  Src      Ver")
+    ui.print_hint("  ────────────  ───  ───  ───────  ────────")
     for row in report["agents"]:
         binary_ok = bool(row.get("binary_ok", row.get("binary")))
         b = "✓" if binary_ok else "—"
@@ -145,16 +145,18 @@ def _print_status_table(
         else:
             config_installed = bool(row.get("config_ok", row.get("config")))
             c = "✓" if config_installed else "—"
-        ver = row.get("version") or "—"
+        ver = (row.get("version") or "—")[:12]
         name = row.get("id") or row.get("agent") or "?"
+        # cursor runs as upstream binary `agent` — note when installed.
+        name_disp = "cursor→agent" if name == "cursor" and binary_ok else name
         src = row.get("binary_source") or ("managed" if row.get("managed") else "—")
         if not binary_ok:
             src = "—"
         elif row.get("home_install") and not row.get("managed"):
             src = "home"
-        name_cell = f"[bold]{name:<12}[/bold]" if binary_ok else f"{name:<12}"
-        b_cell = f"[bold]{b:<6}[/bold]" if binary_ok else f"{b:<6}"
-        c_cell = f"[bold]{c:<6}[/bold]" if config_installed else f"{c:<6}"
+        name_cell = f"[bold]{name_disp:<13}[/bold]" if binary_ok else f"{name_disp:<13}"
+        b_cell = f"[bold]{b:<3}[/bold]" if binary_ok else f"{b:<3}"
+        c_cell = f"[bold]{c:<3}[/bold]" if config_installed else f"{c:<3}"
         ui.print_markup(f"  {name_cell} {b_cell} {c_cell} {src:<7} {ver}")
         if show_description:
             summary = (row.get("summary") or "").strip()
@@ -171,11 +173,9 @@ def _print_status_table(
     if failed:
         ui.print_warn(f"  Last failure: {failed}")
     ui.print_hint("")
-    ui.print_hint("  Install: astroai-lab agent install NAME   # CLIs → $SCRATCH")
-    ui.print_hint("  Configs: astroai-lab agent list config    # configs on $HOME")
-    ui.print_hint("  Home CLI: agent remove NAME --clean-home # optional cleanup")
-    ui.print_hint("  Source: managed=scratch · home=$HOME · other=image/PATH")
-    ui.print_hint("  Descriptions: agent list --description | --long")
+    ui.print_hint("  Try:  agent install kilo && agent setup kilo && agent verify")
+    ui.print_hint("  Tip:  agent list --description   ·   configs: agent list config")
+    ui.print_hint("  Src:  managed=$SCRATCH · home=$HOME · other=PATH/image")
 
 
 def _print_bundles(as_json: bool) -> None:
