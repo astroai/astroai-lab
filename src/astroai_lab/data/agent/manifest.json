@@ -19,10 +19,7 @@
       "description": "Kilo CLI starter config (~/.config/kilo/kilo.jsonc)"
     },
     "cline": {
-      "description": "Cline CLI notes (~/.config/astroai/lab/cline-free.md)"
-    },
-    "free-models": {
-      "description": "OpenRouter + Kilo free-tier model presets for all agents"
+      "description": "Cline CLI notes (~/.config/canfar/lab/cline-notes.md)"
     },
     "codex": {
       "description": "Codex CLI MCP (~/.codex/config.toml)"
@@ -38,7 +35,7 @@
     },
     "all": {
       "description": "Default install — all agent backends + GitHub skills + marimo AI",
-      "includes": ["cursor", "claude", "opencode", "goose", "codex", "copilot", "cli", "kilo", "free-models", "marimo"]
+      "includes": ["cursor", "claude", "opencode", "goose", "codex", "copilot", "cli", "kilo", "marimo"]
     }
   },
   "mcp_notes": {

@@ -17,7 +17,7 @@ from astroai_lab.utils.subprocess import run, run_capture
 
 TOOLS = {
     "node": "Node.js + npm (baked into base image; pixi fallback)",
-    "agent": "Cursor Agent",
+    "cursor": "Cursor Agent (binary: agent)",
     "claude": "Claude Code",
     "agy": "Antigravity CLI",
     "copilot": "GitHub Copilot CLI",
@@ -36,7 +36,14 @@ TOOLS = {
 TOOL_BINARIES = {
     "ast-grep": "sg",
     "qoder": "qodercli",
+    "cursor": "agent",  # upstream Cursor Agent binary is still named `agent`
 }
+
+# Where an on-disk CLI came from relative to lab management.
+BINARY_SOURCE_MANAGED = "managed"  # under ASTROAI_LAB_BIN_DIR / npm prefix (scratch)
+BINARY_SOURCE_HOME = "home"  # under $HOME (/arc/home) — user-owned, not managed
+BINARY_SOURCE_OTHER = "other"  # elsewhere on PATH
+BINARY_SOURCE_MISSING = "missing"
 
 
 def _bin_dir() -> Path:
@@ -47,6 +54,62 @@ def _npm_prefix() -> Path:
     return npm_prefix_dir()
 
 
+def _npm_version_tuple() -> tuple[int, int]:
+    """Return (major, minor) for the npm on PATH, or (0, 0) if unknown."""
+    try:
+        proc = subprocess.run(
+            ["npm", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return (0, 0)
+    text = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()
+    if not text:
+        return (0, 0)
+    parts = text[0].strip().split(".")
+    try:
+        return (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+    except ValueError:
+        return (0, 0)
+
+
+def npm_install_environ(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Session env for ``npm install -g`` agent installs.
+
+    - ``UPDATE_NOTIFIER=false`` silences the cosmetic "New major version of
+      npm available" notice (npm 11→12) that users read as an install failure.
+    - ``DANGEROUSLY_ALLOW_ALL_SCRIPTS=true`` opts into dependency install /
+      postinstall scripts for global installs (npm 11.16+ advisory; required
+      once npm 12 blocks scripts by default). Agent CLIs like omp pull
+      ``sharp`` / ``onnxruntime-node`` which need those scripts.
+    """
+    merged = _session_environ(extra)
+    merged.setdefault("NPM_CONFIG_UPDATE_NOTIFIER", "false")
+    # Env form works on npm that understand the setting; harmless if ignored.
+    merged.setdefault("NPM_CONFIG_DANGEROUSLY_ALLOW_ALL_SCRIPTS", "true")
+    return merged
+
+
+def npm_global_install_cmd(prefix: Path, *packages: str) -> list[str]:
+    """Build ``npm install -g --prefix …`` argv for an intentional agent install.
+
+    On npm ≥ 11.16 (and npm 12+), also pass ``--dangerously-allow-all-scripts``
+    so native deps (sharp, onnxruntime, protobufjs, …) actually build. Global
+    installs have no project ``package.json#allowScripts`` to approve into.
+    """
+    if not packages:
+        raise ValueError("npm_global_install_cmd requires at least one package")
+    cmd = ["npm", "install", "-g", "--prefix", str(prefix)]
+    major, minor = _npm_version_tuple()
+    if (major, minor) >= (11, 16):
+        cmd.append("--dangerously-allow-all-scripts")
+    cmd.extend(packages)
+    return cmd
+
+
 def list_tools() -> dict[str, str]:
     return dict(TOOLS)
 
@@ -55,9 +118,128 @@ def tool_binary(name: str) -> str:
     return TOOL_BINARIES.get(name, name)
 
 
-def tool_on_path(name: str) -> bool:
+def _path_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def managed_bin_roots() -> list[Path]:
+    """Dirs where astroai-lab owns agent CLIs (scratch / session, never $HOME)."""
+    session = resolve_session_env(ensure=False)
+    # Include `_bin_dir()` / `_npm_prefix()` so test monkeypatches and the
+    # live session resolver always agree on "managed".
+    roots = [
+        session.astroai_lab_bin_dir,
+        session.astroai_lab_npm_prefix / "bin",
+        _bin_dir(),
+        _npm_prefix() / "bin",
+    ]
+    # Deduplicate while preserving order.
+    seen: set[Path] = set()
+    out: list[Path] = []
+    for root in roots:
+        try:
+            key = root.resolve()
+        except OSError:
+            key = root
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(root)
+    return out
+
+
+def home_bin_candidates(binary: str, *, home: Path | None = None) -> list[Path]:
+    """Typical user-owned CLI locations under $HOME (/arc/home on CANFAR)."""
+    home = home or Path.home()
+    return [
+        home / ".local" / "bin" / binary,
+        home / f".{binary}" / "bin" / binary,
+        home / ".npm-global" / "bin" / binary,
+    ]
+
+
+def classify_binary(
+    binary: str,
+    *,
+    home: Path | None = None,
+) -> dict[str, object]:
+    """Locate a CLI and classify ownership for list/install/remove policy.
+
+    Config may live on ``$HOME`` (/arc/home); managed binaries live under
+    ``ASTROAI_LAB_BIN_DIR`` (scratch). A home-tree CLI is user-owned: lab will
+    not install/overwrite it, but ``agent remove --clean-home`` can delete it.
+    """
+    home = home or Path.home()
+    managed_roots = managed_bin_roots()
+    managed_hit: Path | None = None
+    for root in managed_roots:
+        candidate = root / binary
+        if candidate.is_file():
+            managed_hit = candidate
+            break
+
+    home_hit = next(
+        (p for p in home_bin_candidates(binary, home=home) if p.is_file()),
+        None,
+    )
+
+    which = shutil.which(binary)
+    which_path = Path(which) if which else None
+
+    if managed_hit is not None:
+        path = managed_hit
+        source = BINARY_SOURCE_MANAGED
+    elif home_hit is not None:
+        path = home_hit
+        source = BINARY_SOURCE_HOME
+    elif which_path is not None and _path_under(which_path, home):
+        path = which_path
+        source = BINARY_SOURCE_HOME
+    elif which_path is not None:
+        # Prefer marking as home when which resolves inside $HOME even if not
+        # in the candidate list (e.g. ~/bin).
+        path = which_path
+        source = BINARY_SOURCE_OTHER
+    else:
+        path = None
+        source = BINARY_SOURCE_MISSING
+
+    return {
+        "binary": binary,
+        "path": str(path) if path else None,
+        "source": source,
+        "managed": source == BINARY_SOURCE_MANAGED,
+        "home_install": home_hit is not None
+        or (which_path is not None and _path_under(which_path, home)),
+        "home_path": str(home_hit) if home_hit else None,
+    }
+
+
+def refuse_if_home_owned(name: str, *, home: Path | None = None) -> None:
+    """Block install when the user already has this CLI under $HOME."""
     binary = tool_binary(name)
-    if shutil.which(binary) is not None:
+    info = classify_binary(binary, home=home)
+    if info["managed"]:
+        return
+    if not info["home_install"]:
+        return
+    where = info.get("home_path") or info.get("path") or f"~/.local/bin/{binary}"
+    raise LabError(
+        f"{name} is already installed under your home ({where}). "
+        "astroai-lab manages CLIs on $SCRATCH ($ASTROAI_LAB_BIN_DIR), not /arc/home.",
+        hint=f"astroai-lab agent remove {name} --clean-home   # then: agent install {name}",
+    )
+
+
+def tool_on_path(name: str) -> bool:
+    """True when any copy of the binary is available (managed, home, or PATH)."""
+    binary = tool_binary(name)
+    info = classify_binary(binary)
+    if info["source"] != BINARY_SOURCE_MISSING:
         return True
     session = resolve_session_env(ensure=False)
     candidates = [
@@ -72,12 +254,17 @@ def list_tools_status() -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for name, desc in TOOLS.items():
         binary = tool_binary(name)
+        info = classify_binary(binary)
         rows.append(
             {
                 "name": name,
                 "binary": binary,
                 "description": desc,
-                "installed": tool_on_path(name),
+                "installed": info["source"] != BINARY_SOURCE_MISSING,
+                "source": info["source"],
+                "managed": info["managed"],
+                "home_install": info["home_install"],
+                "path": info["path"],
             }
         )
     return rows
@@ -136,6 +323,13 @@ def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
 
 
 def _link_into_local_bin(src: Path, name: str) -> None:
+    """Land ``src`` as a real file under the managed scratch bin dir.
+
+    Upstream installers often drop into ``~/.local/bin``. We copy into
+    ``ASTROAI_LAB_BIN_DIR`` (scratch) and remove that home dropping so the
+    CLI is not left on /arc/home. Pre-existing user home installs are gated
+    earlier by ``refuse_if_home_owned``.
+    """
     if not src.is_file():
         return
     with contextlib.suppress(OSError):
@@ -148,11 +342,22 @@ def _link_into_local_bin(src: Path, name: str) -> None:
         pass
     if dst.exists() or dst.is_symlink():
         dst.unlink()
-    dst.symlink_to(src)
+    # Prefer a real file in scratch (survives without the installer path).
+    try:
+        shutil.copy2(src, dst)
+        with contextlib.suppress(OSError):
+            dst.chmod(dst.stat().st_mode | 0o111)
+    except OSError:
+        dst.symlink_to(src)
+        return
+    home = Path.home()
+    if _path_under(src, home):
+        with contextlib.suppress(OSError):
+            src.unlink()
 
 
 def _verify_cmd(cmd: str, *, extra_paths: list[Path] | None = None) -> None:
-    if shutil.which(cmd) is not None:
+    if classify_binary(cmd)["source"] != BINARY_SOURCE_MISSING:
         return
     session = resolve_session_env(ensure=False)
     candidates = [
@@ -206,6 +411,7 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
 def install_tool(name: str, *, dry_run: bool = False) -> None:
     if name not in TOOLS:
         raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent install  (or agent list)")
+    refuse_if_home_owned(name)
     if dry_run:
         return
     from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
@@ -233,7 +439,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
                 (bin_dir / cmd).symlink_to(src)
         _verify_cmd("node")
         _verify_cmd("npm")
-    elif name == "agent":
+    elif name == "cursor":
+        # Upstream binary remains `agent`; registry / TOOLS id is `cursor`.
         _curl_pipe_bash("https://cursor.com/install")
         _link_into_local_bin(Path.home() / ".local" / "bin" / "agent", "agent")
         _verify_cmd("agent")
@@ -253,15 +460,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         if not copilot_bin.is_file() and shutil.which("copilot") is None:
             _require("npm")
             run(
-                [
-                    "npm",
-                    "install",
-                    "-g",
-                    "--prefix",
-                    str(_npm_prefix()),
-                    "@github/copilot@latest",
-                ],
-                env=_session_environ(),
+                npm_global_install_cmd(_npm_prefix(), "@github/copilot@latest"),
+                env=npm_install_environ(),
                 timeout=npm_timeout,
             )
             copilot_bin = _npm_prefix() / "bin" / "copilot"
@@ -282,8 +482,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         # Requires Node >= 24.15 — Node 24.18.1 LTS is baked into the base image.
         _require("npm")
         run(
-            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), "openclaw@latest"],
-            env=_session_environ(),
+            npm_global_install_cmd(_npm_prefix(), "openclaw@latest"),
+            env=npm_install_environ(),
             timeout=npm_timeout,
         )
         openclaw_bin = _npm_prefix() / "bin" / "openclaw"
@@ -303,15 +503,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         if shutil.which("qodercli") is None and not (_bin_dir() / "qodercli").is_file():
             _require("npm")
             run(
-                [
-                    "npm",
-                    "install",
-                    "-g",
-                    "--prefix",
-                    str(_npm_prefix()),
-                    "@qoder-ai/qodercli@latest",
-                ],
-                env=_session_environ(),
+                npm_global_install_cmd(_npm_prefix(), "@qoder-ai/qodercli@latest"),
+                env=npm_install_environ(),
                 timeout=npm_timeout,
             )
             npm_bin = _npm_prefix() / "bin" / "qodercli"
@@ -326,8 +519,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             "codewhale": "codewhale@latest",
         }[name]
         run(
-            ["npm", "install", "-g", "--prefix", str(_npm_prefix()), pkg],
-            env=_session_environ(),
+            npm_global_install_cmd(_npm_prefix(), pkg),
+            env=npm_install_environ(),
             timeout=npm_timeout,
         )
         _verify_cmd(name if name != "pi" else "pi")
@@ -429,11 +622,14 @@ def uninstall_tool(
     *,
     home: Path | None = None,
     purge: bool = False,
+    clean_home: bool = False,
     dry_run: bool = False,
 ) -> list[RemoveResult]:
     """Uninstall a CLI tool: binaries, config files, plugin files, setup stamps.
 
-    ``--purge`` additionally removes the tool's whole home config dir (e.g.
+    By default only **managed** (scratch) binaries are removed. Home-tree CLIs
+    under ``$HOME`` (/arc/home) are left alone unless ``clean_home=True``.
+    ``purge`` additionally removes the tool's whole home config dir (e.g.
     ``~/.hermes``, ``~/.openclaw``). Dry-run reports ``would_remove`` without
     touching the filesystem. Returns one result per target.
     """
@@ -442,12 +638,42 @@ def uninstall_tool(
     home = home or Path.home()
     results: list[RemoveResult] = []
     binary = tool_binary(name)
+    info = classify_binary(binary, home=home)
 
-    # 1. Binaries from the session bin dir + npm prefix bin.
+    if (
+        info["home_install"]
+        and not info["managed"]
+        and not clean_home
+        and info["source"] != BINARY_SOURCE_MISSING
+    ):
+        where = info.get("home_path") or info.get("path")
+        raise LabError(
+            f"{name} is installed under your home ({where}), not managed by astroai-lab",
+            hint=f"astroai-lab agent remove {name} --clean-home",
+        )
+
+    # 1. Managed binaries from the session bin dir + npm prefix bin.
     for bin_path in (_bin_dir() / binary, _npm_prefix() / "bin" / binary):
         result = _remove_file(bin_path, f"binary:{binary}", dry_run=dry_run)
         if result:
             results.append(result)
+
+    # Convenience aliases created at install time (id name ≠ binary name).
+    if name == "qoder":
+        result = _remove_file(_bin_dir() / "qoder", "binary:qoder", dry_run=dry_run)
+        if result:
+            results.append(result)
+    if name == "ast-grep":
+        result = _remove_file(_bin_dir() / "ast-grep", "binary:ast-grep", dry_run=dry_run)
+        if result:
+            results.append(result)
+
+    # 1b. Optional: user-owned home CLIs.
+    if clean_home:
+        for home_bin in home_bin_candidates(binary, home=home):
+            result = _remove_file(home_bin, f"home-binary:{binary}", dry_run=dry_run)
+            if result:
+                results.append(result)
 
     # 2. Best-effort npm uninstall for npm-installed tools (binary removal
     #    above is authoritative; this just cleans the node_modules tree).
@@ -463,28 +689,31 @@ def uninstall_tool(
                 quiet=True,  # keep stdout clean for `--json agent remove/wipe`
             )
 
-    # 3. Config files owned by the tool.
-    for rel in TOOL_CONFIG_PATHS.get(name, []):
-        result = _remove_file(home / rel, f"config:{rel}", dry_run=dry_run)
+    # 3. Config files owned by the tool (persistent under $HOME — only when
+    #    removing a managed install or explicitly cleaning home).
+    if info["managed"] or clean_home or purge:
+        for rel in TOOL_CONFIG_PATHS.get(name, []):
+            result = _remove_file(home / rel, f"config:{rel}", dry_run=dry_run)
+            if result:
+                results.append(result)
+
+        # 4. Plugin-created files (agent-skill addons: ~/.<id>/skills/...).
+        plugin_dir = home / f".{name}" / "skills"
+        result = _remove_tree(plugin_dir, f"plugins:{plugin_dir}", dry_run=dry_run)
         if result:
             results.append(result)
 
-    # 4. Plugin-created files (agent-skill addons: ~/.<id>/skills/...).
-    plugin_dir = home / f".{name}" / "skills"
-    result = _remove_tree(plugin_dir, f"plugins:{plugin_dir}", dry_run=dry_run)
-    if result:
-        results.append(result)
+    # 5. Setup state stamps (only when tearing down managed or cleaning home).
+    if info["managed"] or clean_home:
+        from astroai_lab.agent.setup_state import failed_path, stamp_path
 
-    # 5. Setup state stamps.
-    from astroai_lab.agent.setup_state import failed_path, stamp_path
-
-    for spath, target in (
-        (stamp_path(home), "state:stamp"),
-        (failed_path(home), "state:failed"),
-    ):
-        result = _remove_file(spath, target, dry_run=dry_run)
-        if result:
-            results.append(result)
+        for spath, target in (
+            (stamp_path(home), "state:stamp"),
+            (failed_path(home), "state:failed"),
+        ):
+            result = _remove_file(spath, target, dry_run=dry_run)
+            if result:
+                results.append(result)
 
     # 6. --purge: remove the tool's whole home config dir (parent of config).
     if purge:

@@ -118,7 +118,6 @@ check_flag_in_help "env export" "--no-ensure" env export
 check_flag_in_help "env export" "--json" env export
 check_flag_in_help "agent install" "--list" agent install
 check_flag_in_help "agent setup" "--list" agent setup
-check_flag_in_help "agent models" "--preset" agent models free
 
 echo "=== Flag placement (global OR subcommand) ==="
 # Bash 3.2 (macOS /bin/bash) has no negative array indices — peel the flag off
@@ -164,7 +163,6 @@ check_invocation "agent install list" agent install
 check_invocation "agent install list flag" agent install --list
 check_invocation "agent setup list" agent setup --list
 check_invocation "agent plugins list" agent plugins list
-check_invocation "agent models list" agent models
 
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then

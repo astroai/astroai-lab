@@ -1,0 +1,19 @@
+# Installable via: astroai-lab agent install swival
+id: swival
+name: Swival
+homepage: https://pypi.org/project/swival/
+summary: Swival coding agent CLI (uv tool)
+binary: swival
+tags:
+- agent
+- cli
+install:
+  method: uv-tool
+  source: swival
+verify:
+- swival --version
+plugins:
+- skill
+- mcp
+- config
+- addon

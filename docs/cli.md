@@ -146,44 +146,33 @@ astroai-lab kernel list
 astroai-lab kernel unregister NAME
 ```
 
-### `astroai-lab agent list|install|remove|wipe|setup|config|update|status|verify|repair|models|plugins`
+### `astroai-lab agent list|install|remove|wipe|setup|config|update|status|verify|repair|plugins`
 
-AI agent MCP, rules, skills, CLI installation, plugins, and free model presets.
+AI agent MCP, rules, skills, CLI installation, and plugins.
 
-**The agent registry is the single source of truth.** Every agent is defined by
-one YAML file under `data/agent/agents/<id>.yaml` (schema in
-[agent-rethink-plan.md](agent-rethink-plan.md) §4 Phase 1) — `id`, `name`,
-`homepage`, `binary`, `install.method`/`source`, `config.path`, `verify`, and
-`plugins`. `list`, `install`, `remove`, and `verify` read from this registry;
-adding an agent means adding one YAML file, never a Python branch.
-`install.TOOLS` remains only for non-agent utilities (`node`, `claude`,
-`copilot`, `qoder`, `hermes`, `openclaw` — the last two are mirrored in the
-registry for status/verify/remove). Install dispatch:
+**`agent list` is the single installable set.** Every agent is one YAML file
+under `data/agent/agents/<id>.yaml` (`id`, `name`, `homepage`, `binary`,
+`install`, optional `config`, `verify`). `list` / `install` / `remove` /
+`verify` all read that set. CLIs land on `$SCRATCH` (`$ASTROAI_LAB_BIN_DIR`);
+configs stay on `$HOME` (/arc/home). Some ids still install via battle-tested
+`install.TOOLS` branches (same id appears in the list).
 
-| Agent | Method | Installer |
-|-------|--------|-----------|
-| `kilo`, `opencode`, `goose` | curl | `curl \| bash` with `{bin_dir}` env (`XDG_BIN_DIR`/`GOOSE_BIN_DIR`) |
-| `cline` | npm | `npm install -g --prefix <npm_prefix> cline@latest` |
-| `codex` | gh-release | `gh release download` with `{arch}` → `platform.machine()` |
-| `hermes`, `openclaw` | TOOLS | battle-tested `install_tool` branches |
-
-Mental model (lean surface — 10 verbs + plugins/models):
+Mental model (lean surface — list/install/remove/config + plugins):
 
 | Command | What it does |
 |---------|----------------|
-| `agent list` | Registered agents: binary / config / installed version (registry-driven) |
+| `agent list` | Installable agents: binary / config / source / version + one-line summary |
 | `agent list config` | Skills/MCP/addons from the plugin registry (`--kind` filters) |
 | `agent install [NAME]` | Download a CLI binary via the registry (omit NAME to list agents) |
-| `agent remove NAME` | Uninstall a CLI binary + config files (`--purge` for home dirs) |
+| `agent remove NAME` | Uninstall managed CLI on scratch (`--clean-home` for `$HOME` CLIs; `--purge` for config dirs) |
 | `agent wipe` | **Factory reset** — remove EVERY agent config + binary + state; confirmation or `--yes` |
 | `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles); registry agent id / `--all` / `--project` |
-| `agent config ID` | Show/edit a registered agent's config (`--key`, `key=value`, `--unset`) |
+| `agent config ID` | Show/edit an agent's `$HOME` config (`--key`, `key=value`, `--unset`) |
 | `agent update [ID]` | Refresh configs + upstream skills; with ID refreshes one agent |
-| `agent status` | Binaries + configs; `--ui` for container UI endpoints |
+| `agent status` | Same table as `list` (versions probed); `--ui` for container endpoints |
 | `agent verify` | Presence + config syntax (`--fix` auto-repairs) |
 | `agent repair` | Auto-repair; `repair ID` / `--all` regenerates one/all agent configs; `--clean` stale state |
 | `agent plugins …` | list / install / update / remove / configure plugins across agents |
-| `agent models free` | OpenRouter / Kilo free-tier presets |
 
 ```bash
 astroai-lab agent list                 # registered agents
@@ -217,8 +206,6 @@ astroai-lab agent config openclaw --unset model
 astroai-lab agent update               # full refresh after image upgrades
 astroai-lab agent update hermes
 astroai-lab agent update openclaw --reinstall
-astroai-lab agent models free
-astroai-lab agent models free --preset long
 ```
 
 **Agent plugins** (`data/agent/plugins/*.yaml`) are the uniform surface for
@@ -343,7 +330,6 @@ build-time defaults.
 | `ASTROAI_SESSION_KIND` | Session kind label for `agent status --ui` (default: `unknown`) |
 | `ASTROAI_AGENT_WIZARD_PORT` | Agent wizard port (default: `4792`) |
 | `ASTROAI_OPENWORKER_PORT` | OpenWorker port (default: `5000`) |
-| `OPENROUTER_API_KEY` (or `OPENROUTER_KEY`) | OpenRouter key for `agent models free` presets |
 
 ### Shell integration
 

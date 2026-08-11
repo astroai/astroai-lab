@@ -1,0 +1,20 @@
+# Cursor Agent CLI — registry entry.
+# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
+# `agent list` / `agent install` / `agent remove` / `agent verify`.
+# The on-disk binary remains `agent` (upstream name); the registry id is
+# `cursor` so it matches plugins/setup.
+id: cursor
+name: Cursor Agent
+homepage: https://cursor.com
+summary: "Cursor's terminal coding agent CLI (binary name: agent)"
+binary: agent
+tags: [agent, cli]
+install:
+  method: curl
+  source: https://cursor.com/install
+  post_binary_paths:
+    - "~/.local/bin/agent"
+verify:
+  - "agent --version"
+plugins: [skill, mcp, config, addon, rule]
+notes: "Upstream binary is `agent`. Install with: astroai-lab agent install cursor"

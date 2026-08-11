@@ -1,8 +1,8 @@
 """Unit tests for option/argument value shell completions.
 
 Covers the `autocompletion=` callables added for enumerable values:
-`agent models free --preset` presets, `kernel` names, `agent install` tools,
-`agent setup` bundles, `agent plugins install`, and the `--kind` filters.
+`kernel` names, `agent install` tools, `agent setup` bundles,
+`agent plugins install`, and the `--kind` filters.
 """
 
 from __future__ import annotations
@@ -28,33 +28,6 @@ def _param(path: str, name: str):
 def _completion_values(param, incomplete: str) -> set[str]:
     results = param.shell_complete(ctx=None, incomplete=incomplete)
     return {getattr(r, "value", str(r)) for r in results}
-
-
-# --- preset completions (agent models free --preset) -----------------------
-
-
-def test_preset_completer_offers_preset_names() -> None:
-    from astroai_lab.cli.agent_cmd import _preset_completer
-
-    offered = _preset_completer(None, "")
-    assert "coding" in offered
-    assert "long" in offered
-    assert "reasoning" in offered
-
-
-def test_preset_completer_filters_by_prefix() -> None:
-    from astroai_lab.cli.agent_cmd import _preset_completer
-
-    offered = _preset_completer(None, "co")
-    assert offered == ["coding"]
-
-
-def test_models_free_preset_option_wired() -> None:
-    param = _param("agent models free", "preset")
-    assert getattr(param, "_custom_shell_complete", None) is not None
-    values = _completion_values(param, "")
-    assert "coding" in values
-    assert "long" in values
 
 
 # --- kernel name completions ------------------------------------------------

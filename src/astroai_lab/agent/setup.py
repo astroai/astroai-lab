@@ -13,12 +13,6 @@ from pathlib import Path
 from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
-from astroai_lab.agent.free_models import (
-    OPENROUTER_KEY_ENV,
-    apply_free_models,
-    apply_kilo,
-    free_models_guide,
-)
 from astroai_lab.agent.inventory import list_bundles, verify_setup
 from astroai_lab.agent.upstream import (
     SourceUpdateResult,
@@ -27,6 +21,8 @@ from astroai_lab.agent.upstream import (
 )
 from astroai_lab.errors import LabError
 from astroai_lab.utils.json_utils import merge_dicts, read_json, read_jsonc, write_json
+
+OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
 
 
 def install_file(src: Path, dst: Path, *, force: bool, dry_run: bool) -> bool:
@@ -286,20 +282,19 @@ def run_bundle(
             dry_run=dry_run,
         )
     elif name == "kilo":
-        apply_kilo(home, "coding", force=force, dry_run=dry_run)
-    elif name == "cline":
         install_file(
-            root / "free-models" / "cline-free.md",
-            home / ".config" / "canfar" / "lab" / "cline-free.md",
+            root / "kilo" / "kilo.jsonc",
+            home / ".config" / "kilo" / "kilo.jsonc",
             force=force,
             dry_run=dry_run,
         )
-    elif name == "free-models":
-        apply_free_models(home=home, force=force, dry_run=dry_run, skip_cline=True)
-        if not dry_run:
-            guide = home / ".config" / "canfar" / "lab" / "free-models-guide.txt"
-            guide.parent.mkdir(parents=True, exist_ok=True)
-            guide.write_text(free_models_guide() + "\n", encoding="utf-8")
+    elif name == "cline":
+        install_file(
+            root / "cline" / "cline-notes.md",
+            home / ".config" / "canfar" / "lab" / "cline-notes.md",
+            force=force,
+            dry_run=dry_run,
+        )
     elif name == "codex":
         install_file(
             root / "codex" / "config.toml",

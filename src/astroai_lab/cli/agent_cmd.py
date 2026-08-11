@@ -1,7 +1,7 @@
 """Lean `astroai-lab agent` CLI surface.
 
 Canonical verbs: list, install, remove, wipe, setup, config, update,
-status, verify, repair, models, plugins.
+status, verify, repair, plugins.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ import typer
 from astroai_lab import ui
 from astroai_lab.agent import clean_agent as agent_clean_mod
 from astroai_lab.agent import fix as agent_fix_mod
-from astroai_lab.agent import free_models as agent_free_models
 from astroai_lab.agent import install as agent_install
 from astroai_lab.agent import interact as agent_interact_mod
 from astroai_lab.agent import plugins as agent_plugins
@@ -25,15 +24,17 @@ from astroai_lab.errors import LabError
 
 agent_app = typer.Typer(
     help=(
-        "AI coding agents: install CLIs, configs, plugins, free models.\n\n"
+        "AI coding agents: list/install/remove CLIs, configs, plugins.\n\n"
+        "CLIs install to $SCRATCH ($ASTROAI_LAB_BIN_DIR); configs stay on $HOME.\n\n"
         "Quick map:\n"
-        "  list          registered agents (binary / config / version)\n"
-        "  list config   skills/MCP/addons (plugins catalog)\n"
-        "  install       download a CLI binary\n"
+        "  list          installable agents (binary / config / source / version)\n"
+        "  list config   skills/MCP/addons (plugins)\n"
+        "  install       download a CLI binary onto scratch\n"
+        "  remove        remove managed CLI (--clean-home for $HOME copies)\n"
         "  setup         write MCP/rules/skills (--project for repo scaffold)\n"
-        "  status        same as list (+ --ui for container endpoints)\n"
+        "  config        read/write per-agent config on $HOME\n"
+        "  status        same table as list (+ --ui for container endpoints)\n"
         "  verify|repair health check / auto-repair\n"
-        "  models free   OpenRouter / Kilo presets\n"
         "  plugins       install/update/remove/configure plugins"
     ),
 )
@@ -47,17 +48,12 @@ def agent_root(ctx: typer.Context) -> None:
         ui.print_hint("  astroai-lab agent list config       # skills/MCP/addons")
         ui.print_hint("  astroai-lab agent install [NAME]    # omit NAME to list")
         ui.print_hint("  astroai-lab agent setup             # MCP/rules/skills")
-        ui.print_hint("  astroai-lab agent models free")
         ui.print_hint("  astroai-lab agent verify|repair")
 
 
 # ---------------------------------------------------------------------------
 # Shell-completion callables
 # ---------------------------------------------------------------------------
-
-
-def _preset_completer(ctx, incomplete: str) -> list[str]:
-    return [n for n in agent_free_models.list_presets() if n.startswith(incomplete or "")]
 
 
 def _tool_completer(ctx, incomplete: str) -> list[str]:
@@ -134,8 +130,8 @@ def _print_interact(opts) -> None:
 def _print_status_table(
     report: dict, *, stamp: str | None = None, failed: str | None = None
 ) -> None:
-    ui.print_hint("  Agent        Binary  Config  Version")
-    ui.print_hint("  ───────────  ──────  ──────  ──────────")
+    ui.print_hint("  Agent        Binary  Config  Source   Version")
+    ui.print_hint("  ───────────  ──────  ──────  ───────  ──────────")
     for row in report["agents"]:
         b = "✓" if row.get("binary_ok", row.get("binary")) else "—"
         if row.get("config_declared") is False:
@@ -144,7 +140,15 @@ def _print_status_table(
             c = "✓" if row.get("config_ok", row.get("config")) else "—"
         ver = row.get("version") or "—"
         name = row.get("id") or row.get("agent") or "?"
-        ui.print_hint(f"  {name:<12} {b:<6} {c:<6} {ver}")
+        src = row.get("binary_source") or ("managed" if row.get("managed") else "—")
+        if not row.get("binary_ok"):
+            src = "—"
+        elif row.get("home_install") and not row.get("managed"):
+            src = "home"
+        ui.print_hint(f"  {name:<12} {b:<6} {c:<6} {src:<7} {ver}")
+        summary = (row.get("summary") or "").strip()
+        if summary:
+            ui.print_hint(f"               {summary}")
     issues = report.get("issues") or []
     if issues:
         ui.print_hint("")
@@ -156,8 +160,10 @@ def _print_status_table(
     if failed:
         ui.print_warn(f"  Last failure: {failed}")
     ui.print_hint("")
-    ui.print_hint("  Install: astroai-lab agent install NAME")
-    ui.print_hint("  Configs: astroai-lab agent list config")
+    ui.print_hint("  Install: astroai-lab agent install NAME   # CLIs → $SCRATCH")
+    ui.print_hint("  Configs: astroai-lab agent list config    # configs on $HOME")
+    ui.print_hint("  Home CLI: agent remove NAME --clean-home # optional cleanup")
+    ui.print_hint("  Source: managed=scratch · home=$HOME · other=image/PATH")
 
 
 def _print_bundles(as_json: bool) -> None:
@@ -279,10 +285,24 @@ def _print_plugin_results(results, *, verb: str, dry_run: bool) -> None:
 # ---------------------------------------------------------------------------
 
 list_app = typer.Typer(
-    help="List registered agents (default) or configs (`list config`).",
+    help=(
+        "List every agent `astroai-lab agent install` can install "
+        "(status + one-line summary), or configs via `list config`."
+    ),
     invoke_without_command=True,
 )
 agent_app.add_typer(list_app, name="list")
+
+
+def _want_version_probe(opts) -> bool:
+    """Human list/status probe versions; JSON/automation skip unless overridden."""
+    import os
+
+    return (not opts.json) and os.environ.get("ASTROAI_LAB_PROBE_VERSION", "1") not in (
+        "0",
+        "false",
+        "no",
+    )
 
 
 def _emit_agent_list(ctx: typer.Context) -> None:
@@ -290,16 +310,7 @@ def _emit_agent_list(ctx: typer.Context) -> None:
 
     opts = get_opts(ctx)
     home = Path.home()
-    # Version probes are off by default in JSON/automation; human list opts in
-    # unless ASTROAI_LAB_PROBE_VERSION=0 (tests set this).
-    import os
-
-    want_probe = (not opts.json) and os.environ.get("ASTROAI_LAB_PROBE_VERSION", "1") not in (
-        "0",
-        "false",
-        "no",
-    )
-    report = build_agent_report(home, probe_ver=want_probe)
+    report = build_agent_report(home, probe_ver=_want_version_probe(opts))
     state = read_setup_state(home)
     if opts.json:
         ui.print_json(report)
@@ -311,7 +322,7 @@ def _emit_agent_list(ctx: typer.Context) -> None:
 
 @list_app.callback(invoke_without_command=True)
 def list_root(ctx: typer.Context) -> None:
-    """Registered agents: binary / config / installed version."""
+    """Every installable agent: binary / config / source / version / summary."""
     if ctx.invoked_subcommand is None:
         _emit_agent_list(ctx)
 
@@ -558,7 +569,6 @@ def agent_setup_cmd(
         ui.print_error("Agent setup failed")
     ui.print_hint("  astroai-lab agent install kilo|goose|cline|opencode")
     ui.print_hint("  astroai-lab agent plugins install ponytail")
-    ui.print_hint("  astroai-lab agent models free")
     if result.exit_code:
         raise typer.Exit(result.exit_code)
 
@@ -810,7 +820,7 @@ def agent_status_cmd(
         typer.Option("--ui", help="Show active container UI endpoints."),
     ] = False,
 ) -> None:
-    """Show which agents are installed, configured, and have issues."""
+    """Same table as `agent list` (versions probed); `--ui` for container endpoints."""
     from astroai_lab.agent.setup_state import build_agent_report, read_setup_state
 
     opts = get_opts(ctx)
@@ -818,7 +828,7 @@ def agent_status_cmd(
         _print_interact(opts)
         return
     home = Path.home()
-    report = build_agent_report(home)
+    report = build_agent_report(home, probe_ver=_want_version_probe(opts))
     if opts.json:
         ui.print_json(report)
         if not report.get("ok"):
@@ -1004,8 +1014,8 @@ def agent_install_cmd(
         ui.print_ok(f"dry-run: would install {tool}")
     else:
         ui.print_ok(f"Installed {tool} → {user_bin_dir()}")
-        if tool in ("kilo", "goose", "cline", "opencode", "codex", "qoder"):
-            ui.print_hint("  astroai-lab agent models free")
+        if tool in ("kilo", "goose", "cline", "opencode", "codex"):
+            ui.print_hint("  astroai-lab agent config " + tool)
 
 
 @agent_app.command("remove")
@@ -1019,11 +1029,18 @@ def agent_remove_cmd(
         bool,
         typer.Option("--purge", help="Also remove the agent's home dir (~/.hermes, ~/.openclaw)."),
     ] = False,
+    clean_home: Annotated[
+        bool,
+        typer.Option(
+            "--clean-home",
+            help="Also remove a user-owned CLI under $HOME (/arc/home), which lab does not manage.",
+        ),
+    ] = False,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show actions without executing.")
     ] = False,
 ) -> None:
-    """Uninstall an agent CLI: binary, config files, plugin files, setup stamps."""
+    """Uninstall a managed agent CLI (scratch). Use --clean-home for $HOME copies."""
     from astroai_lab.agent.registry import remove_registry_agent
     from astroai_lab.cli.context import merge_opts
 
@@ -1032,10 +1049,14 @@ def agent_remove_cmd(
         if tool in agent_install.TOOLS:
             results = [
                 r.__dict__
-                for r in agent_install.uninstall_tool(tool, purge=purge, dry_run=opts.dry_run)
+                for r in agent_install.uninstall_tool(
+                    tool, purge=purge, clean_home=clean_home, dry_run=opts.dry_run
+                )
             ]
         else:
-            results = remove_registry_agent(tool, purge=purge, dry_run=opts.dry_run)
+            results = remove_registry_agent(
+                tool, purge=purge, clean_home=clean_home, dry_run=opts.dry_run
+            )
     except LabError as exc:
         if opts.json:
             ui.print_json(
@@ -1055,6 +1076,7 @@ def agent_remove_cmd(
                 "ok": True,
                 "tool": tool,
                 "purge": purge,
+                "clean_home": clean_home,
                 "dry_run": opts.dry_run,
                 "actions": results,
                 "errors": [],
@@ -1343,76 +1365,3 @@ def plugins_configure_cmd(
             raise typer.Exit(1)
         return
     _print_plugin_results(results, verb="configure", dry_run=opts.dry_run)
-
-
-# ---------------------------------------------------------------------------
-# models
-# ---------------------------------------------------------------------------
-
-models_app = typer.Typer(help="Free-tier model presets for open coding agents.")
-agent_app.add_typer(models_app, name="models")
-
-
-@models_app.callback(invoke_without_command=True)
-def models_root(ctx: typer.Context) -> None:
-    if ctx.invoked_subcommand is None:
-        typer.echo(agent_free_models.free_models_guide())
-
-
-@models_app.command("list")
-def models_list_cmd(ctx: typer.Context) -> None:
-    """List free model presets."""
-    opts = get_opts(ctx)
-    presets = agent_free_models.list_presets()
-    if opts.json:
-        ui.print_json(presets)
-        return
-    for name, meta in presets.items():
-        typer.echo(f"  {name:<10} {meta['label']}")
-        typer.echo(f"             {meta['description']}")
-
-
-@models_app.command("free")
-def models_free_cmd(
-    ctx: typer.Context,
-    preset: Annotated[
-        str,
-        typer.Option("--preset", "-p", help="Preset name.", autocompletion=_preset_completer),
-    ] = "coding",
-    force: Annotated[
-        bool,
-        typer.Option("--force", "-f", help="Overwrite existing configs."),
-    ] = False,
-) -> None:
-    """Apply free-tier model configs for goose, kilo, opencode, codex, cline."""
-    opts = get_opts(ctx)
-    try:
-        actions = agent_free_models.apply_free_models(
-            preset=preset,
-            force=force or opts.yes,
-            dry_run=opts.dry_run,
-        )
-    except LabError as exc:
-        if opts.json:
-            ui.print_json({"ok": False, "preset": preset, "actions": [], "errors": [str(exc)]})
-        else:
-            ui.print_error(str(exc))
-        raise typer.Exit(1) from exc
-    if opts.json:
-        ui.print_json(
-            {
-                "ok": True,
-                "preset": preset,
-                "actions": actions,
-                "errors": [],
-                "dry_run": opts.dry_run,
-            }
-        )
-        return
-    prefix = "would apply" if opts.dry_run else "applied"
-    for line in actions:
-        ui.print_ok(f"{prefix}: {line}")
-    if not opts.dry_run:
-        ui.print_hint("  Kilo sign-in: `kilo auth`  (or `/connect` in TUI)")
-        ui.print_hint("  OpenRouter key: https://openrouter.ai/keys")
-        ui.print_hint("  Full guide: `astroai-lab agent models`")

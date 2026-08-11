@@ -204,11 +204,6 @@ enumerable, so you rarely need to guess or re-read `help`:
   astroai-lab help -c env<TAB>          # → env export
   ```
 
-- **Free-model presets** for `agent models free --preset`:
-
-  ```bash
-  astroai-lab agent models free --preset <TAB>   # → coding, long, reasoning
-  ```
 
 - **Registered kernel names** for `kernel unregister` / `kernel ensure --name`:
 
@@ -238,39 +233,40 @@ enumerable, so you rarely need to guess or re-read `help`:
 
 ## AI coding agents
 
-Persists under `/arc` home (MCP, skills, tool binaries).
+Configs/skills persist under `/arc` home; CLI binaries install to `$SCRATCH` (`$ASTROAI_LAB_BIN_DIR`).
 
-**The agent registry is the single source of truth.** Each agent ships as one
-YAML file in the package (`data/agent/agents/<id>.yaml`) declaring how it
-installs (`curl` / `npm` / `gh-release`), where its config lives, and how it
-verifies. `agent list` shows registered agents (binary / config / version);
-`agent list config` shows skills/MCP/addons; `agent install|remove` drive off
-the same registry entries — adding an agent is a data change, not a code
-change. This covers `kilo`, `goose`, `cline`, `opencode`, `codex`, `hermes`,
-`openclaw`, `zcode`, and `omp`.
+**`agent list` is the installable set.** Each agent is one YAML file
+(`data/agent/agents/<id>.yaml`): how it installs, where config lives, how it
+verifies. `agent list` / `install` / `remove` share that set. Configs stay on
+`$HOME`; CLIs go to scratch.
 
 ```bash
-astroai-lab agent list             # registered agents (binary / config / version)
+astroai-lab agent list             # installable agents (status + one-line summary)
 astroai-lab agent list config      # skills/MCP/addons
-astroai-lab agent install kilo     # or goose, opencode, cline, codex, hermes, openclaw, zcode, omp, …
-astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
-astroai-lab agent wipe             # factory reset: remove EVERY agent config + binary + state (confirmation required; --dry-run to preview)
-astroai-lab agent setup hermes     # per-agent registry setup: config scaffold + skills + plugins
-astroai-lab agent setup --all      # same, for every installed agent
+astroai-lab agent install kilo     # CLI → $SCRATCH (also: cursor, claude, goose, …)
+astroai-lab agent remove kilo      # managed scratch CLI; --clean-home for $HOME copies
+astroai-lab agent remove kilo --purge  # also drop config dirs (~/.config/kilo, …)
+astroai-lab agent wipe             # factory reset (confirm or --yes; --dry-run to preview)
+astroai-lab agent setup hermes     # config scaffold + skills + plugins
+astroai-lab agent setup --all      # same for every managed install
 astroai-lab agent setup --project  # per-repo AGENTS.md + .cursor scaffold
-astroai-lab agent config hermes    # show the agent's config file (key=value edits / --unset)
-astroai-lab agent plugins list     # same catalog as `list config`
+astroai-lab agent config hermes    # show/edit $HOME config (key=value / --unset)
+astroai-lab agent plugins list     # same as `list config`
 astroai-lab agent plugins install ponytail
-astroai-lab agent models free
-astroai-lab agent update           # after image upgrades
-astroai-lab agent update hermes    # refresh ONE agent (CLI + plugins + state)
-astroai-lab agent verify           # catch broken JSON/TOML/YAML configs (+ registry config checks)
+astroai-lab agent update           # after upgrading lab in-session
+astroai-lab agent update hermes    # refresh ONE agent
+astroai-lab agent verify           # config syntax + presence checks
 astroai-lab agent repair           # auto-repair (--clean for stale state)
-astroai-lab agent repair hermes    # regenerate/sanitize ONE agent's config (--all for every installed)
 ```
 
-See [cli.md](cli.md) for `agent models free --preset long`, per-agent options,
-and the registry schema summary.
+Upgrade lab in a running session (no image rebuild): see “Writable CADC venv”
+in astroai-containers CONTRIBUTING, or:
+
+```bash
+uv pip install --python /opt/astroai/venv/cadc \
+  "git+https://github.com/astroai/astroai-lab.git@main"
+# then open a new shell / `hash -r` so PATH picks up the new entrypoint
+```
 
 ---
 

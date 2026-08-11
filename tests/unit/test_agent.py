@@ -115,9 +115,11 @@ def test_install_tool_unknown() -> None:
         install_tool("not-a-tool")
 
 
-def test_install_tool_dry_run() -> None:
+def test_install_tool_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from astroai_lab.agent.install import install_tool
 
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("astroai_lab.agent.install.refuse_if_home_owned", lambda *a, **k: None)
     install_tool("node", dry_run=True)
 
 
@@ -129,3 +131,142 @@ def test_merge_mcp_servers(tmp_path: Path) -> None:
     src.write_text('{"mcpServers": {"a": {"url": "x"}}}')
     merge_mcp_servers(src, dst, force=True, dry_run=False)
     assert dst.is_file()
+
+
+def test_npm_global_install_cmd_adds_allow_scripts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astroai_lab.agent import install as install_mod
+
+    monkeypatch.setattr(install_mod, "_npm_version_tuple", lambda: (11, 17))
+    cmd = install_mod.npm_global_install_cmd(
+        tmp_path / "prefix", "@oh-my-pi/pi-coding-agent@latest"
+    )
+    assert cmd[:4] == ["npm", "install", "-g", "--prefix"]
+    assert "--dangerously-allow-all-scripts" in cmd
+    assert cmd[-1] == "@oh-my-pi/pi-coding-agent@latest"
+
+
+def test_npm_global_install_cmd_skips_flag_on_old_npm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astroai_lab.agent import install as install_mod
+
+    monkeypatch.setattr(install_mod, "_npm_version_tuple", lambda: (10, 9))
+    cmd = install_mod.npm_global_install_cmd(tmp_path / "prefix", "left-pad@1.3.0")
+    assert "--dangerously-allow-all-scripts" not in cmd
+
+
+def test_npm_install_environ_silences_update_notifier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from astroai_lab.agent import install as install_mod
+
+    monkeypatch.setattr(
+        install_mod,
+        "_session_environ",
+        lambda extra=None: {"PATH": "/usr/bin", **(extra or {})},
+    )
+    env = install_mod.npm_install_environ()
+    assert env["NPM_CONFIG_UPDATE_NOTIFIER"] == "false"
+    assert env["NPM_CONFIG_DANGEROUSLY_ALLOW_ALL_SCRIPTS"] == "true"
+
+
+def test_cursor_tool_and_binary() -> None:
+    from astroai_lab.agent import install as install_mod
+
+    assert install_mod.tool_binary("cursor") == "agent"
+    assert "cursor" in install_mod.TOOLS
+    assert "agent" not in install_mod.TOOLS
+
+
+def test_cli_install_agent_name_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy name `agent` is not accepted; use `cursor`."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["--json", "--dry-run", "agent", "install", "agent"])
+    assert result.exit_code == 1
+    import json
+
+    data = json.loads(result.stdout)
+    assert data["ok"] is False
+    assert "Unknown" in data["errors"][0]
+
+
+def test_classify_binary_managed_vs_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astroai_lab.agent import install as install_mod
+
+    home = tmp_path / "home"
+    scratch_bin = tmp_path / "scratch" / "bin"
+    home.mkdir()
+    scratch_bin.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(install_mod, "_bin_dir", lambda: scratch_bin)
+    monkeypatch.setattr(install_mod, "_npm_prefix", lambda: scratch_bin.parent)
+    monkeypatch.setattr(
+        install_mod,
+        "resolve_session_env",
+        lambda ensure=False: type(
+            "E",
+            (),
+            {
+                "astroai_lab_bin_dir": scratch_bin,
+                "astroai_lab_npm_prefix": scratch_bin.parent,
+            },
+        )(),
+    )
+
+    managed = scratch_bin / "kilo"
+    managed.write_text("#!/bin/sh\n", encoding="utf-8")
+    managed.chmod(0o755)
+    info = install_mod.classify_binary("kilo", home=home)
+    assert info["source"] == install_mod.BINARY_SOURCE_MANAGED
+    assert info["managed"] is True
+
+    home_bin = home / ".local" / "bin"
+    home_bin.mkdir(parents=True)
+    (home_bin / "goose").write_text("#!/bin/sh\n", encoding="utf-8")
+    info_home = install_mod.classify_binary("goose", home=home)
+    assert info_home["source"] == install_mod.BINARY_SOURCE_HOME
+    assert info_home["home_install"] is True
+    assert info_home["managed"] is False
+
+    with pytest.raises(Exception, match="already installed under your home"):
+        install_mod.refuse_if_home_owned("goose", home=home)
+
+
+def test_remove_home_owned_requires_clean_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from astroai_lab.agent import install as install_mod
+    from astroai_lab.errors import LabError
+
+    home = tmp_path / "home"
+    scratch_bin = tmp_path / "scratch" / "bin"
+    home.mkdir()
+    scratch_bin.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(install_mod, "_bin_dir", lambda: scratch_bin)
+    monkeypatch.setattr(install_mod, "_npm_prefix", lambda: scratch_bin.parent)
+    monkeypatch.setattr(install_mod.shutil, "which", lambda _: None)
+    session = SimpleNamespace(
+        astroai_lab_bin_dir=scratch_bin,
+        astroai_lab_npm_prefix=scratch_bin.parent,
+    )
+    session.exports = lambda: {}
+    monkeypatch.setattr(install_mod, "resolve_session_env", lambda ensure=False: session)
+    home_bin = home / ".local" / "bin"
+    home_bin.mkdir(parents=True)
+    (home_bin / "copilot").write_text("#!/bin/sh\n", encoding="utf-8")
+
+    with pytest.raises(LabError, match="--clean-home"):
+        install_mod.uninstall_tool("copilot", home=home, dry_run=True)
+
+    results = install_mod.uninstall_tool("copilot", home=home, clean_home=True, dry_run=False)
+    assert not (home_bin / "copilot").exists()
+    assert any(r.target.startswith("home-binary:") for r in results)

@@ -1,0 +1,21 @@
+# Installable via: astroai-lab agent install claude
+id: claude
+name: Claude Code
+homepage: https://docs.anthropic.com/en/docs/claude-code
+summary: Anthropic's agentic coding CLI (claude)
+binary: claude
+tags:
+- agent
+- cli
+install:
+  method: curl
+  source: https://claude.ai/install.sh
+  post_binary_paths:
+  - ~/.local/bin/claude
+verify:
+- claude --version
+plugins:
+- skill
+- mcp
+- config
+- addon

@@ -14,7 +14,7 @@ from astroai_lab.cli.main import app
 
 runner = CliRunner()
 
-# Lean surface: list/models/plugins are sub-typers.
+# Lean surface: list/plugins are sub-typers.
 CANONICAL_VERBS = {
     "list",
     "install",
@@ -26,7 +26,6 @@ CANONICAL_VERBS = {
     "status",
     "verify",
     "repair",
-    "models",
     "plugins",
 }
 
@@ -41,6 +40,7 @@ REMOVED_VERBS = {
     "clean",
     "report",
     "interact",
+    "models",
 }
 
 

@@ -11,11 +11,11 @@ install:
   method: npm
   source: cline@latest
 config:
-  path: "~/.config/canfar/lab/cline-free.md"
+  path: "~/.config/canfar/lab/cline-notes.md"
   format: markdown
   provider_key: OPENROUTER_API_KEY
 verify:
   - "cline --version"
-  - "test -f ~/.config/canfar/lab/cline-free.md"
+  - "test -f ~/.config/canfar/lab/cline-notes.md"
 plugins: [skill, mcp, config, addon]
-notes: Free-tier model config written by `agent models free`
+notes: "Config notes under ~/.config/canfar/lab/; set OPENROUTER_API_KEY yourself"

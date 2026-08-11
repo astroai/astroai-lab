@@ -1,0 +1,17 @@
+# Installable via: astroai-lab agent install hyperfine
+id: hyperfine
+name: hyperfine
+homepage: https://github.com/sharkdp/hyperfine
+summary: Command-line benchmarking tool
+binary: hyperfine
+tags:
+- tool
+- cli
+install:
+  method: gh-release
+  repo: sharkdp/hyperfine
+  asset: hyperfine-v1.19.0-{arch}-unknown-linux-gnu.tar.gz
+verify:
+- hyperfine --version
+notes: Requires gh auth for release download.
+plugins: []

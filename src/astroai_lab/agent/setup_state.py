@@ -194,6 +194,8 @@ def _lock_is_stale(path: Path) -> bool:
 
 def build_agent_report(home: Path | None = None, *, probe_ver: bool = False) -> dict[str, Any]:
     """One-shot JSON report for wizard / automation (registry-driven)."""
+    from concurrent.futures import ThreadPoolExecutor
+
     from astroai_lab.agent.inventory import verify_setup
     from astroai_lab.agent.registry import list_registry_agents, registry_agent_status
     from astroai_lab.core.session_resources import collect_resources
@@ -201,25 +203,40 @@ def build_agent_report(home: Path | None = None, *, probe_ver: bool = False) -> 
     home = home or Path.home()
     state = read_setup_state(home)
     issues = verify_setup(home)
-    agents = []
-    for agent in list_registry_agents():
-        status = registry_agent_status(agent, home, probe_ver=probe_ver)
-        agents.append(
-            {
-                "agent": status["id"],
-                "id": status["id"],
-                "name": status["name"],
-                "binary": status["binary_ok"],
-                "binary_name": status["binary"],
-                "config": status["config_ok"],
-                "config_path": status["config"],
-                "binary_ok": status["binary_ok"],
-                "config_ok": status["config_ok"],
-                "config_declared": status.get("config_declared", True),
-                "version": status.get("version"),
-                "summary": status.get("summary", ""),
-            }
-        )
+    registry = list(list_registry_agents())
+
+    def _status(agent: dict[str, Any]) -> dict[str, Any]:
+        return registry_agent_status(agent, home, probe_ver=probe_ver)
+
+    # Parallelize when probing versions — each CLI can take ~2s; sequential
+    # would make `agent list` feel broken. Order preserved via map.
+    if probe_ver and len(registry) > 1:
+        with ThreadPoolExecutor(max_workers=min(8, len(registry))) as pool:
+            statuses = list(pool.map(_status, registry))
+    else:
+        statuses = [_status(a) for a in registry]
+
+    agents = [
+        {
+            "agent": status["id"],
+            "id": status["id"],
+            "name": status["name"],
+            "binary": status["binary_ok"],
+            "binary_name": status["binary"],
+            "binary_path": status.get("binary_path"),
+            "binary_source": status.get("binary_source", "missing"),
+            "managed": status.get("managed", False),
+            "home_install": status.get("home_install", False),
+            "config": status["config_ok"],
+            "config_path": status["config"],
+            "binary_ok": status["binary_ok"],
+            "config_ok": status["config_ok"],
+            "config_declared": status.get("config_declared", True),
+            "version": status.get("version"),
+            "summary": status.get("summary", ""),
+        }
+        for status in statuses
+    ]
     return {
         "ok": state.ok and not issues,
         "setup": state.to_dict(),

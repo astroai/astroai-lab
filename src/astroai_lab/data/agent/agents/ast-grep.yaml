@@ -1,0 +1,17 @@
+# Installable via: astroai-lab agent install ast-grep
+id: ast-grep
+name: ast-grep
+homepage: https://github.com/ast-grep/ast-grep
+summary: 'Structural search/replace CLI (binary: sg)'
+binary: sg
+tags:
+- tool
+- cli
+install:
+  method: gh-release
+  repo: ast-grep/ast-grep
+  asset: app-{arch}-unknown-linux-gnu.zip
+verify:
+- sg --version
+notes: Install id ast-grep; binary is sg. Requires gh auth.
+plugins: []

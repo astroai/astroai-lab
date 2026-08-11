@@ -1,35 +1,24 @@
-"""Unit tests for agent catalog browse, clean state, auto-repair, and UI endpoints."""
+"""Unit tests for agent list coverage, clean state, auto-repair, and UI endpoints."""
 
 import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
-from astroai_lab.agent.catalog import list_agent_catalog
 from astroai_lab.agent.clean_agent import clean_agent_state
 from astroai_lab.agent.fix import fix_agent_setup
+from astroai_lab.agent.install import TOOLS
 from astroai_lab.agent.interact import inspect_interact_endpoints
+from astroai_lab.agent.registry import list_registry_agents
 from astroai_lab.cli.main import app
 
 runner = CliRunner()
 
 
-def test_catalog_basic(tmp_path: Path) -> None:
-    catalog = list_agent_catalog(home=tmp_path)
-    assert isinstance(catalog, list)
-    assert len(catalog) > 0
-
-    # Test filtering by kind
-    containers = list_agent_catalog(kind="container", home=tmp_path)
-    assert all(c["kind"] == "container" for c in containers)
-
-    # Test filtering by tag
-    lean_items = list_agent_catalog(tag="lean", home=tmp_path)
-    assert all("lean" in [t.lower() for t in i["tags"]] for i in lean_items)
-
-    # Test query search
-    kilo_items = list_agent_catalog(query="kilo", home=tmp_path)
-    assert any("kilo" in i["id"].lower() for i in kilo_items)
+def test_list_covers_all_installable_agents() -> None:
+    ids = {a["id"] for a in list_registry_agents()}
+    assert set(TOOLS) <= ids
+    assert any(a.get("summary") for a in list_registry_agents())
 
 
 def test_clean_agent_state(tmp_path: Path) -> None:

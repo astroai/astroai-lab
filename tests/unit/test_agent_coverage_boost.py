@@ -99,9 +99,22 @@ def test_agent_setup_json_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert data["ok"] is True
 
 
-def test_agent_install_json_dry_run() -> None:
+def test_agent_install_json_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("astroai_lab.agent.install.refuse_if_home_owned", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        lambda binary, home=None: {
+            "binary": binary,
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        },
+    )
     result = runner.invoke(app, ["--json", "--dry-run", "agent", "install", "kilo"])
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.stdout + result.stderr
     data = json.loads(result.stdout)
     assert data["ok"] is True
     assert data["tool"] == "kilo"
@@ -126,13 +139,6 @@ def test_agent_plugins_install_json_dry_run() -> None:
         pass
     else:
         assert "ponytail" in (result.stdout + result.stderr).lower() or result.exit_code == 0
-
-
-def test_agent_models_list_json() -> None:
-    result = runner.invoke(app, ["--json", "agent", "models", "list"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert isinstance(data, dict)
 
 
 def test_resources_cgroup_and_gpu(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -198,9 +204,12 @@ def test_install_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     from astroai_lab.agent import install as inst
 
     # kilo/goose/cline/opencode/codex migrated out of TOOLS into the YAML
-    # registry; TOOLS keeps the rest (hermes/openclaw still route through
-    # their install_tool branches). See agent/registry.
+    # registry; TOOLS keeps utilities + hermes/openclaw/cursor (battle-tested
+    # install_tool branches). See agent/registry.
     assert "qoder" in inst.list_tools()
+    assert "cursor" in inst.list_tools()
+    assert "agent" not in inst.list_tools()
+    assert inst.tool_binary("cursor") == "agent"
     assert "kilo" not in inst.list_tools()
     assert inst.tool_binary("qoder") == "qodercli"
     rows = inst.list_tools_status()

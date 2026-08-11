@@ -23,4 +23,4 @@ verify:
   - "goose --version"
   - "test -f ~/.config/goose/config.yaml"
 plugins: [skill, mcp, config, addon]
-notes: Uses ~/.config/goose/config.yaml (provider/model set by `agent models free`)
+notes: Uses ~/.config/goose/config.yaml (provider/model set via goose or env)

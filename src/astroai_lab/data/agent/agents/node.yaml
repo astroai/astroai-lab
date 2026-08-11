@@ -1,0 +1,18 @@
+# Installable via: astroai-lab agent install node
+# Real install path is install_tool("node") (image-baked node/npm, else pixi).
+id: node
+name: Node.js + npm
+homepage: https://nodejs.org
+summary: Node.js + npm (usually baked into the image; pixi fallback)
+binary: node
+tags:
+- tool
+- runtime
+install:
+  # Metadata only — install_tool("node") owns the real path (never curl|bash).
+  method: curl
+  source: https://nodejs.org
+verify:
+- node --version
+notes: "Install is always via install_tool (TOOLS): prefer image node; else pixi global install nodejs. Do not curl the homepage."
+plugins: []

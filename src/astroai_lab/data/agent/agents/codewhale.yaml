@@ -1,0 +1,19 @@
+# Installable via: astroai-lab agent install codewhale
+id: codewhale
+name: CodeWhale
+homepage: https://www.npmjs.com/package/codewhale
+summary: CodeWhale coding agent CLI
+binary: codewhale
+tags:
+- agent
+- cli
+install:
+  method: npm
+  source: codewhale@latest
+verify:
+- codewhale --version
+plugins:
+- skill
+- mcp
+- config
+- addon

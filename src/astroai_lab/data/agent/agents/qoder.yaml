@@ -1,0 +1,22 @@
+# Installable via: astroai-lab agent install qoder
+id: qoder
+name: Qoder CLI
+homepage: https://qoder.ai
+summary: 'Multi-file structural refactoring and code generation CLI (binary: qodercli)'
+binary: qodercli
+tags:
+- agent
+- cli
+install:
+  method: curl
+  source: https://qoder.com/install
+  post_binary_paths:
+  - ~/.local/bin/qodercli
+verify:
+- qodercli --version
+notes: Binary on PATH is qodercli; install id is qoder.
+plugins:
+- skill
+- mcp
+- config
+- addon

@@ -12,12 +12,12 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from astroai_lab.agent.catalog import list_agent_catalog
 from astroai_lab.agent.registry import (
     fix_registry_agent,
     get_registry_agent,
     install_registry_agent,
     list_installed_registry_agents,
+    list_registry_agents,
     load_registry,
     registry_agent_status,
     registry_ids,
@@ -53,9 +53,9 @@ def test_load_registry_hermes_openclaw() -> None:
 
 
 def test_load_registry_includes_migrated_agents() -> None:
-    """kilo/goose/cline/opencode/codex migrated from install.TOOLS."""
+    """kilo/goose/cline/opencode/codex/cursor migrated from install.TOOLS."""
     ids = {a["id"] for a in load_registry()}
-    assert {"kilo", "goose", "cline", "opencode", "codex"} <= ids
+    assert {"kilo", "goose", "cline", "opencode", "codex", "cursor"} <= ids
     kilo = get_registry_agent("kilo")
     assert kilo is not None
     assert kilo["install"]["method"] == "curl"
@@ -64,6 +64,10 @@ def test_load_registry_includes_migrated_agents() -> None:
     assert codex is not None
     assert codex["install"]["method"] == "gh-release"
     assert "{arch}" in codex["install"]["asset"]
+    cursor = get_registry_agent("cursor")
+    assert cursor is not None
+    assert cursor["binary"] == "agent"
+    assert cursor["install"]["source"] == "https://cursor.com/install"
 
 
 def test_load_registry_empty_dir(tmp_path: Path) -> None:
@@ -142,10 +146,22 @@ def test_validation_config_without_path(tmp_path: Path) -> None:
 def test_registry_agent_status_binary_only(monkeypatch: pytest.MonkeyPatch) -> None:
     hermes = get_registry_agent("hermes")
     assert hermes is not None
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+
+    def _fake_classify(binary: str, *, home=None):
+        return {
+            "binary": binary,
+            "path": "/tmp/hermes",
+            "source": "managed",
+            "managed": True,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _fake_classify)
     status = registry_agent_status(hermes, home=Path("/nonexistent-home"))
     assert status["id"] == "hermes"
     assert status["binary_ok"] is True
+    assert status["managed"] is True
     assert status["installed"] is False  # config not present
 
 
@@ -155,10 +171,72 @@ def test_registry_agent_status_full(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     home = tmp_path / "home"
     (home / ".openclaw").mkdir(parents=True)
     (home / ".openclaw" / "openclaw.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+
+    def _fake_classify(binary: str, *, home=None):
+        return {
+            "binary": binary,
+            "path": "/tmp/openclaw",
+            "source": "managed",
+            "managed": True,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _fake_classify)
     status = registry_agent_status(openclaw, home=home)
     assert status["config_ok"] is True
     assert status["installed"] is True
+    assert status["managed"] is True
+
+
+def test_probe_version_parses_semver(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    from astroai_lab.agent.registry import probe_version
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "slowcli"
+    # Sleep 1.2s then print — must succeed with default 3s timeout (old 0.8s failed).
+    fake.write_text("#!/bin/sh\nsleep 1.2\necho 'slowcli 9.8.7'\n", encoding="utf-8")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ.get('PATH', '')}")
+    monkeypatch.delenv("ASTROAI_LAB_PROBE_VERSION", raising=False)
+    assert probe_version("slowcli") == "9.8.7"
+
+
+def test_probe_version_resolves_session_bin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from astroai_lab.agent.registry import probe_version
+
+    bin_dir = tmp_path / "session-bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "sesscli"
+    fake.write_text("#!/bin/sh\necho 'sesscli 1.2.3'\n", encoding="utf-8")
+    fake.chmod(0o755)
+
+    session = SimpleNamespace(
+        astroai_lab_bin_dir=bin_dir,
+        astroai_lab_npm_prefix=tmp_path / "npm",
+    )
+    monkeypatch.setattr(
+        "astroai_lab.shell.session_env.resolve_session_env",
+        lambda *, ensure=False: session,  # noqa: ARG005
+    )
+    # Not on PATH — only session bin.
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    monkeypatch.delenv("ASTROAI_LAB_PROBE_VERSION", raising=False)
+    assert probe_version("sesscli") == "1.2.3"
+
+
+def test_probe_version_respects_disable_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from astroai_lab.agent.registry import probe_version
+
+    monkeypatch.setenv("ASTROAI_LAB_PROBE_VERSION", "0")
+    assert probe_version("python3") is None
 
 
 # ---------------------------------------------------------------------------
@@ -166,14 +244,40 @@ def test_registry_agent_status_full(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 # ---------------------------------------------------------------------------
 
 
+def _fake_classify(
+    *,
+    source: str = "missing",
+    managed: bool = False,
+    home_install: bool = False,
+    path: str | None = None,
+):
+    def _inner(binary: str, *, home=None):
+        return {
+            "binary": binary,
+            "path": path,
+            "source": source,
+            "managed": managed,
+            "home_install": home_install,
+            "home_path": path if home_install else None,
+        }
+
+    return _inner
+
+
 def test_verify_issues_nothing_installed(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Nothing on PATH → installed_only reports nothing (fresh image gate).
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    # Nothing managed → installed_only reports nothing (fresh image gate).
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="missing"),
+    )
     assert registry_verify_issues(home=Path("/nonexistent-home"), installed_only=True) == []
 
 
 def test_verify_issues_full_reports_binary_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="missing"),
+    )
     issues = registry_verify_issues(home=Path("/nonexistent-home"), installed_only=False)
     assert any("binary not found" in i and "hermes" in i for i in issues)
 
@@ -183,7 +287,10 @@ def test_verify_issues_installed_missing_config(
 ) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="managed", managed=True, path="/tmp/x"),
+    )
     issues = registry_verify_issues(home=home, installed_only=True)
     assert any("config missing" in i and "hermes" in i for i in issues)
 
@@ -199,14 +306,18 @@ def test_install_registry_agent_unknown() -> None:
 
 
 def test_install_registry_agent_tools_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
-    # hermes/openclaw exist in install.TOOLS → keep the battle-tested installer.
+    # hermes/openclaw/cursor exist in install.TOOLS → keep the battle-tested installer.
     calls: list[tuple[str, bool]] = []
     monkeypatch.setattr(
         "astroai_lab.agent.install.install_tool",
         lambda name, dry_run=False: calls.append((name, dry_run)),
     )
+    monkeypatch.setattr("astroai_lab.agent.install.refuse_if_home_owned", lambda *a, **k: None)
     install_registry_agent("hermes", dry_run=True)
     assert calls == [("hermes", True)]
+    calls.clear()
+    install_registry_agent("cursor", dry_run=True)
+    assert calls == [("cursor", True)]
 
 
 def test_install_registry_agent_migrated_not_in_tools(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -215,6 +326,11 @@ def test_install_registry_agent_migrated_not_in_tools(monkeypatch: pytest.Monkey
 
     calls: list[str] = []
     monkeypatch.setattr(install_mod, "install_tool", lambda name, dry_run=False: calls.append(name))
+    monkeypatch.setattr(
+        install_mod,
+        "classify_binary",
+        _fake_classify(source="missing"),
+    )
     # kilo is registry-driven now — install_tool must NOT be called for it.
     install_registry_agent("kilo", dry_run=True)
     assert calls == []
@@ -292,35 +408,46 @@ def test_install_registry_agent_curl_dispatch(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(registry_mod, "_install_uv_tool", fake_install_npm)
     monkeypatch.setattr(registry_mod, "_install_gh_release", fake_install_npm)
 
-    agent = {"id": "regonly", "install": {"method": "curl", "source": "https://x/i.sh"}}
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="missing"),
+    )
+    agent = {
+        "id": "regonly",
+        "binary": "regonly",
+        "install": {"method": "curl", "source": "https://x/i.sh"},
+    }
     monkeypatch.setattr(registry_mod, "get_registry_agent", lambda _: agent)
     assert install_registry_agent("regonly") == "curl-done"
 
 
 # ---------------------------------------------------------------------------
-# Catalog + CLI integration
+# List covers every installable agent
 # ---------------------------------------------------------------------------
 
 
-def test_catalog_driven_by_registry(tmp_path: Path) -> None:
-    catalog = list_agent_catalog(home=tmp_path)
-    by_id = {item["id"]: item for item in catalog}
-    assert by_id["hermes"]["name"] == "Hermes Agent"
-    assert by_id["openclaw"]["install_command"] == "astroai-lab agent install openclaw"
-    assert by_id["hermes"]["kind"] == "agent"
-    # Migrated agents are registry-driven too.
-    assert by_id["kilo"]["name"] == "Kilo CLI"
-    assert by_id["kilo"]["install_command"] == "astroai-lab agent install kilo"
-    assert by_id["goose"]["kind"] == "agent"
+def test_agent_list_includes_every_tools_entry() -> None:
+    """`agent list` is the only catalog: every TOOLS install id is listed."""
+    from astroai_lab.agent.install import TOOLS
+
+    ids = {a["id"] for a in list_registry_agents()}
+    assert set(TOOLS) <= ids
+    assert "claude" in ids and "copilot" in ids and "qoder" in ids
+    assert "cursor" in ids and "kilo" in ids
 
 
-def test_cli_agent_list_json_is_status_shaped() -> None:
+def test_cli_agent_list_covers_installable_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astroai_lab.agent.install import TOOLS
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("ASTROAI_LAB_PROBE_VERSION", "0")
     result = runner.invoke(app, ["--json", "agent", "list"])
     assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
-    assert "agents" in data
-    names = {row["agent"] for row in data["agents"]}
-    assert "kilo" in names or "opencode" in names or "zcode" in names
+    names = {row["id"] for row in data["agents"]}
+    assert set(TOOLS) <= names
 
 
 def test_cli_agent_install_list_includes_migrated(
@@ -332,9 +459,11 @@ def test_cli_agent_install_list_includes_migrated(
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     names = {str(row["name"]) for row in data}
-    assert {"kilo", "goose", "cline", "opencode", "codex"} <= names
+    assert {"kilo", "goose", "cline", "opencode", "codex", "cursor"} <= names
     kilo = next(r for r in data if r["name"] == "kilo")
     assert kilo["binary"] == "kilo"
+    cursor = next(r for r in data if r["name"] == "cursor")
+    assert cursor["binary"] == "agent"
 
 
 def test_cli_agent_list_human_shows_status() -> None:
@@ -367,7 +496,10 @@ def test_verify_setup_includes_registry_for_installed(
     # Fresh home, nothing on PATH → verify_setup reports no registry issues.
     home = tmp_path / "home"
     home.mkdir()
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="missing"),
+    )
     from astroai_lab.agent.inventory import verify_setup
 
     issues = verify_setup(home)
@@ -467,7 +599,10 @@ def test_setup_registry_agent_plugin_errors_mark_failed(
 def test_list_installed_registry_agents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="managed", managed=True, path="/tmp/x"),
+    )
     ids = [a["id"] for a in list_installed_registry_agents(home)]
     assert "hermes" in ids
     assert "openclaw" in ids
@@ -503,7 +638,10 @@ def test_update_registry_agent_up_to_date(
 ) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="managed", managed=True, path="/tmp/x"),
+    )
     calls: list[str] = []
     monkeypatch.setattr(
         "astroai_lab.agent.registry.install_registry_agent",
@@ -519,7 +657,10 @@ def test_update_registry_agent_installs_when_missing(
 ) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="missing"),
+    )
     calls: list[str] = []
     monkeypatch.setattr(
         "astroai_lab.agent.registry.install_registry_agent",
@@ -535,7 +676,10 @@ def test_update_registry_agent_reinstall_flag(
 ) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="managed", managed=True, path="/tmp/x"),
+    )
     calls: list[str] = []
     monkeypatch.setattr(
         "astroai_lab.agent.registry.install_registry_agent",
@@ -551,7 +695,10 @@ def test_update_registry_agent_install_failure_marks_error(
 ) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="missing"),
+    )
 
     def boom(name, dry_run=False):  # pragma: no cover
         raise LabError("install failed")
@@ -564,7 +711,10 @@ def test_update_registry_agent_install_failure_marks_error(
 
 def test_cli_update_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: True)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="managed", managed=True, path="/tmp/x"),
+    )
     monkeypatch.setattr("astroai_lab.agent.plugins.apply_agent_plugins", lambda *a, **k: [])
     result = runner.invoke(app, ["--json", "--dry-run", "agent", "update", "hermes"])
     assert result.exit_code == 0
@@ -643,19 +793,19 @@ def test_fix_registry_agent_repairs_broken_toml(tmp_path: Path) -> None:
 def test_fix_registry_agent_markdown_read_only(tmp_path: Path) -> None:
     """Existing markdown config is healthy (read-only); a missing one scaffolds."""
     home = tmp_path / "home"
-    cfg = home / ".config" / "canfar" / "lab" / "cline-free.md"
+    cfg = home / ".config" / "canfar" / "lab" / "cline-notes.md"
     cfg.parent.mkdir(parents=True)
-    cfg.write_text("# models\n", encoding="utf-8")
+    cfg.write_text("# notes\n", encoding="utf-8")
     result = fix_registry_agent("cline", home=home)
     assert result["ok"] is True
     assert any("markdown read-only" in a for a in result["actions"])
-    assert cfg.read_text() == "# models\n"  # never rewritten
+    assert cfg.read_text() == "# notes\n"  # never rewritten
 
     home2 = tmp_path / "home2"
     home2.mkdir()
     result2 = fix_registry_agent("cline", home=home2)
     assert any("created config" in a for a in result2["actions"])
-    assert (home2 / ".config" / "canfar" / "lab" / "cline-free.md").is_file()
+    assert (home2 / ".config" / "canfar" / "lab" / "cline-notes.md").is_file()
 
 
 def test_fix_registry_agent_dry_run_writes_nothing(tmp_path: Path) -> None:
@@ -718,7 +868,10 @@ def test_cli_fix_config_agent_human_output(tmp_path: Path, monkeypatch: pytest.M
 def test_cli_fix_config_all_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`--all` with nothing installed → clean no-op (fresh image gate)."""
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("astroai_lab.agent.registry.tool_on_path", lambda _: False)
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        _fake_classify(source="missing"),
+    )
     result = runner.invoke(app, ["--json", "agent", "repair", "--all"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)

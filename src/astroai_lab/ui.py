@@ -31,10 +31,15 @@ def _format_text(text: str) -> str:
         )
         if match:
             indent, cmd, rest, comment = match.groups()
-            line_str = f"{indent}[bold #00d7ff]{cmd}{rest}[/bold #00d7ff]"
-            if comment:
-                line_str += f"[dim]{comment}[/dim]"
-            lines.append(line_str)
+            # `agent list` rows look like "  kilo         ✓      home …" — the
+            # name collides with a CLI token, but this is a table, not a command.
+            if re.match(r"^\s{2,}", rest) or "✓" in rest or "—" in rest or "·" in rest:
+                lines.append(line)
+            else:
+                line_str = f"{indent}[bold #00d7ff]{cmd}{rest}[/bold #00d7ff]"
+                if comment:
+                    line_str += f"[dim]{comment}[/dim]"
+                lines.append(line_str)
         else:
             # Inline replacements for backtick block like `command`
             line = re.sub(r"`([^`]+)`", r"[bold #ffaf00]\1[/bold #ffaf00]", line)

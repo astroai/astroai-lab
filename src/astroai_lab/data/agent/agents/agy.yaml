@@ -1,0 +1,21 @@
+# Installable via: astroai-lab agent install agy
+id: agy
+name: Antigravity CLI
+homepage: https://antigravity.google
+summary: Google Antigravity coding agent CLI (agy)
+binary: agy
+tags:
+- agent
+- cli
+install:
+  method: curl
+  source: https://antigravity.google/cli/install.sh
+  post_binary_paths:
+  - ~/.local/bin/agy
+verify:
+- agy --version
+plugins:
+- skill
+- mcp
+- config
+- addon

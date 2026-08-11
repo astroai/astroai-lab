@@ -141,7 +141,7 @@ def test_wipe_unknown_agent_error_captured(tmp_path: Path, monkeypatch: pytest.M
         lambda: {"hermes", "boom"},
     )
 
-    def boom(agent_id, *, home=None, purge=False, dry_run=False):
+    def boom(agent_id, *, home=None, purge=False, clean_home=False, dry_run=False):
         from astroai_lab.errors import LabError
 
         if agent_id == "boom":

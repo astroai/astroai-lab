@@ -9,7 +9,7 @@ Format-aware editing driven by the registry ``config.format`` field:
                           hermes config.yaml round-trips cleanly otherwise).
   toml                 — line-based scalar edits (`key = value` top-level or
                           `[table].key`); complex values raise with a hint.
-  markdown             — read-only (cline free-model note).
+  markdown             — read-only (e.g. cline notes).
 
 Dotted keys (``model.provider``) walk nested mappings. ``agent config <id>``
 shows the file; ``--key a.b`` prints one value; ``key=value`` pairs write a

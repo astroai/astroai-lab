@@ -1,0 +1,22 @@
+# Installable via: astroai-lab agent install copilot
+id: copilot
+name: GitHub Copilot CLI
+homepage: https://docs.github.com/en/copilot/github-copilot-in-the-cli
+summary: GitHub Copilot terminal coding agent (copilot)
+binary: copilot
+tags:
+- agent
+- cli
+install:
+  method: npm
+  source: '@github/copilot@latest'
+config:
+  path: ~/.copilot/mcp-config.json
+  format: json
+verify:
+- copilot --version
+plugins:
+- skill
+- mcp
+- config
+- addon

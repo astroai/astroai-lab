@@ -97,7 +97,7 @@ Optional — once per user on persistent `/arc` home:
 ```bash
 astroai-lab agent setup
 astroai-lab agent install kilo       # or goose, cline, opencode, qoder, …
-astroai-lab agent models free
+astroai-lab agent install cursor
 gh auth login
 ```
 

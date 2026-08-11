@@ -123,7 +123,7 @@ def test_read_broken_json_raises(tmp_path: Path) -> None:
 
 
 def test_read_markdown_readonly(tmp_path: Path) -> None:
-    home = _home(tmp_path, "cline", ".config/canfar/lab/cline-free.md", "# models\n")
+    home = _home(tmp_path, "cline", ".config/canfar/lab/cline-notes.md", "# notes\n")
     with pytest.raises(LabError, match="read-only"):
         ac.read_agent_config("cline", home=home)
 

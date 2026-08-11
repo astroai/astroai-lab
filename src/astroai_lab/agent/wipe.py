@@ -39,20 +39,22 @@ def wipe_agent_state(*, home: Path | None = None, dry_run: bool = False) -> list
     home = home or Path.home()
     results: list[dict] = []
 
-    # 1. Every agent: registry-driven (TOOLS-delegated or method-based) first,
-    #    then the remaining TOOLS utilities (node, claude, copilot, …) that are
-    #    not mirrored in the registry. purge=True drops the whole home config
-    #    dir (~/.hermes, ~/.openclaw, ~/.config/kilo, …).
+    # 1. Every agent in the list (YAML under data/agent/agents/). purge=True
+    #    drops home config dirs; clean_home=True also clears user-owned $HOME CLIs.
     registered = registry_ids()
     ids = sorted(registered | set(TOOLS))
     for agent_id in ids:
         try:
             if agent_id in registered:
-                rows = remove_registry_agent(agent_id, home=home, purge=True, dry_run=dry_run)
+                rows = remove_registry_agent(
+                    agent_id, home=home, purge=True, clean_home=True, dry_run=dry_run
+                )
             else:
                 rows = [
                     r.__dict__
-                    for r in uninstall_tool(agent_id, home=home, purge=True, dry_run=dry_run)
+                    for r in uninstall_tool(
+                        agent_id, home=home, purge=True, clean_home=True, dry_run=dry_run
+                    )
                 ]
         except LabError as exc:
             results.append({"target": f"agent:{agent_id}", "status": "error", "detail": str(exc)})
@@ -98,7 +100,7 @@ def wipe_agent_state(*, home: Path | None = None, dry_run: bool = False) -> list
     _rm(home / ".cache" / "astroai-lab" / "upstream-skills", "cache:upstream-skills")
 
     # 5. Shared agent configs not owned by a single registry entry
-    #    (claude bundle writes ~/.claude.json; cline-free.md lives under
+    #    (claude bundle writes ~/.claude.json; cline-notes.md lives under
     #    ~/.config/canfar/lab).
     _rm(home / ".claude.json", "config:.claude.json")
     _rm(home / ".config" / "canfar" / "lab", "config:canfar-lab")

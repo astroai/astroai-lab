@@ -1,30 +1,8 @@
-"""Agent registry: YAML single source of truth (docs/agent-rethink-plan.md Phase 1).
+"""Agent list entries: YAML under ``data/agent/agents/*.yaml``.
 
-One file per agent under ``data/agent/agents/*.yaml`` drives ``agent list``,
-``agent list``, ``agent install``, and ``agent verify`` for registered agents.
-The schema is validated on load so a bad entry fails loudly instead of silently
-degrading the CLI.
-
-Schema (see docs/agent-rethink-plan.md §4 Phase 1):
-
-    id: openclaw
-    name: OpenClaw
-    homepage: https://github.com/openclaw/openclaw
-    binary: openclaw
-    install:
-      method: npm            # npm | curl | gh-release | uv-tool
-      source: openclaw@latest
-      requires_node: ">=24.15"
-    config:
-      path: ~/.openclaw/openclaw.json
-      format: json5
-      provider_key: OPENROUTER_API_KEY
-    setup:
-      post_install: openclaw onboard
-    verify:
-      - "openclaw --version"
-      - "test -f ~/.openclaw/openclaw.json"
-    plugins: [skill, mcp, config, addon]
+One file per installable agent drives ``agent list``, ``agent install``,
+``agent remove``, and ``agent verify``. The schema is validated on load so a
+bad entry fails loudly instead of silently degrading the CLI.
 """
 
 from __future__ import annotations
@@ -117,32 +95,75 @@ def registry_ids(root: Path | None = None) -> set[str]:
 
 _VERSION_RE = re.compile(r"(\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9.]+)?)")
 
+# Large Go/Node agent CLIs often need >1s just to print --version (kilo ~1.9s,
+# cline ~1.4s on a warm box). 0.8s timed out → blank Version column in
+# `agent list`. Override with ASTROAI_LAB_PROBE_VERSION_TIMEOUT if needed.
+_DEFAULT_PROBE_TIMEOUT_SEC = 3.0
 
-def probe_version(binary: str, *, timeout: float = 0.8) -> str | None:
-    """Best-effort installed version from ``binary --version`` (no network).
 
-    Returns the first semver-ish token, or None when the binary is missing /
-    hangs / prints nothing parseable. ponytail: sub-second ceiling — upgrade
-    path is a per-agent version command in the registry YAML.
+def _probe_timeout_sec(override: float | None = None) -> float:
+    import os
+
+    if override is not None:
+        return override
+    raw = os.environ.get("ASTROAI_LAB_PROBE_VERSION_TIMEOUT", "").strip()
+    if raw:
+        try:
+            return max(0.2, float(raw))
+        except ValueError:
+            pass
+    return _DEFAULT_PROBE_TIMEOUT_SEC
+
+
+def resolve_agent_binary(binary: str) -> str | None:
+    """Absolute path to an agent CLI: PATH, then session bin / npm prefix.
+
+    Matches ``install.tool_on_path`` lookup so ``agent list`` version probes
+    see the same binary the Binary column marks ✓ for.
     """
     import os
     import shutil
+
+    from astroai_lab.shell.session_env import resolve_session_env
+
+    resolved = shutil.which(binary)
+    if resolved is not None:
+        return resolved
+    session = resolve_session_env(ensure=False)
+    for candidate in (
+        session.astroai_lab_bin_dir / binary,
+        session.astroai_lab_npm_prefix / "bin" / binary,
+    ):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def probe_version(binary: str, *, timeout: float | None = None) -> str | None:
+    """Best-effort installed version from ``binary --version`` (no network).
+
+    Returns the first semver-ish token, or None when the binary is missing /
+    hangs / prints nothing parseable. Default timeout is 3s (cold Go/Node
+    CLIs); set ``ASTROAI_LAB_PROBE_VERSION=0`` to skip, or
+    ``ASTROAI_LAB_PROBE_VERSION_TIMEOUT`` to override seconds. Optional
+    per-agent version argv can land in registry YAML later.
+    """
+    import os
     import subprocess
 
     # Skip probes in unit tests unless explicitly enabled (avoids hung CLIs).
     if os.environ.get("ASTROAI_LAB_PROBE_VERSION", "1") in ("0", "false", "no"):
         return None
 
-    resolved = shutil.which(binary)
-    if resolved is None and not tool_on_path(binary):
+    cmd = resolve_agent_binary(binary)
+    if cmd is None:
         return None
-    cmd = resolved or binary
     try:
         proc = subprocess.run(
             [cmd, "--version"],
             capture_output=True,
             text=True,
-            timeout=timeout,
+            timeout=_probe_timeout_sec(timeout),
             check=False,
             stdin=subprocess.DEVNULL,
         )
@@ -159,21 +180,20 @@ def registry_agent_status(
     *,
     probe_ver: bool = False,
 ) -> dict[str, Any]:
-    """Installed status for a registry agent: binary on PATH + config present.
+    """Installed status for a registry agent: binary location + config present.
 
-    Binary detection reuses ``install.tool_on_path`` (session bin dirs +
-    npm prefix + PATH), so it matches what `agent install` actually produces.
-    Version probing is opt-in (``probe_ver=True``) — some CLIs hang on
-    ``--version``.
+    Binaries under ``ASTROAI_LAB_BIN_DIR`` (scratch) are *managed*. Binaries
+    under ``$HOME`` (/arc/home) are reported but not managed. Config paths stay
+    on home for persistence. Version probing is opt-in (``probe_ver=True``).
     """
     home = home or Path.home()
     binary = str(agent["binary"])
-    from astroai_lab.agent.install import TOOLS
+    from astroai_lab.agent.install import TOOLS, classify_binary, tool_binary
 
-    # Prefer TOOLS key (handles remaps like qoder→qodercli) when the agent id
-    # is also a TOOLS entry; otherwise probe the declared binary name.
-    path_key = agent["id"] if agent["id"] in TOOLS else binary
-    binary_ok = tool_on_path(path_key)
+    # Prefer TOOLS remaps (qoder→qodercli) when the agent id is also a TOOLS entry.
+    probe_name = tool_binary(agent["id"]) if agent["id"] in TOOLS else binary
+    info = classify_binary(probe_name, home=home)
+    binary_ok = info["source"] != "missing"
     config = agent.get("config") or {}
     cfg_path: Path | None = None
     config_declared = bool(config.get("path"))
@@ -182,12 +202,16 @@ def registry_agent_status(
     if config_declared:
         cfg_path = _expand_home(str(config["path"]), home)
         config_ok = cfg_path.is_file()
-    version = probe_version(binary) if (probe_ver and binary_ok) else None
+    version = probe_version(probe_name) if (probe_ver and binary_ok) else None
     return {
         "id": agent["id"],
         "name": agent["name"],
         "binary": binary,
         "binary_ok": binary_ok,
+        "binary_path": info.get("path"),
+        "binary_source": info["source"],
+        "managed": bool(info["managed"]),
+        "home_install": bool(info["home_install"]),
         "config": str(cfg_path) if cfg_path else "",
         "config_ok": config_ok,
         "config_declared": config_declared,
@@ -221,6 +245,10 @@ def registry_verify_issues(
     issues: list[str] = []
     for agent in load_registry(root):
         status = registry_agent_status(agent, home)
+        # Home-owned CLIs are visible in `agent list` but not managed — skip
+        # them for verify-when-installed so we don't nag about their configs.
+        if installed_only and not status.get("managed"):
+            continue
         if not status["binary_ok"]:
             if installed_only:
                 continue
@@ -239,8 +267,9 @@ def _install_npm(agent: dict[str, Any]) -> str:
         _link_into_local_bin,
         _npm_prefix,
         _require,
-        _session_environ,
         _verify_cmd,
+        npm_global_install_cmd,
+        npm_install_environ,
         run,
     )
     from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
@@ -248,8 +277,8 @@ def _install_npm(agent: dict[str, Any]) -> str:
     binary = agent["binary"]
     _require("npm")
     run(
-        ["npm", "install", "-g", "--prefix", str(_npm_prefix()), str(agent["install"]["source"])],
-        env=_session_environ(),
+        npm_global_install_cmd(_npm_prefix(), str(agent["install"]["source"])),
+        env=npm_install_environ(),
         timeout=INSTALL_TIMEOUT_SEC,
     )
     bin_path = _npm_prefix() / "bin" / binary
@@ -325,19 +354,40 @@ def _install_gh_release(agent: dict[str, Any]) -> str:
 def install_registry_agent(agent_id: str, *, dry_run: bool = False) -> str:
     """Install a registered agent by id, dispatching on install.method.
 
-    Registered agents that already exist in ``install.TOOLS`` (hermes, openclaw)
-    keep their battle-tested installer via ``install_tool``; future registry-only
-    agents dispatch by method here.
+    Registered agents that already exist in ``install.TOOLS`` (hermes, openclaw,
+    cursor) keep their battle-tested installer via ``install_tool``; future
+    registry-only agents dispatch by method here.
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
         raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
 
-    from astroai_lab.agent.install import TOOLS, install_tool
+    from astroai_lab.agent.install import (
+        BINARY_SOURCE_MANAGED,
+        TOOLS,
+        classify_binary,
+        install_tool,
+        refuse_if_home_owned,
+    )
 
     if agent_id in TOOLS:
+        # install_tool also gates; call early so dry-run still refuses home-owned.
+        refuse_if_home_owned(agent_id)
         install_tool(agent_id, dry_run=dry_run)
         return agent_id
+
+    info = classify_binary(str(agent.get("binary") or agent_id))
+    if info["home_install"] and info["source"] != BINARY_SOURCE_MANAGED:
+        where = info.get("home_path") or info.get("path")
+        raise LabError(
+            f"{agent_id} is already installed under your home ({where}). "
+            "astroai-lab manages CLIs on $SCRATCH ($ASTROAI_LAB_BIN_DIR), not /arc/home.",
+            hint=(
+                f"astroai-lab agent remove {agent_id} --clean-home   "
+                f"# then: agent install {agent_id}"
+            ),
+        )
+
     if dry_run:
         return agent_id
 
@@ -358,11 +408,12 @@ def remove_registry_agent(
     *,
     home: Path | None = None,
     purge: bool = False,
+    clean_home: bool = False,
     dry_run: bool = False,
 ) -> list[dict[str, Any]]:
     """Uninstall a registered agent by id (Phase 2 `agent remove`).
 
-    Agents that exist in ``install.TOOLS`` (hermes, openclaw) keep their
+    Agents that exist in ``install.TOOLS`` (hermes, openclaw, cursor) keep their
     battle-tested uninstaller via ``install.uninstall_tool``; registry-only
     agents are removed by install method here. Returns result dicts for JSON.
     """
@@ -370,12 +421,46 @@ def remove_registry_agent(
     if agent is None:
         raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
 
-    from astroai_lab.agent.install import TOOLS, uninstall_tool
+    from astroai_lab.agent.install import (
+        BINARY_SOURCE_MANAGED,
+        TOOLS,
+        classify_binary,
+        uninstall_tool,
+    )
 
     if agent_id in TOOLS:
-        results = uninstall_tool(agent_id, home=home, purge=purge, dry_run=dry_run)
+        results = uninstall_tool(
+            agent_id, home=home, purge=purge, clean_home=clean_home, dry_run=dry_run
+        )
         return [r.__dict__ for r in results]
-    return _remove_registry_method(agent, home=home, purge=purge, dry_run=dry_run)
+
+    info = classify_binary(str(agent["binary"]), home=home)
+    if (
+        info["home_install"]
+        and info["source"] != BINARY_SOURCE_MANAGED
+        and not clean_home
+    ):
+        where = info.get("home_path") or info.get("path")
+        raise LabError(
+            f"{agent_id} is installed under your home ({where}), not managed by astroai-lab",
+            hint=f"astroai-lab agent remove {agent_id} --clean-home",
+        )
+
+    results = _remove_registry_method(agent, home=home, purge=purge, dry_run=dry_run)
+    if clean_home:
+        from astroai_lab.agent.install import (
+            RemoveResult,
+            _remove_file,
+            home_bin_candidates,
+        )
+
+        home = home or Path.home()
+        binary = str(agent["binary"])
+        for home_bin in home_bin_candidates(binary, home=home):
+            result = _remove_file(home_bin, f"home-binary:{binary}", dry_run=dry_run)
+            if result:
+                results.append(result.__dict__ if isinstance(result, RemoveResult) else result)
+    return results
 
 
 def _remove_registry_method(
@@ -478,9 +563,9 @@ def _remove_registry_method(
 
 
 def list_installed_registry_agents(home: Path | None = None) -> list[dict[str, Any]]:
-    """Registry agents whose binary is currently on PATH (`agent setup --all`)."""
+    """Registry agents with a **managed** (scratch) CLI — not home-owned copies."""
     home = home or Path.home()
-    return [a for a in load_registry() if registry_agent_status(a, home)["binary_ok"]]
+    return [a for a in load_registry() if registry_agent_status(a, home)["managed"]]
 
 
 def _config_scaffold(agent: dict[str, Any]) -> str:

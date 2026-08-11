@@ -1,4 +1,4 @@
-"""Shared JSON read/write helpers used across agent bundles and free-models modules."""
+"""Shared JSON read/write helpers used across agent bundles and plugins."""
 
 from __future__ import annotations
 

@@ -1,0 +1,19 @@
+# Installable via: astroai-lab agent install pi
+id: pi
+name: Pi Coding Agent
+homepage: https://www.npmjs.com/package/@earendil-works/pi-coding-agent
+summary: Pi coding agent CLI (earendil-works); distinct from omp
+binary: pi
+tags:
+- agent
+- cli
+install:
+  method: npm
+  source: '@earendil-works/pi-coding-agent@latest'
+verify:
+- pi --version
+plugins:
+- skill
+- mcp
+- config
+- addon

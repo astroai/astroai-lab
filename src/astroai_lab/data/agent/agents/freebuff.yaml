@@ -1,0 +1,19 @@
+# Installable via: astroai-lab agent install freebuff
+id: freebuff
+name: Freebuff
+homepage: https://www.npmjs.com/package/freebuff
+summary: Freebuff coding agent CLI
+binary: freebuff
+tags:
+- agent
+- cli
+install:
+  method: npm
+  source: freebuff@latest
+verify:
+- freebuff --version
+plugins:
+- skill
+- mcp
+- config
+- addon
