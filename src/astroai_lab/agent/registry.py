@@ -492,11 +492,7 @@ def remove_registry_agent(
         return [r.__dict__ for r in results]
 
     info = classify_binary(str(agent["binary"]), home=home)
-    if (
-        info["home_install"]
-        and info["source"] != BINARY_SOURCE_MANAGED
-        and not clean_home
-    ):
+    if info["home_install"] and info["source"] != BINARY_SOURCE_MANAGED and not clean_home:
         where = info.get("home_path") or info.get("path")
         raise LabError(
             f"{agent_id} is installed under your home ({where}), not managed by astroai-lab",

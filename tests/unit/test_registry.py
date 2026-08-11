@@ -639,9 +639,7 @@ def test_verify_issues_includes_home_owned_missing_config(
     assert any("config missing" in i and "hermes" in i for i in issues)
 
 
-def test_repair_restores_agent_launch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_repair_restores_agent_launch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Broken config → launch fails → repair → launch works (before/after proof)."""
     import os
     import stat

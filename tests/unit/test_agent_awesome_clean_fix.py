@@ -155,9 +155,7 @@ def test_cli_agent_list_hides_description_by_default(
     assert summary not in out
 
 
-def test_cli_agent_list_description_flags(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_agent_list_description_flags(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     from astroai_lab.agent.registry import get_registry_agent
 

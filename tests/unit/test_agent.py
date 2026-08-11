@@ -180,9 +180,7 @@ def test_cursor_tool_and_binary() -> None:
     assert "agent" not in install_mod.TOOLS
 
 
-def test_cli_install_agent_name_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_install_agent_name_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Legacy name `agent` is not accepted; use `cursor`."""
     monkeypatch.setenv("HOME", str(tmp_path))
     result = runner.invoke(app, ["--json", "--dry-run", "agent", "install", "agent"])
@@ -194,9 +192,7 @@ def test_cli_install_agent_name_rejected(
     assert "Unknown" in data["errors"][0]
 
 
-def test_classify_binary_managed_vs_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_classify_binary_managed_vs_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from astroai_lab.agent import install as install_mod
 
     home = tmp_path / "home"
@@ -258,7 +254,7 @@ def test_remove_home_owned_requires_clean_home(
         astroai_lab_bin_dir=scratch_bin,
         astroai_lab_npm_prefix=scratch_bin.parent,
     )
-    session.exports = lambda: {}
+    session.exports = dict
     monkeypatch.setattr(install_mod, "resolve_session_env", lambda ensure=False: session)
     home_bin = home / ".local" / "bin"
     home_bin.mkdir(parents=True)

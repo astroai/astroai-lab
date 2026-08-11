@@ -111,9 +111,7 @@ def fix_agent_setup(*, home: Path | None = None, dry_run: bool = False) -> list[
     return results
 
 
-def repair_installed_agents(
-    *, home: Path | None = None, dry_run: bool = False
-) -> dict[str, Any]:
+def repair_installed_agents(*, home: Path | None = None, dry_run: bool = False) -> dict[str, Any]:
     """Repair shared setup plus every installed registry agent's config.
 
     Used by bare ``agent repair`` and ``agent verify --fix``.
