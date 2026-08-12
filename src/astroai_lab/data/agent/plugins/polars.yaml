@@ -1,5 +1,5 @@
-# polars — legacy addon migrated from addons.json (Phase 3).
-# `agent plugins list` / `agent plugins install` surface this via the plugin registry.
+# polars — skill from k-dense-ai/claude-scientific-skills (not skill-forge recipes/).
+# skill-forge only packages the conda recipe; SKILL.md lives upstream.
 id: polars
 kind: skill
 addon: true
@@ -8,10 +8,10 @@ tags:
 - data
 - python
 summary: Polars DataFrame workflows for agents
-homepage: https://github.com/pavelzw/skill-forge
+homepage: https://github.com/k-dense-ai/claude-scientific-skills
 agents:
 - cursor
 install:
   type: github-skill
-  repo: pavelzw/skill-forge
-  path: recipes/polars
+  repo: k-dense-ai/claude-scientific-skills
+  path: skills/polars

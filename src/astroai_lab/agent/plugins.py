@@ -52,7 +52,6 @@ import yaml
 
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.errors import LabError
-from astroai_lab.utils.json_utils import read_jsonc, write_json
 
 PLUGIN_KINDS = ("skill", "bundle", "mcp", "tool", "rule", "config", "addon")
 REQUIRED_KEYS = ("id", "kind", "summary", "agents", "install")
@@ -73,16 +72,6 @@ ADDON_TRANSPORTS = (
 # ~/.cursor (skills/rules/mcp.json) regardless of any specific agent CLI, so
 # `cursor` counts as always installed for installed_only filtering.
 CURSOR_AGENT = "cursor"
-
-# JSON/JSON5 config files that host an `mcpServers` dict (mcp kind).
-_MCP_JSON_FILES = {
-    "cursor": ".cursor/mcp.json",
-    "copilot": ".copilot/mcp-config.json",
-    "claude": ".claude.json",
-}
-_OPENCODE_MCP_FILE = ".config/opencode/opencode.json"  # uses `mcp` key, opencode shape
-_OPENCLAW_MCP_FILE = ".openclaw/openclaw.json"  # JSON5 mcpServers
-_HERMES_MCP_FILE = ".hermes/config.yaml"  # YAML mcpServers
 
 
 @dataclass(frozen=True)
@@ -222,7 +211,7 @@ def _expand_home(path: str, home: Path) -> Path:
 
 def _skill_targets(plugin: dict[str, Any], home: Path) -> dict[str, Path]:
     """Map each support-matrix agent to its skill target dir for this plugin."""
-    from astroai_lab.agent.addons import AGENT_SKILL_DIRS
+    from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS
 
     install = plugin.get("install") or {}
     explicit = install.get("targets") or {}
@@ -242,44 +231,9 @@ def _skill_targets(plugin: dict[str, Any], home: Path) -> dict[str, Path]:
 
 def _mcp_present(agent: str, server: str, home: Path) -> bool:
     """True when an mcp server entry is already merged into that agent's config."""
-    if agent == "opencode":
-        path = home / _OPENCODE_MCP_FILE
-        if not path.is_file():
-            return False
-        try:
-            data = read_jsonc(path)
-        except Exception:  # noqa: BLE001 — presence check must not crash
-            return False
-        return isinstance(data, dict) and server in (data.get("mcp") or {})
-    if agent == "openclaw":
-        path = home / _OPENCLAW_MCP_FILE
-        if not path.is_file():
-            return False
-        try:
-            data = read_jsonc(path)
-        except Exception:  # noqa: BLE001
-            return False
-        return isinstance(data, dict) and server in (data.get("mcpServers") or {})
-    if agent == "hermes":
-        path = home / _HERMES_MCP_FILE
-        if not path.is_file():
-            return False
-        try:
-            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        except (OSError, yaml.YAMLError):
-            return False
-        return isinstance(data, dict) and server in (data.get("mcpServers") or {})
-    rel = _MCP_JSON_FILES.get(agent)
-    if not rel:
-        return False
-    path = home / rel
-    if not path.is_file():
-        return False
-    try:
-        data = read_jsonc(path)
-    except Exception:  # noqa: BLE001
-        return False
-    return isinstance(data, dict) and server in (data.get("mcpServers") or {})
+    from astroai_lab.agent.agent_targets import mcp_server_present
+
+    return mcp_server_present(home, agent, server)
 
 
 def _agent_installed(agent_id: str, home: Path | None = None) -> bool:
@@ -405,82 +359,40 @@ def _install_skill(
     return PluginResult(plugin["id"], agent, "installed", str(dst))
 
 
-def _merge_mcp_entry(path: Path, server: str, entry: dict[str, Any], *, force: bool) -> bool:
-    """Merge an mcpServers entry; True when merged (not just skipped).
-
-    An unreadable (syntax-broken) config raises instead of being silently
-    overwritten — mirror the addons merge helpers so user configs are never
-    clobbered."""
-    if path.is_file():
-        try:
-            data = read_jsonc(path)
-        except (OSError, ValueError) as exc:
-            raise LabError(
-                f"Cannot merge MCP into unreadable config: {path}",
-                hint=f"Fix JSON syntax first (`astroai-lab agent verify`): {exc}",
-            ) from exc
-        if not isinstance(data, dict):
-            data = {}
-    else:
-        data = {}
-    servers = dict(data.get("mcpServers") or {})
-    if server in servers and not force:
-        return False
-    servers[server] = entry
-    data["mcpServers"] = servers
-    write_json(path, data)
-    return True
-
-
 def _configure_mcp(
     plugin: dict[str, Any], agent: str, home: Path, *, force: bool, dry_run: bool
 ) -> PluginResult:
+    from astroai_lab.agent.agent_targets import cursor_to_opencode, merge_mcp_server, mcp_target
+
     install = plugin["install"]
     server = str(install["server"])
     entry = install["entry"]
     if not isinstance(entry, dict):
         return PluginResult(plugin["id"], agent, "failed", "install.entry must be a mapping")
+    target = mcp_target(agent)
+    if target is None:
+        return PluginResult(plugin["id"], agent, "skipped", f"no MCP config for agent {agent}")
     if dry_run:
         return PluginResult(
-            plugin["id"], agent, "would_install", f"merge mcpServers.{server} into {agent} config"
+            plugin["id"],
+            agent,
+            "would_install",
+            f"merge {target.key}.{server} into {agent} config",
         )
-    if agent == "opencode":
-        # OpenCode uses a `mcp` key with opencode-shaped entries (list command);
-        # the addons helper raises LabError on unreadable configs (no clobber).
-        from astroai_lab.agent.addons import _cursor_to_opencode, _merge_opencode_mcp_server
-
-        path = home / _OPENCODE_MCP_FILE
-        if not force and _mcp_present("opencode", server, home):
-            return PluginResult(plugin["id"], agent, "skipped", f"already merged ({path})")
-        _merge_opencode_mcp_server(path, server, _cursor_to_opencode(entry), force=True)
-        return PluginResult(plugin["id"], agent, "installed", f"mcp.{server} -> {path}")
-    if agent == "hermes":
-        path = home / _HERMES_MCP_FILE
-        if path.is_file():
-            try:
-                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-            except (OSError, yaml.YAMLError):
-                data = {}
-            if not isinstance(data, dict):
-                data = {}
-        else:
-            data = {}
-        servers = dict(data.get("mcpServers") or {})
-        if server in servers and not force:
-            return PluginResult(plugin["id"], agent, "skipped", f"already merged ({path})")
-        servers[server] = entry
-        data["mcpServers"] = servers
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-        return PluginResult(plugin["id"], agent, "installed", f"mcpServers.{server} -> {path}")
-    rel = _OPENCLAW_MCP_FILE if agent == "openclaw" else _MCP_JSON_FILES.get(agent)
-    if not rel:
-        return PluginResult(plugin["id"], agent, "skipped", f"no MCP config for agent {agent}")
-    path = home / rel
-    merged = _merge_mcp_entry(path, server, entry, force=force)
-    if not merged:
-        return PluginResult(plugin["id"], agent, "skipped", f"already merged ({path})")
-    return PluginResult(plugin["id"], agent, "installed", f"mcpServers.{server} -> {path}")
+    if not force and _mcp_present(agent, server, home):
+        return PluginResult(
+            plugin["id"], agent, "skipped", f"already merged ({home / target.relpath})"
+        )
+    payload = cursor_to_opencode(entry) if agent == "opencode" else entry
+    if not payload:
+        return PluginResult(plugin["id"], agent, "failed", "empty MCP entry")
+    merge_mcp_server(home, agent, server, payload, force=True)
+    return PluginResult(
+        plugin["id"],
+        agent,
+        "installed",
+        f"{target.key}.{server} -> {home / target.relpath}",
+    )
 
 
 def _install_config(
@@ -521,7 +433,9 @@ def _apply(
         # Legacy addon transport — shared dispatcher, identical to `agent add`.
         from astroai_lab.agent.addons import _apply_addon, plugin_as_addon
 
-        result = _apply_addon(plugin_as_addon(plugin), home=home, force=force, dry_run=dry_run)
+        result = _apply_addon(
+            plugin_as_addon(plugin), home=home, force=force, dry_run=dry_run, agent=agent
+        )
         status = _addon_status_to_plugin(result.status, dry_run)
         return PluginResult(plugin["id"], agent, status, result.detail)
     kind = plugin["kind"]
@@ -597,18 +511,21 @@ def apply_agent_plugins(
     force: bool = False,
     dry_run: bool = False,
     installed_only: bool = True,
+    defaults_only: bool = False,
 ) -> list[PluginResult]:
     """Apply every plugin whose support matrix includes this agent.
 
-    Used by ``agent setup <id>`` (force=False, skip already-applied) and
-    ``agent update <id>`` (force=True, refresh) to keep skills/MCP/config in
-    sync for ONE agent. ``installed_only`` keeps the setup surface quiet for
-    agents whose CLI is not installed yet.
+    Used by ``agent setup <id>`` (``defaults_only=True``: only ``default: true``
+    plugins) and ``agent update <id>`` (force refresh of the full matrix).
+    ``installed_only`` keeps the setup surface quiet for agents whose CLI is
+    not installed yet. Opt-in science skills stay on ``plugins install``.
     """
     home = home or Path.home()
     results: list[PluginResult] = []
     for plugin in load_plugins():
         if agent_id not in plugin.get("agents", []):
+            continue
+        if defaults_only and not plugin.get("default"):
             continue
         results.extend(
             install_plugin(
@@ -670,43 +587,9 @@ def _remove_from_agent(
             return PluginResult(
                 plugin["id"], agent, "would_remove", f"mcpServers.{server} from {agent} config"
             )
-        if agent == "opencode":
-            path = home / _OPENCODE_MCP_FILE
-            if path.is_file():
-                try:
-                    data = read_jsonc(path)
-                except (OSError, ValueError):
-                    data = {}
-                if isinstance(data, dict):
-                    mcp = dict(data.get("mcp") or {})
-                    mcp.pop(server, None)
-                    data["mcp"] = mcp
-                    write_json(path, data)
-            return PluginResult(plugin["id"], agent, "removed", f"mcp.{server}")
-        if agent == "hermes":
-            path = home / _HERMES_MCP_FILE
-            if path.is_file():
-                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-                if isinstance(data, dict):
-                    servers = dict(data.get("mcpServers") or {})
-                    servers.pop(server, None)
-                    data["mcpServers"] = servers
-                    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-            return PluginResult(plugin["id"], agent, "removed", f"mcpServers.{server}")
-        rel = _OPENCLAW_MCP_FILE if agent == "openclaw" else _MCP_JSON_FILES.get(agent)
-        if not rel:
-            return PluginResult(plugin["id"], agent, "skipped", f"no MCP config for agent {agent}")
-        path = home / rel
-        if path.is_file():
-            try:
-                data = read_jsonc(path)
-            except (OSError, ValueError):
-                data = {}
-            if isinstance(data, dict):
-                servers = dict(data.get("mcpServers") or {})
-                servers.pop(server, None)
-                data["mcpServers"] = servers
-                write_json(path, data)
+        from astroai_lab.agent.agent_targets import remove_mcp_server
+
+        remove_mcp_server(home, agent, server)
         return PluginResult(plugin["id"], agent, "removed", f"mcpServers.{server}")
     if kind == "config":
         target = _expand_home(str(plugin["install"]["target"]), home)

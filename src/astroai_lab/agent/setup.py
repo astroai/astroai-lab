@@ -20,7 +20,7 @@ from astroai_lab.agent.upstream import (
     update_all_github_sources,
 )
 from astroai_lab.errors import LabError
-from astroai_lab.utils.json_utils import merge_dicts, read_json, read_jsonc, write_json
+from astroai_lab.utils.json_utils import read_json
 
 OPENROUTER_KEY_ENV = "OPENROUTER_API_KEY"
 
@@ -58,59 +58,26 @@ def install_tree(src_dir: Path, dst_dir: Path, *, force: bool, dry_run: bool) ->
 
 
 def merge_mcp_servers(src_json: Path, dst_json: Path, *, force: bool, dry_run: bool) -> None:
-    if not src_json.is_file():
-        return
-    if not dst_json.is_file() or force:
-        install_file(src_json, dst_json, force=True, dry_run=dry_run)
-        return
-    if dry_run:
-        return
-    src_data = read_json(src_json)
-    dst_data = read_json(dst_json)
-    servers = merge_dicts(dst_data.get("mcpServers", {}), src_data.get("mcpServers", {}))
-    write_json(dst_json, {"mcpServers": servers})
+    """Merge mcpServers from src into dst; never replace the whole destination."""
+    from astroai_lab.agent.agent_targets import merge_mcp_file
+
+    merge_mcp_file(
+        src_json, dst_json, key="mcpServers", fmt="json", force=force, dry_run=dry_run
+    )
 
 
 def merge_claude_json(src_mcp: Path, dst: Path, *, force: bool, dry_run: bool) -> None:
-    if not src_mcp.is_file():
-        return
-    if not dst.is_file():
-        install_file(src_mcp, dst, force=True, dry_run=dry_run)
-        return
-    if dry_run:
-        return
-    data = read_json(dst)
-    overlay = read_json(src_mcp)
-    data["mcpServers"] = merge_dicts(data.get("mcpServers", {}), overlay.get("mcpServers", {}))
-    write_json(dst, data)
+    """Merge mcpServers into ~/.claude.json; preserve other Claude settings."""
+    from astroai_lab.agent.agent_targets import merge_mcp_file
+
+    merge_mcp_file(src_mcp, dst, key="mcpServers", fmt="json", force=force, dry_run=dry_run)
 
 
 def merge_opencode_mcp(src: Path, dst: Path, *, force: bool, dry_run: bool) -> None:
-    if not src.is_file():
-        return
-    if not dst.is_file() or force:
-        install_file(src, dst, force=True, dry_run=dry_run)
-        return
-    if dry_run:
-        return
-    data = read_jsonc(dst)
-    if not isinstance(data, dict):
-        data = {}
-    overlay = read_jsonc(src)
-    if not isinstance(overlay, dict):
-        overlay = {}
-    data["mcp"] = merge_dicts(data.get("mcp", {}) or {}, overlay.get("mcp", {}) or {})
-    if "lsp" in overlay:
-        overlay_lsp = overlay["lsp"]
-        base_lsp = data.get("lsp")
-        if isinstance(overlay_lsp, bool) or not isinstance(base_lsp, dict):
-            data["lsp"] = overlay_lsp
-        elif isinstance(overlay_lsp, dict):
-            data["lsp"] = merge_dicts(base_lsp, overlay_lsp)
-    from astroai_lab.agent.opencode_config import sanitize_opencode_config
+    """Merge OpenCode mcp (+ lsp) without replacing the whole config file."""
+    from astroai_lab.agent.agent_targets import merge_mcp_file
 
-    data, _ = sanitize_opencode_config(data)
-    write_json(dst, data)
+    merge_mcp_file(src, dst, key="mcp", fmt="json5", force=force, dry_run=dry_run)
 
 
 def _toml_get(data: dict[str, Any], *keys: str) -> Any:
@@ -241,6 +208,7 @@ def run_bundle(
     *,
     force: bool,
     dry_run: bool,
+    upstream_skills: bool = True,
 ) -> None:
     if name == "cursor":
         merge_mcp_servers(
@@ -261,7 +229,10 @@ def run_bundle(
             force=force,
             dry_run=dry_run,
         )
-        install_upstream_skills(root, home, force=force, dry_run=dry_run)
+        # Full `agent setup` / sync pulls GitHub skills-sources; registry
+        # `setup <id>` skips them so opt-in plugins stay on `plugins install`.
+        if upstream_skills:
+            install_upstream_skills(root, home, force=force, dry_run=dry_run)
     elif name == "claude":
         merge_claude_json(
             root / "claude" / "mcp.json",

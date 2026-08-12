@@ -13,12 +13,14 @@ plus science/data skills useful on AstroAI sessions.
 
 from __future__ import annotations
 
-import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS
+from astroai_lab.agent.agent_targets import cursor_to_opencode as _cursor_to_opencode
+from astroai_lab.agent.agent_targets import merge_mcp_server, mcp_server_present, mcp_target
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.agent.install import install_tool, tool_on_path
 from astroai_lab.agent.upstream import (
@@ -27,7 +29,6 @@ from astroai_lab.agent.upstream import (
     update_github_source,
 )
 from astroai_lab.errors import LabError
-from astroai_lab.utils.json_utils import read_json, read_jsonc, write_json
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,7 @@ def plugin_as_addon(plugin: dict[str, Any]) -> dict[str, Any]:
         "summary": plugin.get("summary", ""),
         "homepage": plugin.get("homepage", ""),
         "default": bool(plugin.get("default")),
+        "agents": list(plugin.get("agents", [])),
         "install": install,
     }
 
@@ -139,7 +141,11 @@ def addon_installed(item: dict[str, Any], home: Path) -> bool:
         return (home / ".cursor" / "rules" / rule).is_file()
 
     if itype == "mcp-snippet":
-        return _mcp_server_present(home, install.get("server", ""))
+        server = install.get("server", "")
+        agents = list(item.get("agents") or [])
+        if not server or not agents:
+            return False
+        return any(mcp_server_present(home, a, server) for a in agents if mcp_target(a))
 
     if itype == "cli-tool":
         return tool_on_path(install.get("tool", addon_id))
@@ -148,16 +154,14 @@ def addon_installed(item: dict[str, Any], home: Path) -> bool:
 
 
 # Skill directories for agents that use the agentskills.io SKILL.md layout.
-AGENT_SKILL_DIRS = {
-    "hermes": ".hermes/skills",
-    "openclaw": ".openclaw/skills",
-}
+# Canonical definition lives in agent_targets; re-exported for callers.
+# (Import above: AGENT_SKILL_DIRS)
 
 
 def _agent_skill_targets(item: dict[str, Any], home: Path) -> dict[str, Path]:
     """Map each configured agent to its skill dir for this addon (known agents only)."""
     install = item.get("install") or {}
-    agents = list(install.get("agents") or [])
+    agents = list(install.get("agents") or item.get("agents") or [])
     out: dict[str, Path] = {}
     for agent in agents:
         rel = AGENT_SKILL_DIRS.get(agent)
@@ -167,17 +171,10 @@ def _agent_skill_targets(item: dict[str, Any], home: Path) -> dict[str, Path]:
 
 
 def _mcp_server_present(home: Path, server: str) -> bool:
+    """Back-compat: True when *any* MCP target already has ``server``."""
     if not server:
         return False
-    cursor = home / ".cursor" / "mcp.json"
-    if cursor.is_file():
-        try:
-            data = read_jsonc(cursor)
-            if isinstance(data, dict) and server in (data.get("mcpServers") or {}):
-                return True
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
-    return False
+    return any(mcp_server_present(home, agent, server) for agent in ("cursor", "copilot", "claude"))
 
 
 def add_addon(
@@ -202,8 +199,13 @@ def _apply_addon(
     home: Path | None = None,
     force: bool = False,
     dry_run: bool = False,
+    agent: str | None = None,
 ) -> AddonResult:
-    """Apply one addon (plugin-as-addon dict) via its install transport."""
+    """Apply one addon (plugin-as-addon dict) via its install transport.
+
+    ``agent`` scopes mcp-snippet (and similar) writes to one support-matrix
+    agent; omit it to apply every agent listed on the plugin.
+    """
     addon_id = item["id"]
     home = home or Path.home()
     install = item.get("install") or {}
@@ -216,11 +218,18 @@ def _apply_addon(
             install.get("note") or "bundled — run: astroai-lab agent setup",
         )
 
-    if not force and addon_installed(item, home):
-        return AddonResult(addon_id, "skipped", "already installed")
+    if not force:
+        if agent and itype == "mcp-snippet":
+            server = install.get("server", "")
+            if server and mcp_server_present(home, agent, server):
+                return AddonResult(addon_id, "skipped", "already installed")
+        elif addon_installed(item, home):
+            return AddonResult(addon_id, "skipped", "already installed")
 
     if itype == "agent-skill":
         targets = _agent_skill_targets(item, home)
+        if agent:
+            targets = {k: v for k, v in targets.items() if k == agent}
         if not targets:
             raise LabError(
                 f"Addon {addon_id} has no known agent skill targets",
@@ -232,12 +241,12 @@ def _apply_addon(
         if dry_run:
             return AddonResult(addon_id, "dry-run", ", ".join(sorted(targets)))
         installed: list[str] = []
-        for agent, dst in sorted(targets.items()):
+        for ag, dst in sorted(targets.items()):
             if dst.exists():
                 shutil.rmtree(dst)
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(src, dst)
-            installed.append(f"{agent}:{dst}")
+            installed.append(f"{ag}:{dst}")
         return AddonResult(addon_id, "installed", "; ".join(installed))
 
     if itype == "github-skill":
@@ -259,7 +268,9 @@ def _apply_addon(
         return _install_github_rule(item, home=home, force=force, dry_run=dry_run)
 
     if itype == "mcp-snippet":
-        return _install_mcp_snippet(item, home=home, force=force, dry_run=dry_run)
+        return _install_mcp_snippet(
+            item, home=home, force=force, dry_run=dry_run, agent=agent
+        )
 
     if itype == "cli-tool":
         tool = install.get("tool")
@@ -394,92 +405,66 @@ def _install_mcp_snippet(
     home: Path,
     force: bool,
     dry_run: bool,
+    agent: str | None = None,
 ) -> AddonResult:
     install = item["install"]
     server = install["server"]
     cursor_cfg = install.get("cursor") or {}
     opencode_cfg = install.get("opencode") or {}
+    agents = list(item.get("agents") or [])
+    if not agents:
+        raise LabError(
+            f"Addon {item['id']} mcp-snippet requires a non-empty agents support matrix",
+            hint="Declare agents: [cursor, ...] on the plugin YAML",
+        )
+    if agent is not None:
+        if agent not in agents:
+            return AddonResult(
+                item["id"], "skipped", f"{agent} not in support matrix ({', '.join(agents)})"
+            )
+        agents = [agent]
 
     if dry_run:
-        return AddonResult(item["id"], "dry-run", f"mcp:{server}")
+        return AddonResult(item["id"], "dry-run", f"mcp:{server} → {', '.join(agents)}")
 
-    # Cursor + Copilot share mcpServers shape
-    for rel in (
-        home / ".cursor" / "mcp.json",
-        home / ".copilot" / "mcp-config.json",
-    ):
-        _merge_cursor_mcp(rel, server, cursor_cfg, force=force)
-
-    # Claude
-    _merge_claude_mcp(home / ".claude.json", server, cursor_cfg, force=force)
-
-    # OpenCode
-    oc = home / ".config" / "opencode" / "opencode.json"
-    oc_cfg = opencode_cfg or _cursor_to_opencode(cursor_cfg)
-    _merge_opencode_mcp_server(oc, server, oc_cfg, force=force)
-
-    return AddonResult(item["id"], "installed", f"mcp:{server}")
-
-
-def _cursor_to_opencode(cfg: dict[str, Any]) -> dict[str, Any]:
-    cmd = cfg.get("command")
-    args = cfg.get("args") or []
-    if not cmd:
-        return {}
-    out: dict[str, Any] = {
-        "type": "local",
-        "command": [cmd, *args],
-        "enabled": True,
-    }
-    if cfg.get("env"):
-        out["environment"] = cfg["env"]
-    return out
+    written: list[str] = []
+    for ag in agents:
+        if mcp_target(ag) is None:
+            continue
+        if ag == "opencode":
+            entry = opencode_cfg or _cursor_to_opencode(cursor_cfg)
+        else:
+            entry = cursor_cfg
+        if not entry:
+            continue
+        if merge_mcp_server(home, ag, server, entry, force=force):
+            written.append(ag)
+    if not written and not force:
+        return AddonResult(item["id"], "skipped", f"mcp:{server} already present")
+    detail = f"mcp:{server}" + (f" → {', '.join(written)}" if written else "")
+    return AddonResult(item["id"], "installed", detail)
 
 
 def _merge_cursor_mcp(path: Path, server: str, cfg: dict[str, Any], *, force: bool) -> None:
+    """Test/compat shim — prefer ``merge_mcp_server`` for new code."""
     if not cfg:
         return
-    if path.is_file():
-        try:
-            data = read_jsonc(path)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            raise LabError(
-                f"Cannot merge MCP into unreadable config: {path}",
-                hint=f"Fix JSON syntax first (`astroai-lab agent verify`): {exc}",
-            ) from exc
-        if not isinstance(data, dict):
-            raise LabError(f"MCP config must be a JSON object: {path}")
-    else:
-        data = {"mcpServers": {}}
-    servers = dict(data.get("mcpServers") or {})
-    if server in servers and not force:
-        return
-    servers[server] = cfg
-    data["mcpServers"] = servers
-    write_json(path, data)
+    # Infer agent from path when possible; fall back to raw file merge.
+    home = path.parent.parent if path.name == "mcp.json" else path.parent
+    agent = "cursor"
+    if path.name == "mcp-config.json":
+        agent = "copilot"
+        home = path.parent.parent
+    elif path.name == ".claude.json":
+        agent = "claude"
+        home = path.parent
+    merge_mcp_server(home, agent, server, cfg, force=force)
 
 
 def _merge_claude_mcp(path: Path, server: str, cfg: dict[str, Any], *, force: bool) -> None:
     if not cfg:
         return
-    if path.is_file():
-        try:
-            data = read_json(path)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            raise LabError(
-                f"Cannot merge MCP into unreadable ~/.claude.json: {path}",
-                hint=f"Fix JSON syntax first (`astroai-lab agent verify`): {exc}",
-            ) from exc
-        if not isinstance(data, dict):
-            raise LabError(f"Claude config must be a JSON object: {path}")
-    else:
-        data = {}
-    servers = dict(data.get("mcpServers") or {})
-    if server in servers and not force:
-        return
-    servers[server] = cfg
-    data["mcpServers"] = servers
-    write_json(path, data)
+    merge_mcp_server(path.parent, "claude", server, cfg, force=force)
 
 
 def _merge_opencode_mcp_server(
@@ -487,21 +472,6 @@ def _merge_opencode_mcp_server(
 ) -> None:
     if not cfg:
         return
-    if path.is_file():
-        try:
-            data = read_jsonc(path)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            raise LabError(
-                f"Cannot merge MCP into unreadable OpenCode config: {path}",
-                hint=f"Fix JSON syntax first (`astroai-lab agent verify`): {exc}",
-            ) from exc
-        if not isinstance(data, dict):
-            raise LabError(f"OpenCode config must be a JSON object: {path}")
-    else:
-        data = {}
-    mcp = dict(data.get("mcp") or {})
-    if server in mcp and not force:
-        return
-    mcp[server] = cfg
-    data["mcp"] = mcp
-    write_json(path, data)
+    # path is ~/.config/opencode/opencode.json → home is parents[2]
+    home = path.parent.parent.parent
+    merge_mcp_server(home, "opencode", server, cfg, force=force)

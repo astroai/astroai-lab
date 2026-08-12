@@ -4,7 +4,8 @@
       "name": "ast-grep",
       "repo": "ast-grep/agent-skill",
       "path": "ast-grep/skills/ast-grep",
-      "homepage": "https://github.com/ast-grep/agent-skill"
+      "homepage": "https://github.com/ast-grep/agent-skill",
+      "note": "Skill via plugins install ast-grep; binary via plugins install ast-grep-cli"
     },
     {
       "name": "matplotlib-data-visualization",
@@ -32,18 +33,30 @@
       "name": "typst",
       "repo": "pavelzw/skill-forge",
       "path": "recipes/typst"
+    },
+    {
+      "name": "polars",
+      "repo": "k-dense-ai/claude-scientific-skills",
+      "path": "skills/polars",
+      "homepage": "https://github.com/k-dense-ai/claude-scientific-skills"
+    },
+    {
+      "name": "librarian",
+      "repo": "mitsuhiko/agent-stuff",
+      "path": "skills/librarian",
+      "homepage": "https://github.com/mitsuhiko/agent-stuff/tree/main/skills/librarian"
+    },
+    {
+      "name": "pydantic-skills",
+      "repo": "pydantic/skills",
+      "path": "skills/pydantic",
+      "homepage": "https://github.com/pydantic/skills"
     }
-  ],
-  "pixi_skills_only": [
-    "polars",
-    "pydantic-skills",
-    "gws-cli",
-    "librarian"
   ],
   "local_skills": [
     {
       "name": "astroai-lab-workflow",
-      "note": "Bundled in config/agent — CANFAR paths only; no upstream equivalent"
+      "note": "Bundled default — CANFAR paths only; no upstream equivalent"
     }
   ],
   "pixi_skills": {
@@ -51,12 +64,17 @@
     "skill_forge": "https://github.com/pavelzw/skill-forge",
     "channel": "https://prefix.dev/channels/skill-forge",
     "install": "pixi global install pixi-skills",
-    "manage_cursor": "pixi-skills manage --backend cursor"
+    "manage_cursor": "pixi-skills manage --backend cursor",
+    "note": "Optional: bulk-install conda-packaged skills (incl. gws-cli suite) via pixi-skills"
   },
   "standard_commands": {
     "pixi": ["pixi install", "pixi run …", "pixi add …", "pixi task list"],
     "uv": ["uv sync", "uv run …", "uv add …", "uv tree"],
     "search": ["rg", "fd", "sg", "fzf", "bat", "hyperfine"],
-    "docs": "Context7 MCP (in mcp.json) for library/API docs"
+    "docs": "Context7 MCP (in mcp.json) for library/API docs",
+    "notes": {
+      "hyperfine": "Image-baked on AstroAI base — do not reinstall",
+      "sg": "astroai-lab agent plugins install ast-grep-cli"
+    }
   }
 }

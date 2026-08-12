@@ -177,18 +177,19 @@ verb (its free-tier preset logic is unrelated to plugin management).
 - [x] Registry loader with schema validation; `list`/`catalog`/`install`/`remove`/`verify`
       read from the registry instead of hard-coded branches.
 - [x] `agent list` renders installed status from the registry + `tool_on_path`.
-- [x] Migrated `kilo`, `goose`, `cline`, `opencode`, `codex` out of
-      `install.TOOLS` into `agents/*.yaml` (hermes/openclaw joined earlier);
-      TOOLS now only holds the non-registry utilities (node, claude, copilot…)
-      plus hermes/openclaw, which keep their battle-tested installers there and
-      are mirrored in the registry for status/verify/remove.
+- [x] Migrated `kilo`, `goose`, `cline`, `opencode`, `codex`, and generic npm/uv
+      agents (`freebuff`, `pi`, `codewhale`, `swival`) out of `install.TOOLS`
+      into `agents/*.yaml` (hermes/openclaw joined earlier); TOOLS now holds
+      quirky installers (node, cursor, claude, agy, copilot, qoder, hermes,
+      openclaw) plus the `ast-grep` utility backend.
 
 **The registry is the single source of truth.** Every agent lives as one YAML
 file under `src/astroai_lab/data/agent/agents/<id>.yaml` (schema above); the
 loader validates on read and fails loudly on a bad entry. `install.TOOLS`
-remains only for utilities that are *not* agents (`node`, `claude`, `copilot`,
-`qoder`, `hermes`, `openclaw` keep their battle-tested installers there and are
-mirrored in the registry for status/verify/remove). Install dispatch:
+remains for battle-tested / quirky installers (`node`, `cursor`, `claude`,
+`agy`, `copilot`, `qoder`, `hermes`, `openclaw`, plus utility `ast-grep`) that
+are mirrored in the registry for status/verify/remove. Generic npm/`uv tool`
+agents install only via registry YAML dispatch.
 
 | Agent | `install.method` | Installer behavior |
 |-------|------------------|--------------------|

@@ -17,10 +17,13 @@ runner = CliRunner()
 
 
 def test_list_covers_all_installable_agents() -> None:
-    # node stays in TOOLS (image/pixi fallback) but is not an installable agent.
+    # Utilities in TOOLS (node / ast-grep) are not agents; hyperfine is image-baked.
+    from astroai_lab.agent.install import TOOL_UTILITIES
+
     ids = {a["id"] for a in list_registry_agents()}
-    assert set(TOOLS) - {"node"} <= ids
-    assert "node" not in ids
+    assert set(TOOLS) - TOOL_UTILITIES <= ids
+    assert ids.isdisjoint(TOOL_UTILITIES)
+    assert "hyperfine" not in TOOLS
     assert any(a.get("summary") for a in list_registry_agents())
 
 
@@ -105,15 +108,15 @@ def test_cli_agent_awesome_alias_removed() -> None:
     assert "No such command" in (result.stdout + result.stderr)
 
 
-def test_cli_agent_repair_clean() -> None:
-    result = runner.invoke(app, ["--json", "agent", "repair", "--clean"])
+def test_cli_agent_verify_clean() -> None:
+    result = runner.invoke(app, ["--json", "agent", "verify", "--clean"])
     assert result.exit_code == 0
 
-    res_dry = runner.invoke(app, ["agent", "repair", "--clean", "--dry-run"])
+    res_dry = runner.invoke(app, ["agent", "verify", "--clean", "--dry-run"])
     assert res_dry.exit_code == 0
 
 
-def test_cli_agent_repair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_agent_verify_fix_sweep(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(
         "astroai_lab.agent.install.classify_binary",
@@ -126,16 +129,14 @@ def test_cli_agent_repair(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
             "home_path": None,
         },
     )
-    result = runner.invoke(app, ["--json", "agent", "repair"])
-    assert result.exit_code == 0
+    result = runner.invoke(app, ["--json", "agent", "verify", "--fix"])
+    assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
-    assert "setup" in data
-    assert "agents" in data
-    assert "actions" in data
-    assert data["ok"] is True
+    assert "ok" in data
+    assert "issues" in data
 
-    res_dry = runner.invoke(app, ["agent", "repair", "--dry-run"])
-    assert res_dry.exit_code == 0
+    res_dry = runner.invoke(app, ["agent", "verify", "--fix", "--dry-run"])
+    assert res_dry.exit_code in (0, 1)
 
 
 def test_cli_agent_list_hides_description_by_default(

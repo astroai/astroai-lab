@@ -169,12 +169,17 @@ def test_install_tool_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
 def test_merge_mcp_servers(tmp_path: Path) -> None:
     from astroai_lab.agent.bundles import merge_mcp_servers
+    from astroai_lab.utils.json_utils import read_json, write_json
 
     src = tmp_path / "src.json"
     dst = tmp_path / "dst.json"
-    src.write_text('{"mcpServers": {"a": {"url": "x"}}}')
+    src.write_text('{"mcpServers": {"a": {"url": "x"}}, "keepMe": false}')
+    write_json(dst, {"mcpServers": {"b": {"url": "y"}}, "userKey": 1})
     merge_mcp_servers(src, dst, force=True, dry_run=False)
-    assert dst.is_file()
+    data = read_json(dst)
+    assert data["userKey"] == 1  # never clobber whole file
+    assert data["mcpServers"]["a"]["url"] == "x"
+    assert data["mcpServers"]["b"]["url"] == "y"
 
 
 def test_npm_global_install_cmd_adds_allow_scripts(
