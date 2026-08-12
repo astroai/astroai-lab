@@ -347,7 +347,7 @@ def test_install_registry_agent_curl_env_bin_dir(
     bin_dir.mkdir()
     captured: dict[str, str | None] = {}
 
-    def fake_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
+    def fake_pipe_bash(url: str, *, env: dict[str, str] | None = None, args=None) -> None:
         captured["env"] = env
         (bin_dir / "goose").write_text("#!/bin/sh\n", encoding="utf-8")
 
@@ -427,23 +427,24 @@ def test_install_registry_agent_curl_dispatch(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_agent_list_includes_every_tools_entry() -> None:
-    """`agent list` is the only catalog: every TOOLS install id is listed.
+    """`agent list` lists coding agents; TOOL utilities stay install-only.
 
-    Exception: ``node`` is image-baked (TOOLS fallback only), not a list agent.
+    Exception: ``node`` / ``ast-grep`` are TOOLS utilities, not list agents.
     """
-    from astroai_lab.agent.install import TOOLS
+    from astroai_lab.agent.install import TOOL_UTILITIES, TOOLS
 
     ids = {a["id"] for a in list_registry_agents()}
-    assert set(TOOLS) - {"node"} <= ids
-    assert "node" not in ids
+    assert set(TOOLS) - TOOL_UTILITIES <= ids
+    assert ids.isdisjoint(TOOL_UTILITIES)
     assert "claude" in ids and "copilot" in ids and "qoder" in ids
     assert "cursor" in ids and "kilo" in ids
+    assert "hyperfine" not in TOOLS
 
 
 def test_cli_agent_list_covers_installable_set(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from astroai_lab.agent.install import TOOLS
+    from astroai_lab.agent.install import TOOL_UTILITIES, TOOLS
 
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("ASTROAI_LAB_PROBE_VERSION", "0")
@@ -451,8 +452,8 @@ def test_cli_agent_list_covers_installable_set(
     assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     names = {row["id"] for row in data["agents"]}
-    assert set(TOOLS) - {"node"} <= names
-    assert "node" not in names
+    assert set(TOOLS) - TOOL_UTILITIES <= names
+    assert names.isdisjoint(TOOL_UTILITIES)
 
 
 def test_cli_agent_install_list_includes_migrated(
@@ -620,6 +621,53 @@ def test_setup_registry_agent_plugin_errors_mark_failed(
     result = setup_registry_agent("hermes", home=home)
     assert result["ok"] is False
     assert any("plugin canfar-ray" in e for e in result["errors"])
+
+
+def test_setup_registry_agent_applies_defaults_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """setup <id> must not auto-install every opt-in skill (polars, etc.)."""
+    from astroai_lab.agent import plugins as plugins_mod
+    from astroai_lab.agent.plugins import PluginResult
+
+    home = tmp_path / "home"
+    home.mkdir()
+    seen: list[str] = []
+    upstream_calls: list[bool] = []
+
+    def fake_install(plugin_id, **kwargs):
+        seen.append(plugin_id)
+        return [PluginResult(plugin_id, "cursor", "skipped", "test")]
+
+    def fake_upstream(*_a, **_k):
+        upstream_calls.append(True)
+        return 0
+
+    monkeypatch.setattr(plugins_mod, "install_plugin", fake_install)
+    monkeypatch.setattr(
+        "astroai_lab.agent.setup.install_upstream_skills",
+        fake_upstream,
+    )
+    # Pretend cursor is installed so installed_only does not filter the matrix.
+    monkeypatch.setattr(
+        "astroai_lab.agent.install.classify_binary",
+        lambda *a, **k: {
+            "binary": "agent",
+            "path": "/tmp/agent",
+            "source": "managed",
+            "managed": True,
+            "home_install": False,
+            "home_path": None,
+        },
+    )
+    result = setup_registry_agent("cursor", home=home)
+    assert result["ok"] is True
+    assert "polars" not in seen
+    assert "librarian" not in seen
+    assert "pydantic-skills" not in seen
+    assert "astroai-lab-workflow" in seen or "token-efficient" in seen
+    assert upstream_calls == [], "registry setup must not pull skills-sources.json"
+    assert any("applied config bundle" in a for a in result["actions"])
 
 
 def test_list_installed_registry_agents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -883,7 +931,7 @@ def test_cli_update_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
 
 # ---------------------------------------------------------------------------
-# Registry-driven repair (`agent repair <id>` / `--all`)
+# Registry-driven repair (`agent verify --fix <id>` / `--all`)
 # ---------------------------------------------------------------------------
 
 
@@ -1004,7 +1052,7 @@ def test_setup_scaffold_parses_for_json5(tmp_path: Path, _no_plugins) -> None:
 
 def test_cli_fix_config_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    result = runner.invoke(app, ["--json", "agent", "repair", "hermes"])
+    result = runner.invoke(app, ["--json", "agent", "verify", "--fix", "hermes"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert data["agent"] == "hermes"
@@ -1016,7 +1064,7 @@ def test_cli_fix_config_agent_json(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 def test_cli_fix_config_agent_human_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Non-JSON path prints actions + the 'config OK' summary line."""
     monkeypatch.setenv("HOME", str(tmp_path))
-    result = runner.invoke(app, ["agent", "repair", "hermes"])
+    result = runner.invoke(app, ["agent", "verify", "--fix", "hermes"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "config OK" in out
@@ -1024,23 +1072,24 @@ def test_cli_fix_config_agent_human_output(tmp_path: Path, monkeypatch: pytest.M
 
 
 def test_cli_fix_config_all_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """`--all` with nothing installed → clean no-op (fresh image gate)."""
+    """`--fix --all` matches bare `--fix` (shared repair + verify payload)."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(
         "astroai_lab.agent.install.classify_binary",
         _fake_classify(source="missing"),
     )
-    result = runner.invoke(app, ["--json", "agent", "repair", "--all"])
+    result = runner.invoke(app, ["--json", "agent", "verify", "--fix", "--all"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["agents"] == []
     assert data["ok"] is True
+    assert "issues" in data
+    assert data["issues"] == []
 
 
 def test_cli_fix_config_clean_conflicts_with_agent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    result = runner.invoke(app, ["agent", "repair", "hermes", "--clean"])
+    result = runner.invoke(app, ["agent", "verify", "--fix", "hermes", "--clean"])
     assert result.exit_code == 2  # typer usage error (BadParameter)
     assert "cannot be combined" in (result.stdout + result.stderr)

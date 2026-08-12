@@ -146,7 +146,7 @@ astroai-lab kernel list
 astroai-lab kernel unregister NAME
 ```
 
-### `astroai-lab agent list|install|remove|wipe|setup|config|update|status|verify|repair|plugins`
+### `astroai-lab agent list|install|remove|wipe|setup|config|update|status|verify|plugins`
 
 AI agent MCP, rules, skills, CLI installation, and plugins.
 
@@ -155,7 +155,9 @@ under `data/agent/agents/<id>.yaml` (`id`, `name`, `homepage`, `binary`,
 `install`, optional `config`, `verify`). `list` / `install` / `remove` /
 `verify` all read that set. CLIs land on `$SCRATCH` (`$ASTROAI_LAB_BIN_DIR`);
 configs stay on `$HOME` (/arc/home). Some ids still install via battle-tested
-`install.TOOLS` branches (same id appears in the list).
+`install.TOOLS` branches (same id appears in the list). CLI utilities such as
+`ast-grep` are installed via plugins (`ast-grep-cli`), not listed as agents.
+`hyperfine` is image-baked and is not reinstalled.
 
 Mental model (lean surface — list/install/remove/config + plugins):
 
@@ -170,8 +172,7 @@ Mental model (lean surface — list/install/remove/config + plugins):
 | `agent config ID` | Show/edit an agent's `$HOME` config (`--key`, `key=value`, `--unset`) |
 | `agent update [ID]` | Refresh configs + upstream skills; with ID refreshes one agent |
 | `agent status` | Same table as `list` (versions probed); `--ui` for container endpoints |
-| `agent verify` | Presence + config syntax (`--fix` auto-repairs) |
-| `agent repair` | Auto-repair; `repair ID` / `--all` regenerates one/all agent configs; `--clean` stale state |
+| `agent verify` | Health check; `--fix` auto-repairs shared setup + installed agents; `--fix ID` for one agent; `--fix --all` same as bare `--fix`; `--clean` stale state |
 | `agent plugins …` | list / install / update / remove / configure plugins across agents |
 
 ```bash
@@ -197,8 +198,10 @@ astroai-lab agent plugins install canfar-ray --agent hermes
 astroai-lab agent plugins remove canfar-ray
 astroai-lab agent plugins configure ray-manager-mcp
 astroai-lab agent verify
-astroai-lab agent repair               # auto-repair (or --clean for stale state)
-astroai-lab agent repair hermes        # regenerate/sanitize ONE agent's config (--all)
+astroai-lab agent verify --fix         # auto-repair, then re-check
+astroai-lab agent verify --fix hermes  # regenerate/sanitize ONE agent's config
+astroai-lab agent verify --fix --all
+astroai-lab agent verify --clean
 astroai-lab agent config hermes
 astroai-lab agent config hermes --key model
 astroai-lab agent config hermes model=nousresearch/hermes-3-llama-3.1-405b
@@ -244,7 +247,7 @@ Use the platform tools instead:
 | `agent catalog` / `agent awesome` / `agent directory` / `agent list --all` | `agent list` / `agent list config` |
 | `agent addons` / `agent add` | `agent plugins list` / `agent plugins install` |
 | `agent project` | `agent setup --project` |
-| `agent fix-config` / `agent fix` / `agent clean` | `agent repair` / `agent repair --clean` |
+| `agent fix-config` / `agent fix` / `agent clean` / `agent repair` | `agent verify --fix` / `agent verify --clean` |
 | `agent report` | `agent status --json` |
 | `agent interact` / `agent access` | `agent status --ui` |
 

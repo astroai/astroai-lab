@@ -1,7 +1,7 @@
 """Lean `astroai-lab agent` CLI surface.
 
 Canonical verbs: list, install, remove, wipe, setup, config, update,
-status, verify, repair, plugins.
+status, verify, plugins.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ agent_app = typer.Typer(
         "  setup         write MCP/rules/skills (--project for repo scaffold)\n"
         "  config        read/write per-agent config on $HOME\n"
         "  status        same table as list (+ --ui for container endpoints)\n"
-        "  verify|repair health check / auto-repair\n"
+        "  verify        health check (--fix to auto-repair, --clean for stale state)\n"
         "  plugins       install/update/remove/configure plugins"
     ),
 )
@@ -48,7 +48,7 @@ def agent_root(ctx: typer.Context) -> None:
         ui.print_hint("  astroai-lab agent list config       # skills/MCP/addons")
         ui.print_hint("  astroai-lab agent install [NAME]    # omit NAME to list")
         ui.print_hint("  astroai-lab agent setup             # MCP/rules/skills")
-        ui.print_hint("  astroai-lab agent verify|repair")
+        ui.print_hint("  astroai-lab agent verify [--fix]")
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +59,13 @@ def agent_root(ctx: typer.Context) -> None:
 def _tool_completer(ctx, incomplete: str) -> list[str]:
     incomplete = incomplete or ""
     try:
-        names = [str(row["name"]) for row in agent_install.list_tools_status()]
+        from astroai_lab.agent.install import TOOL_UTILITIES
+
+        names = [
+            str(row["name"])
+            for row in agent_install.list_tools_status()
+            if str(row["name"]) not in TOOL_UTILITIES
+        ]
         from astroai_lab.agent.registry import registry_ids
 
         names += sorted(registry_ids())
@@ -122,7 +128,7 @@ def _print_interact(opts) -> None:
     ui.print_hint("")
     ui.print_hint("Endpoints & Access Points:")
     for ep in info["endpoints"]:
-        mark = "✓ ONLINE" if ep["active"] else "— OFFLINE"
+        mark = "✓ ONLINE" if ep["active"] else "- OFFLINE"
         ui.print_hint(f"  [{mark}] {ep['name']} ({ep['url_hint']})")
         ui.print_hint(f"          {ep['description']}")
 
@@ -138,20 +144,19 @@ def _print_status_table(
     ui.print_hint("  ────────────  ───  ───  ───────  ────────")
     for row in report["agents"]:
         binary_ok = bool(row.get("binary_ok", row.get("binary")))
-        b = "✓" if binary_ok else "—"
-        if row.get("config_declared") is False:
-            c = "·"  # no config path in registry
-            config_installed = False
-        else:
-            config_installed = bool(row.get("config_ok", row.get("config")))
-            c = "✓" if config_installed else "—"
-        ver = (row.get("version") or "—")[:12]
+        b = "✓" if binary_ok else "-"
+        # Config: ✓ present, - missing or not applicable (no third glyph).
+        config_installed = bool(row.get("config_declared", True)) and bool(
+            row.get("config_ok", row.get("config"))
+        )
+        c = "✓" if config_installed else "-"
+        ver = (row.get("version") or "-")[:12]
         name = row.get("id") or row.get("agent") or "?"
         # cursor runs as upstream binary `agent` — note when installed.
         name_disp = "cursor→agent" if name == "cursor" and binary_ok else name
-        src = row.get("binary_source") or ("managed" if row.get("managed") else "—")
+        src = row.get("binary_source") or ("managed" if row.get("managed") else "-")
         if not binary_ok:
-            src = "—"
+            src = "-"
         elif row.get("home_install") and not row.get("managed"):
             src = "home"
         name_cell = f"[bold]{name_disp:<13}[/bold]" if binary_ok else f"{name_disp:<13}"
@@ -175,7 +180,7 @@ def _print_status_table(
     ui.print_hint("")
     ui.print_hint("  Try:  agent install kilo && agent setup kilo && agent verify")
     ui.print_hint("  Tip:  agent list --description   ·   configs: agent list config")
-    ui.print_hint("  Src:  managed=$SCRATCH · home=$HOME · other=PATH/image")
+    ui.print_hint("  Marks: ✓ present  - missing/n/a   Src: managed=$SCRATCH home=$HOME other=PATH")
 
 
 def _print_bundles(as_json: bool) -> None:
@@ -216,7 +221,7 @@ def _print_tools(as_json: bool) -> None:
     ui.print_hint("  Name         Binary       On PATH   Description")
     ui.print_hint("  ───────────  ───────────  ────────  ───────────")
     for row in rows:
-        mark = "✓" if row["installed"] else "—"
+        mark = "✓" if row["installed"] else "-"
         ui.print_hint(f"  {row['name']:<12} {row['binary']:<12} {mark:<8} {row['description']}")
 
 
@@ -237,7 +242,7 @@ def _print_config_plugins(
     ui.print_hint("  ───────────────────────────────  ───────  ───────  ────────")
     for row in rows:
         installed = bool(row["any_installed"])
-        applied = "✓" if installed else "—"
+        applied = "✓" if installed else "-"
         summary = (row.get("summary") or "")[:48]
         id_cell = f"[bold]{row['id']:<32}[/bold]" if installed else f"{row['id']:<32}"
         applied_cell = f"[bold]{applied:<7}[/bold]" if installed else f"{applied:<7}"
@@ -261,7 +266,7 @@ def _print_plugins(
     ui.print_hint("  Id          Kind     Status   Agents")
     ui.print_hint("  ──────────  ───────  ───────  ──────────────")
     for row in rows:
-        status = "installed" if row["any_installed"] else "—"
+        status = "installed" if row["any_installed"] else "-"
         agents = ",".join(a for a in row["agents"] if row["installed"].get(a)) or row["agents"][0]
         ui.print_hint(f"  {row['id']:<11} {row['kind']:<8} {status:<7} {agents}")
         if row["summary"]:
@@ -689,6 +694,11 @@ def _run_agent_sync(ctx: typer.Context) -> None:
 
 
 def _run_registry_repair(ctx: typer.Context, agent_id: str | None, *, all_agents: bool) -> None:
+    """Repair one agent via ``verify --fix <id>``.
+
+    ``--fix --all`` shares the bare ``--fix`` path (shared setup + re-check);
+    this helper is only for a scoped agent id.
+    """
     from astroai_lab.agent.registry import (
         fix_registry_agent,
         list_installed_registry_agents,
@@ -875,23 +885,89 @@ def agent_status_cmd(
 @agent_app.command("verify")
 def agent_verify_cmd(
     ctx: typer.Context,
+    agent: Annotated[
+        str | None,
+        typer.Argument(
+            help="With --fix: repair this agent id only.",
+            autocompletion=_agent_completer,
+        ),
+    ] = None,
     auto_fix: Annotated[
         bool,
         typer.Option(
             "--fix",
             "-f",
-            help="Auto-repair shared setup plus every installed agent's config.",
+            help="Auto-repair shared setup and installed agent configs, then re-check.",
         ),
     ] = False,
+    all_agents: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="With --fix: same as bare --fix (shared setup + every installed agent).",
+        ),
+    ] = False,
+    clean: Annotated[
+        bool,
+        typer.Option("--clean", help="Clean stale locks/markers/empty configs (no health check)."),
+    ] = False,
+    stale_locks: Annotated[
+        bool, typer.Option("--stale-locks", help="With --clean: remove stale lock files.")
+    ] = True,
+    failed: Annotated[
+        bool, typer.Option("--failed", help="With --clean: clear failed setup marker.")
+    ] = True,
+    empty_configs: Annotated[
+        bool, typer.Option("--empty-configs", help="With --clean: remove empty config files.")
+    ] = True,
+    logs: Annotated[
+        bool, typer.Option("--logs", help="With --clean: remove setup log file.")
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show actions without executing.")
+    ] = False,
 ) -> None:
-    """Check agent setup: configs, syntax, and launch of installed agents."""
+    """Check agent setup (configs, syntax, launch). Use --fix to repair, --clean for stale state."""
     from astroai_lab.agent import inventory as agent_inventory
     from astroai_lab.agent.setup_state import read_setup_state
+    from astroai_lab.cli.context import merge_opts
 
-    opts = get_opts(ctx)
+    opts = merge_opts(ctx, dry_run=dry_run)
     home = Path.home()
 
-    if auto_fix:
+    if clean:
+        if auto_fix or agent or all_agents:
+            raise typer.BadParameter("--clean cannot be combined with --fix, <agent>, or --all")
+        results = agent_clean_mod.clean_agent_state(
+            stale_locks=stale_locks,
+            failed_marker=failed,
+            empty_configs=empty_configs,
+            logs=logs,
+            dry_run=opts.dry_run,
+        )
+        if opts.json:
+            ui.print_json([r.__dict__ for r in results])
+            return
+        if not results:
+            ui.print_ok("Agent state clean — no stale locks or broken markers found")
+            return
+        for r in results:
+            prefix = "would remove" if opts.dry_run else "removed"
+            ui.print_ok(f"  {r.target}: {prefix} ({r.detail})")
+        return
+
+    if agent:
+        if not auto_fix:
+            raise typer.BadParameter("<agent> / --all require --fix")
+        _run_registry_repair(ctx, agent, all_agents=False)
+        return
+
+    if all_agents and not auto_fix:
+        raise typer.BadParameter("<agent> / --all require --fix")
+
+    # --fix and --fix --all share the same path (shared setup + every
+    # installed agent). --fix <id> is handled above.
+    if auto_fix or all_agents:
         repair = agent_fix_mod.repair_installed_agents(home=home, dry_run=opts.dry_run)
         if not opts.json:
             for action in repair.get("actions") or []:
@@ -917,108 +993,11 @@ def agent_verify_cmd(
         return
     if issues:
         ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
-        ui.print_hint("Tip: Run `astroai-lab agent repair` or `astroai-lab agent verify --fix`.")
+        ui.print_hint("Tip: Run `astroai-lab agent verify --fix`.")
         raise typer.Exit(1)
     if state.stamp:
         ui.print_hint(f"  last run: {state.stamp}")
     ui.print_ok("Agent setup OK")
-
-
-@agent_app.command("repair")
-def agent_repair_cmd(
-    ctx: typer.Context,
-    agent: Annotated[
-        str | None,
-        typer.Argument(
-            help="Registered agent id (registry-driven config repair).",
-            autocompletion=_agent_completer,
-        ),
-    ] = None,
-    clean: Annotated[
-        bool,
-        typer.Option("--clean", help="Clean stale state instead of auto-repairing."),
-    ] = False,
-    all_agents: Annotated[
-        bool,
-        typer.Option("--all", help="Registry-driven config repair for every installed agent."),
-    ] = False,
-    stale_locks: Annotated[
-        bool, typer.Option("--stale-locks", help="Remove stale lock files.")
-    ] = True,
-    failed: Annotated[bool, typer.Option("--failed", help="Clear failed setup marker.")] = True,
-    empty_configs: Annotated[
-        bool, typer.Option("--empty-configs", help="Remove empty config files.")
-    ] = True,
-    logs: Annotated[bool, typer.Option("--logs", help="Remove setup log file.")] = False,
-    dry_run: Annotated[
-        bool, typer.Option("--dry-run", help="Show actions without executing.")
-    ] = False,
-) -> None:
-    """Auto-repair shared setup + all installed agents (or `--clean` stale state)."""
-    from astroai_lab.cli.context import merge_opts
-
-    opts = merge_opts(ctx, dry_run=dry_run)
-    if agent or all_agents:
-        if clean:
-            raise typer.BadParameter("--clean cannot be combined with <agent> or --all")
-        _run_registry_repair(ctx, agent, all_agents=all_agents)
-        return
-    if clean:
-        results = agent_clean_mod.clean_agent_state(
-            stale_locks=stale_locks,
-            failed_marker=failed,
-            empty_configs=empty_configs,
-            logs=logs,
-            dry_run=opts.dry_run,
-        )
-        if opts.json:
-            ui.print_json([r.__dict__ for r in results])
-            return
-        if not results:
-            ui.print_ok("Agent state clean — no stale locks or broken markers found")
-            return
-        for r in results:
-            prefix = "would remove" if opts.dry_run else "removed"
-            ui.print_ok(f"  {r.target}: {prefix} ({r.detail})")
-        return
-
-    repair = agent_fix_mod.repair_installed_agents(dry_run=opts.dry_run)
-    setup_results = repair["setup"]
-    if opts.json:
-        ui.print_json(
-            {
-                "ok": repair["ok"],
-                "partial": repair["partial"],
-                "setup": [r.__dict__ for r in setup_results],
-                "agents": repair["agents"],
-                "fixed": repair["fixed"],
-                "actions": repair["actions"],
-                "errors": repair["errors"],
-            }
-        )
-        if repair["errors"]:
-            raise typer.Exit(2 if repair["partial"] else 1)
-        return
-    prefix = "would fix" if opts.dry_run else "repaired"
-    for r in setup_results:
-        if r.fixed:
-            ui.print_ok(f"  {r.target}: {prefix} — {r.detail}")
-        else:
-            ui.print_warn(f"  {r.target}: {r.detail}")
-    for action in repair["actions"]:
-        ui.print_ok(f"  {action}")
-    for err in repair["errors"]:
-        ui.print_error(f"  {err}")
-    if repair["errors"]:
-        raise typer.Exit(2 if repair["partial"] else 1)
-    fixed_count = sum(1 for r in setup_results if r.fixed) + len(repair["fixed"])
-    if fixed_count:
-        ui.print_ok(
-            f"Agent setup repair complete "
-            f"({len(setup_results)} setup check(s), {len(repair['fixed'])} agent(s))"
-        )
-    else:
-        ui.print_ok("Agent setup already healthy")
 
 
 @agent_app.command("install")

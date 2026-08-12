@@ -242,7 +242,7 @@ def registry_agent_status(
     config = agent.get("config") or {}
     cfg_path: Path | None = None
     config_declared = bool(config.get("path"))
-    # No config declared → N/A (ok for health, shown as "·" in the table).
+    # No config declared → N/A (ok for health; table shows "-" like missing).
     config_ok = True
     if config_declared:
         cfg_path = _expand_home(str(config["path"]), home)
@@ -367,7 +367,9 @@ def _install_curl(agent: dict[str, Any]) -> str:
         k: str(v).replace("{bin_dir}", str(_bin_dir()))
         for k, v in (agent["install"].get("env") or {}).items()
     }
-    _curl_pipe_bash(str(agent["install"]["source"]), env=env or None)
+    raw_args = agent["install"].get("args") or []
+    script_args = [str(a) for a in raw_args]
+    _curl_pipe_bash(str(agent["install"]["source"]), env=env or None, args=script_args or None)
     home = Path.home()
     candidates = [
         _bin_dir() / binary,
@@ -707,7 +709,7 @@ def setup_registry_agent(
             cfg.write_text(_config_scaffold(agent), encoding="utf-8")
             actions.append(f"created config ({cfg})")
 
-    from astroai_lab.agent.addons import AGENT_SKILL_DIRS
+    from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS
 
     rel = AGENT_SKILL_DIRS.get(agent_id)
     if rel:
@@ -720,10 +722,31 @@ def setup_registry_agent(
             skills_dir.mkdir(parents=True, exist_ok=True)
             actions.append(f"created skills dir ({skills_dir})")
 
+    # When a manifest bundle shares this agent id, run it so setup <id> delivers
+    # real MCP/rules/skills (not just an empty stamp). Bundles merge safely.
+    from astroai_lab.agent.bundle_path import bundle_root
+    from astroai_lab.agent.inventory import list_bundles
+    from astroai_lab.agent.setup import run_bundle
+
+    if agent_id in list_bundles():
+        if dry_run:
+            actions.append(f"would apply config bundle ({agent_id})")
+        else:
+            run_bundle(
+                agent_id,
+                bundle_root(),
+                home,
+                None,
+                force=force,
+                dry_run=False,
+                upstream_skills=False,
+            )
+            actions.append(f"applied config bundle ({agent_id})")
+
     from astroai_lab.agent import plugins as agent_plugins
 
     for result in agent_plugins.apply_agent_plugins(
-        agent_id, home=home, force=force, dry_run=dry_run
+        agent_id, home=home, force=force, dry_run=dry_run, defaults_only=True
     ):
         if result.status == "failed":
             errors.append(f"plugin {result.plugin} ({result.agent}): {result.detail}")
@@ -822,7 +845,7 @@ def fix_registry_agent(
     home: Path | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Registry-driven `agent repair <id>` (docs/agent-rethink-plan.md Phase 2).
+    """Registry-driven `agent verify --fix <id>` (docs/agent-rethink-plan.md Phase 2).
 
     Regenerate/sanitize ONE registered agent's config from the registry,
     reusing ``fix.py``'s repair pattern (syntax check → reset to a minimal
@@ -902,7 +925,7 @@ def fix_registry_agent(
     else:
         actions.append("no config declared")
 
-    from astroai_lab.agent.addons import AGENT_SKILL_DIRS
+    from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS
 
     rel = AGENT_SKILL_DIRS.get(agent_id)
     if rel:

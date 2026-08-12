@@ -203,12 +203,14 @@ def test_agent_sync_ok_and_partial(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 def test_install_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from astroai_lab.agent import install as inst
 
-    # kilo/goose/cline/opencode/codex migrated out of TOOLS into the YAML
-    # registry; TOOLS keeps utilities + hermes/openclaw/cursor (battle-tested
-    # install_tool branches). See agent/registry.
+    # kilo/goose/cline/opencode/codex + generic npm/uv agents migrated out of
+    # TOOLS into the YAML registry; TOOLS keeps quirky installers + utilities
+    # (hermes/openclaw/cursor/…). See agent/registry.
     assert "qoder" in inst.list_tools()
     assert "cursor" in inst.list_tools()
     assert "agent" not in inst.list_tools()
+    assert "freebuff" not in inst.list_tools()
+    assert "swival" not in inst.list_tools()
     assert inst.tool_binary("cursor") == "agent"
     assert "kilo" not in inst.list_tools()
     assert inst.tool_binary("qoder") == "qodercli"

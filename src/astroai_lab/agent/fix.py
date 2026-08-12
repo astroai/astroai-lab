@@ -148,7 +148,7 @@ def fix_agent_setup(*, home: Path | None = None, dry_run: bool = False) -> list[
 def repair_installed_agents(*, home: Path | None = None, dry_run: bool = False) -> dict[str, Any]:
     """Repair shared setup plus every installed registry agent's config.
 
-    Used by bare ``agent repair`` and ``agent verify --fix``.
+    Used by ``agent verify --fix``.
     """
     from astroai_lab.agent.registry import fix_registry_agent, list_installed_registry_agents
     from astroai_lab.errors import LabError

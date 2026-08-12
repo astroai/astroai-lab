@@ -24,13 +24,13 @@ TOOLS = {
     "qoder": "Qoder CLI (qodercli)",
     "hermes": "Hermes Agent (Nous Research)",
     "openclaw": "OpenClaw (openclaw/openclaw)",
-    "freebuff": "Freebuff",
-    "pi": "Pi Coding Agent",
-    "codewhale": "CodeWhale",
-    "swival": "Swival",
+    # Backend for `agent plugins install ast-grep-cli` only (not an agent).
     "ast-grep": "ast-grep (sg)",
-    "hyperfine": "hyperfine",
 }
+
+# TOOLS entries that are not coding agents (no agents/*.yaml registry row).
+# hyperfine is image-baked — do not list or reinstall it.
+TOOL_UTILITIES = frozenset({"node", "ast-grep"})
 
 # CLI binary name when it differs from the install tool key.
 TOOL_BINARIES = {
@@ -318,7 +318,34 @@ def _session_environ(extra: dict[str, str] | None = None) -> dict[str, str]:
     return merged
 
 
-def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
+def _installer_noise(line: str) -> bool:
+    """Upstream installers often spam glog / PATH chatter we already handle."""
+    text = line.strip()
+    if not text:
+        return True
+    lower = text.lower()
+    if lower.startswith("error: logging before google.init"):
+        return True
+    if "path verification:" in lower:
+        return True
+    # Final land path is reported by `agent install` after we copy into scratch.
+    if "installed successfully at" in lower or "installed agy" in lower:
+        return True
+    return text.startswith("Run '") and " to start" in lower
+
+
+def _curl_pipe_bash(
+    url: str,
+    *,
+    env: dict[str, str] | None = None,
+    args: list[str] | None = None,
+) -> None:
+    """Fetch an install script and run it, capturing chatter.
+
+    Upstream scripts (agy, claude, …) often print home paths and glog noise.
+    We capture stdout/stderr, surface only useful lines on failure, and let
+    ``agent install`` report the managed scratch path after linking.
+    """
     from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
 
     _require("curl")
@@ -335,10 +362,12 @@ def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
             env=merged,
             timeout=curl_budget + 5,
         ).stdout
-        subprocess.run(
-            ["bash"],
+        cmd = ["bash", "-s", "--", *(args or [])]
+        proc = subprocess.run(
+            cmd,
             input=script,
-            check=True,
+            capture_output=True,
+            check=False,
             env=merged,
             timeout=bash_budget,
         )
@@ -357,6 +386,19 @@ def _curl_pipe_bash(url: str, *, env: dict[str, str] | None = None) -> None:
             f"Install failed for {url}" + (f": {detail}" if detail else ""),
             hint="Check network / auth, then retry",
         ) from exc
+
+    out = b""
+    if isinstance(proc.stdout, bytes):
+        out += proc.stdout
+    if isinstance(proc.stderr, bytes):
+        out += proc.stderr
+    text = out.decode(errors="replace").strip()
+    if proc.returncode != 0:
+        useful = "\n".join(line for line in text.splitlines() if not _installer_noise(line))
+        raise LabError(
+            f"Install failed for {url}" + (f":\n{useful}" if useful else ""),
+            hint="Check network / auth, then retry",
+        )
 
 
 def _link_into_local_bin(src: Path, name: str) -> None:
@@ -446,8 +488,13 @@ def _gh_release_bin(repo: str, asset: str, binary: str) -> None:
 
 
 def install_tool(name: str, *, dry_run: bool = False) -> None:
+    if name == "hyperfine":
+        raise LabError(
+            "hyperfine is image-baked on AstroAI base (already on PATH)",
+            hint="hyperfine --version",
+        )
     if name not in TOOLS:
-        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent install  (or agent list)")
+        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent list")
     refuse_if_home_owned(name)
     if dry_run:
         return
@@ -548,27 +595,6 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             _link_into_local_bin(npm_bin, "qodercli")
             _link_into_local_bin(npm_bin, "qoder")
         _verify_cmd("qodercli")
-    elif name in ("freebuff", "pi", "codewhale"):
-        _require("npm")
-        pkg = {
-            "freebuff": "freebuff@latest",
-            "pi": "@earendil-works/pi-coding-agent@latest",
-            "codewhale": "codewhale@latest",
-        }[name]
-        run(
-            npm_global_install_cmd(_npm_prefix(), pkg),
-            env=npm_install_environ(),
-            timeout=npm_timeout,
-        )
-        _verify_cmd(name if name != "pi" else "pi")
-    elif name == "swival":
-        _require("uv")
-        run(
-            ["uv", "tool", "install", "--force", "swival"],
-            env=_session_environ(),
-            timeout=npm_timeout,
-        )
-        _verify_cmd("swival")
     elif name == "ast-grep":
         if arch not in ("x86_64", "aarch64"):
             raise LabError(f"Unsupported architecture: {arch}")
@@ -577,23 +603,8 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         (_bin_dir() / "ast-grep").unlink(missing_ok=True)
         (_bin_dir() / "ast-grep").symlink_to(_bin_dir() / "sg")
         _verify_cmd("sg")
-    elif name == "hyperfine":
-        if shutil.which("hyperfine"):
-            return
-        tag = "v1.19.0"
-        try:
-            tag_raw = run_capture(
-                ["gh", "release", "view", "-R", "sharkdp/hyperfine", "--json", "tagName"],
-                timeout=60,
-            )
-            import json
-
-            tag = json.loads(tag_raw).get("tagName", tag)
-        except LabError:
-            pass
-        asset = f"hyperfine-{tag}-{arch}-unknown-linux-gnu.tar.gz"
-        _gh_release_bin("sharkdp/hyperfine", asset, "hyperfine")
-        _verify_cmd("hyperfine")
+    else:
+        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent install  (or agent list)")
 
 
 # ---------------------------------------------------------------------------
@@ -613,9 +624,6 @@ TOOL_NPM_PACKAGES = {
     "openclaw": "openclaw",
     "copilot": "@github/copilot",
     "qoder": "@qoder-ai/qodercli",
-    "freebuff": "freebuff",
-    "pi": "@earendil-works/pi-coding-agent",
-    "codewhale": "codewhale",
 }
 
 # Home-relative config files a tool owns (removed on `agent remove`).
@@ -734,7 +742,18 @@ def uninstall_tool(
             if result:
                 results.append(result)
 
-        # 4. Plugin-created files (agent-skill addons: ~/.<id>/skills/...).
+        # 4. Plugin-created files for this agent (precise sweep), then any
+        #    leftover ~/.<id>/skills tree.
+        from astroai_lab.agent import plugins as agent_plugins
+
+        for row in agent_plugins.remove_agent_plugin_files(name, home=home, dry_run=dry_run):
+            results.append(
+                RemoveResult(
+                    row.get("target", f"plugins:{name}"),
+                    row.get("status", "removed"),
+                    row.get("detail", ""),
+                )
+            )
         plugin_dir = home / f".{name}" / "skills"
         result = _remove_tree(plugin_dir, f"plugins:{plugin_dir}", dry_run=dry_run)
         if result:

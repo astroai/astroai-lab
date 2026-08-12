@@ -256,7 +256,8 @@ astroai-lab agent plugins install ponytail
 astroai-lab agent update           # after upgrading lab in-session
 astroai-lab agent update hermes    # refresh ONE agent
 astroai-lab agent verify           # config syntax + presence checks
-astroai-lab agent repair           # auto-repair (--clean for stale state)
+astroai-lab agent verify --fix     # auto-repair, then re-check
+astroai-lab agent verify --clean    # clear stale locks / markers
 ```
 
 Upgrade lab in a running session (no image rebuild): see “Writable CADC venv”

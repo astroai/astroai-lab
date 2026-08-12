@@ -102,7 +102,7 @@ def _parse_config(text: str, fmt: str, agent_id: str, path: Path) -> dict[str, A
 def validate_config_text(agent_id: str, text: str, *, home: Path | None = None) -> dict[str, Any]:
     """Parse the agent's config text by declared format; LabError when broken.
 
-    Shared by `agent repair <id>` (syntax check before a reset) and the
+    Shared by `agent verify --fix <id>` (syntax check before a reset) and the
     edit validation path in ``edit_agent_config``.
     """
     _, config, path = _agent_and_config(agent_id, home)

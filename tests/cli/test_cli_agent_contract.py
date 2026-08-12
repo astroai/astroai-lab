@@ -25,7 +25,6 @@ CANONICAL_VERBS = {
     "update",
     "status",
     "verify",
-    "repair",
     "plugins",
 }
 
@@ -41,6 +40,7 @@ REMOVED_VERBS = {
     "report",
     "interact",
     "models",
+    "repair",
 }
 
 
@@ -134,9 +134,9 @@ def test_setup_project_positional_path(tmp_path, monkeypatch) -> None:
     )
 
 
-def test_repair_clean(tmp_path, monkeypatch) -> None:
+def test_verify_clean(tmp_path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--json", "--dry-run", "agent", "repair", "--clean"])
+    result = runner.invoke(app, ["--json", "--dry-run", "agent", "verify", "--clean"])
     assert result.exit_code == 0

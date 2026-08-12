@@ -19,7 +19,7 @@ gh auth login                       # GitHub for gh + GitHub MCP
 Discover what’s available: `astroai-lab agent list` · configs: `astroai-lab agent list config`  
 Plugins: `astroai-lab agent plugins install ponytail`  
 Refresh after upgrading lab in-session: `astroai-lab agent update`  
-Broken agent configs (esp. OpenCode JSON): `astroai-lab agent verify` · `astroai-lab agent repair`
+Broken agent configs (esp. OpenCode JSON): `astroai-lab agent verify` · `astroai-lab agent verify --fix`
 
 ## Daily workflow
 
@@ -63,7 +63,7 @@ Optional: `${WORK}/.astroai-lab/pythonpath` or `ASTROAI_LAB_PYTHONPATH` for extr
 ```bash
 rg 'pattern' --type py
 fd name
-sg -p 'class $N' -l py          # needs: astroai-lab agent install ast-grep
+sg -p 'class $N' -l py          # needs: astroai-lab agent plugins install ast-grep-cli
 pixi run pytest -q
 uv run python script.py
 peek README.md                  # markdown/text; peek archive.tgz [member]

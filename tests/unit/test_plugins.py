@@ -480,7 +480,7 @@ def test_load_plugins_includes_migrated_addons() -> None:
     """Legacy addons now load as plugins with an `addon` marker + transport."""
     plugins = load_plugins()
     by_id = {p["id"]: p for p in plugins}
-    for addon_id in ("ponytail", "polars", "git-mcp", "token-efficient", "hyperfine"):
+    for addon_id in ("ponytail", "polars", "git-mcp", "token-efficient", "ast-grep-cli"):
         assert addon_id in by_id, f"missing migrated addon {addon_id}"
         assert by_id[addon_id]["addon"] is True
         assert by_id[addon_id]["install"]["type"]
@@ -488,11 +488,16 @@ def test_load_plugins_includes_migrated_addons() -> None:
     assert by_id["ponytail"]["kind"] == "bundle"
     assert by_id["polars"]["kind"] == "skill"
     assert by_id["git-mcp"]["kind"] == "mcp"
-    assert by_id["hyperfine"]["kind"] == "tool"
+    assert by_id["ast-grep-cli"]["kind"] == "tool"
     assert by_id["token-efficient"]["kind"] == "rule"
+    assert "hyperfine" not in by_id
+    assert "gws-cli" not in by_id
     # Defaults carried over.
     assert by_id["token-efficient"]["default"] is True
     assert by_id["ponytail"].get("default") is None
+    # Opt-in skills point at real SKILL.md paths (not skill-forge recipes/ packaging dirs).
+    assert by_id["polars"]["install"]["path"] == "skills/polars"
+    assert by_id["librarian"]["install"]["repo"] == "mitsuhiko/agent-stuff"
 
 
 def test_validation_addon_transport_requires_fields(tmp_path: Path) -> None:

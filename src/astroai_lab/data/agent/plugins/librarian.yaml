@@ -1,5 +1,4 @@
-# librarian — legacy addon migrated from addons.json (Phase 3).
-# `agent plugins list` / `agent plugins install` surface this via the plugin registry.
+# librarian — skill from mitsuhiko/agent-stuff (skill-forge recipes/ has no SKILL.md).
 id: librarian
 kind: skill
 addon: true
@@ -7,10 +6,10 @@ tags:
 - docs
 - science
 summary: Librarian doc/knowledge skill
-homepage: https://github.com/pavelzw/skill-forge
+homepage: https://github.com/mitsuhiko/agent-stuff/tree/main/skills/librarian
 agents:
 - cursor
 install:
   type: github-skill
-  repo: pavelzw/skill-forge
-  path: recipes/librarian
+  repo: mitsuhiko/agent-stuff
+  path: skills/librarian

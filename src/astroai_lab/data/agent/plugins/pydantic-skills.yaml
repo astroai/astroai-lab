@@ -1,5 +1,6 @@
-# pydantic-skills — legacy addon migrated from addons.json (Phase 3).
-# `agent plugins list` / `agent plugins install` surface this via the plugin registry.
+# pydantic — core Pydantic modeling skill (pydantic/skills).
+# Replaces the old pydantic-skills meta entry that pointed at a skill-forge
+# recipes/ dir with no SKILL.md (multi-package conda recipe only).
 id: pydantic-skills
 kind: skill
 addon: true
@@ -8,10 +9,10 @@ tags:
 - python
 - data
 summary: Pydantic models without ceremony
-homepage: https://github.com/pavelzw/skill-forge
+homepage: https://github.com/pydantic/skills
 agents:
 - cursor
 install:
   type: github-skill
-  repo: pavelzw/skill-forge
-  path: recipes/pydantic-skills
+  repo: pydantic/skills
+  path: skills/pydantic
