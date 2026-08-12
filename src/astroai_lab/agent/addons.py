@@ -272,9 +272,7 @@ def _apply_addon(
         return _install_github_rule(item, home=home, force=force, dry_run=dry_run)
 
     if itype == "mcp-snippet":
-        return _install_mcp_snippet(
-            item, home=home, force=force, dry_run=dry_run, agent=agent
-        )
+        return _install_mcp_snippet(item, home=home, force=force, dry_run=dry_run, agent=agent)
 
     if itype == "cli-tool":
         tool = install.get("tool")
@@ -435,9 +433,7 @@ def _install_mcp_snippet(
     for ag in agents:
         if mcp_target(ag) is None:
             continue
-        entry = (
-            opencode_cfg or _cursor_to_opencode(cursor_cfg) if ag == "opencode" else cursor_cfg
-        )
+        entry = opencode_cfg or _cursor_to_opencode(cursor_cfg) if ag == "opencode" else cursor_cfg
         if not entry:
             continue
         if merge_mcp_server(home, ag, server, entry, force=force):

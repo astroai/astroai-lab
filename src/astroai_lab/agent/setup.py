@@ -61,9 +61,7 @@ def merge_mcp_servers(src_json: Path, dst_json: Path, *, force: bool, dry_run: b
     """Merge mcpServers from src into dst; never replace the whole destination."""
     from astroai_lab.agent.agent_targets import merge_mcp_file
 
-    merge_mcp_file(
-        src_json, dst_json, key="mcpServers", fmt="json", force=force, dry_run=dry_run
-    )
+    merge_mcp_file(src_json, dst_json, key="mcpServers", fmt="json", force=force, dry_run=dry_run)
 
 
 def merge_claude_json(src_mcp: Path, dst: Path, *, force: bool, dry_run: bool) -> None:
