@@ -33,7 +33,13 @@ def _format_text(text: str) -> str:
             indent, cmd, rest, comment = match.groups()
             # `agent list` rows look like "  kilo         ✓      home …" — the
             # name collides with a CLI token, but this is a table, not a command.
-            if re.match(r"^\s{2,}", rest) or "✓" in rest or "—" in rest or "·" in rest or " - " in rest:
+            if (
+                re.match(r"^\s{2,}", rest)
+                or "✓" in rest
+                or "—" in rest
+                or "·" in rest
+                or " - " in rest
+            ):
                 lines.append(line)
             else:
                 line_str = f"{indent}[bold #00d7ff]{cmd}{rest}[/bold #00d7ff]"

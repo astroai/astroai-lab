@@ -331,9 +331,7 @@ def _installer_noise(line: str) -> bool:
     # Final land path is reported by `agent install` after we copy into scratch.
     if "installed successfully at" in lower or "installed agy" in lower:
         return True
-    if text.startswith("Run '") and " to start" in lower:
-        return True
-    return False
+    return text.startswith("Run '") and " to start" in lower
 
 
 def _curl_pipe_bash(

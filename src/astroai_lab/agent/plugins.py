@@ -362,7 +362,7 @@ def _install_skill(
 def _configure_mcp(
     plugin: dict[str, Any], agent: str, home: Path, *, force: bool, dry_run: bool
 ) -> PluginResult:
-    from astroai_lab.agent.agent_targets import cursor_to_opencode, merge_mcp_server, mcp_target
+    from astroai_lab.agent.agent_targets import cursor_to_opencode, mcp_target, merge_mcp_server
 
     install = plugin["install"]
     server = str(install["server"])

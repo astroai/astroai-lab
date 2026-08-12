@@ -431,7 +431,7 @@ def test_agent_list_includes_every_tools_entry() -> None:
 
     Exception: ``node`` / ``ast-grep`` are TOOLS utilities, not list agents.
     """
-    from astroai_lab.agent.install import TOOLS, TOOL_UTILITIES
+    from astroai_lab.agent.install import TOOL_UTILITIES, TOOLS
 
     ids = {a["id"] for a in list_registry_agents()}
     assert set(TOOLS) - TOOL_UTILITIES <= ids
@@ -444,7 +444,7 @@ def test_agent_list_includes_every_tools_entry() -> None:
 def test_cli_agent_list_covers_installable_set(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from astroai_lab.agent.install import TOOLS, TOOL_UTILITIES
+    from astroai_lab.agent.install import TOOL_UTILITIES, TOOLS
 
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("ASTROAI_LAB_PROBE_VERSION", "0")
