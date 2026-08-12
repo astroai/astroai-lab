@@ -18,9 +18,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS
+from astroai_lab.agent.agent_targets import (
+    AGENT_SKILL_DIRS,
+    mcp_server_present,
+    mcp_target,
+    merge_mcp_server,
+)
 from astroai_lab.agent.agent_targets import cursor_to_opencode as _cursor_to_opencode
-from astroai_lab.agent.agent_targets import merge_mcp_server, mcp_server_present, mcp_target
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.agent.install import install_tool, tool_on_path
 from astroai_lab.agent.upstream import (
@@ -431,10 +435,9 @@ def _install_mcp_snippet(
     for ag in agents:
         if mcp_target(ag) is None:
             continue
-        if ag == "opencode":
-            entry = opencode_cfg or _cursor_to_opencode(cursor_cfg)
-        else:
-            entry = cursor_cfg
+        entry = (
+            opencode_cfg or _cursor_to_opencode(cursor_cfg) if ag == "opencode" else cursor_cfg
+        )
         if not entry:
             continue
         if merge_mcp_server(home, ag, server, entry, force=force):
