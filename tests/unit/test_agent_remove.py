@@ -1,4 +1,4 @@
-"""Unit tests for Phase 2 `agent remove` (docs/agent-rethink-plan.md).
+"""Unit tests for `agent remove`.
 
 Covers install.uninstall_tool (binary/config/plugin/stamp removal, dry-run,
 --purge), registry.remove_registry_agent dispatch (TOOLS delegation +

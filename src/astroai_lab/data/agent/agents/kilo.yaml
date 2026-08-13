@@ -1,6 +1,4 @@
 # Kilo CLI (@kilocode/cli) — registry entry.
-# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
-# `agent list` / `agent install` / `agent remove` / `agent verify`.
 id: kilo
 name: Kilo CLI
 homepage: https://github.com/kilocode/kilo
@@ -11,7 +9,9 @@ install:
   method: curl
   source: https://kilo.ai/cli/install
   env:
-    XDG_BIN_DIR: "{bin_dir}" # land the binary in the session bin dir
+    XDG_BIN_DIR: "{bin_dir}" # hint; installer still hardcodes $HOME/.kilo/bin
+  args:
+    - --no-modify-path # do not append ~/.kilo/bin to .bashrc
   post_binary_paths:
     - "~/.local/bin/kilo"
 config:

@@ -1,5 +1,4 @@
 # Oh My Pi (omp) — fork of Pi coding agent with sessions/subagents/slash commands.
-# Schema: docs/agent-rethink-plan.md §4 Phase 1.
 # Prefer the official binary installer (no bun runtime). npm/bun wrappers shebang to bun.
 id: omp
 name: Oh My Pi

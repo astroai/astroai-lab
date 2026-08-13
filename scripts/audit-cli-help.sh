@@ -158,11 +158,9 @@ check_invocation "env export" env export
 check_invocation "env export json sub" env export --json
 check_invocation "env export json global" --json env export
 check_invocation "agent list" agent list
-check_invocation "agent list config" agent list config
-check_invocation "agent install list" agent install
-check_invocation "agent install list flag" agent install --list
-check_invocation "agent setup list" agent setup --list
+check_invocation "agent list ui" agent list --ui
 check_invocation "agent plugins list" agent plugins list
+check_invocation "agent plugins list kind" agent plugins list --kind mcp
 
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then

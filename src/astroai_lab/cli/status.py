@@ -18,6 +18,7 @@ from astroai_lab.core.storage import (
 from astroai_lab.core.vospace_status import vault_status_dict
 from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run_capture
+from astroai_lab.version import version_info
 
 # Keep `status` responsive at session start even if the canfar CLI is slow
 # or its auth server stalls; a timeout degrades to "Not authenticated".
@@ -83,6 +84,7 @@ def register(app: typer.Typer) -> None:
         if opts.json:
             ui.print_json(
                 {
+                    "version": version_info(),
                     "quotas": [q.__dict__ for q in quotas],
                     "home": home_rows,
                     "resources": resources.to_dict(),

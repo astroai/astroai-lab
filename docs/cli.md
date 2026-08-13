@@ -146,7 +146,7 @@ astroai-lab kernel list
 astroai-lab kernel unregister NAME
 ```
 
-### `astroai-lab agent list|install|remove|wipe|setup|config|update|status|verify|plugins`
+### `astroai-lab agent list|install|remove|wipe|setup|config|update|verify|plugins`
 
 AI agent MCP, rules, skills, CLI installation, and plugins.
 
@@ -159,32 +159,27 @@ configs stay on `$HOME` (/arc/home). Some ids still install via battle-tested
 `ast-grep` are installed via plugins (`ast-grep-cli`), not listed as agents.
 `hyperfine` is image-baked and is not reinstalled.
 
-Mental model (lean surface — list/install/remove/config + plugins):
-
 | Command | What it does |
 |---------|----------------|
-| `agent list` | Installable agents: binary / config / source / version + one-line summary |
-| `agent list config` | Skills/MCP/addons from the plugin registry (`--kind` filters) |
-| `agent install [NAME]` | Download a CLI binary via the registry (omit NAME to list agents) |
+| `agent list` | Installable agents: binary / settings file / where (scratch, home, image) / version. `--description` for summaries; `--ui` for container endpoints |
+| `agent install NAME` | Download a CLI binary onto scratch |
 | `agent remove NAME` | Uninstall managed CLI on scratch (`--clean-home` for `$HOME` CLIs; `--purge` for config dirs) |
-| `agent wipe` | **Factory reset** — remove EVERY agent config + binary + state; confirmation or `--yes` |
-| `agent setup [BUNDLE…]` | Write MCP/rules/skills configs (`--list` for bundles); registry agent id / `--all` / `--project` |
-| `agent config ID` | Show/edit an agent's `$HOME` config (`--key`, `key=value`, `--unset`) |
-| `agent update [ID]` | Refresh configs + upstream skills; with ID refreshes one agent |
-| `agent status` | Same table as `list` (versions probed); `--ui` for container endpoints |
-| `agent verify` | Health check; `--fix` auto-repairs shared setup + installed agents; `--fix ID` for one agent; `--fix --all` same as bare `--fix`; `--clean` stale state |
-| `agent plugins …` | list / install / update / remove / configure plugins across agents |
+| `agent wipe` | Factory reset: remove every agent settings file, binary, and state; confirmation or `--yes` |
+| `agent setup [NAME…]` | First-run scaffold for an agent id or setup name; `--all` / `--project` |
+| `agent config ID` | Show/edit an agent's `$HOME` settings file (`--key`, `key=value`, `--unset`) |
+| `agent update [ID]` | Refresh CLI + upstream skills; with ID refreshes one agent |
+| `agent verify` | Health check; `--fix` auto-repairs shared setup + installed agents; `--fix ID` for one agent; `--clean` stale state |
+| `agent plugins …` | list / install / update / remove extras (skills, MCP, rules, tools) |
 
 ```bash
 astroai-lab agent list                 # registered agents
-astroai-lab agent list config          # skills/MCP/addons
+astroai-lab agent list --description
+astroai-lab agent list --ui            # container endpoints
 astroai-lab --json agent list          # --json is a global flag: BEFORE the subcommand
 astroai-lab agent setup
-astroai-lab agent setup --list
-astroai-lab agent setup hermes         # per-agent registry setup
+astroai-lab agent setup hermes         # per-agent scaffold
 astroai-lab agent setup --all
 astroai-lab agent setup --project ./repo   # per-repo AGENTS.md + .cursor
-astroai-lab agent install              # list agents
 astroai-lab agent install kilo
 astroai-lab agent install zcode
 astroai-lab agent install omp
@@ -196,10 +191,10 @@ astroai-lab agent plugins list --kind mcp
 astroai-lab agent plugins install canfar-ray
 astroai-lab agent plugins install canfar-ray --agent hermes
 astroai-lab agent plugins remove canfar-ray
-astroai-lab agent plugins configure ray-manager-mcp
+astroai-lab agent plugins install ray-manager-mcp
 astroai-lab agent verify
 astroai-lab agent verify --fix         # auto-repair, then re-check
-astroai-lab agent verify --fix hermes  # regenerate/sanitize ONE agent's config
+astroai-lab agent verify --fix hermes  # regenerate/sanitize ONE agent's settings
 astroai-lab agent verify --fix --all
 astroai-lab agent verify --clean
 astroai-lab agent config hermes
@@ -215,41 +210,18 @@ astroai-lab agent update openclaw --reinstall
 skills / MCP servers / config snippets across *all* installed agents.
 Each plugin declares a support matrix (`agents:`), a `kind`, and how it is
 applied. `plugins install <id>` applies to every installed agent in the matrix
-by default; `--agent` scopes it. `plugins configure <id>` for `kind: mcp`
-merges an `mcpServers` entry — **dynamic URLs only** (e.g.
-`$ASTROAI_RAY_JOBS_ADDRESS`).
+by default; `--agent` scopes it. For `kind: mcp` that merge is an `mcpServers`
+entry with **dynamic URLs only** (e.g. `$ASTROAI_RAY_JOBS_ADDRESS`).
 
 **`ray-manager-mcp`** (the shipped `kind: mcp` example) configures
 `astroai-workload mcp serve` with a runtime-resolved
 `$ASTROAI_RAY_JOBS_ADDRESS`.
 
-## Removed in 0.3 / agent lean cut
+## Not this CLI
 
-For a deeper rethink, `astroai-lab` no longer ships the following commands.
-Use the platform tools instead:
-
-| Removed | Replacement |
-|---------|-------------|
-| `data stage/sync` | `canfar data` (platform archive I/O) |
-| `project init` | Project provisioning is done by operators; users read `/arc/projects` via `status` |
-| `backup` | `git` + `astroai-lab save` (env snapshots) |
-| `workspace` | `git` + `astroai-lab save` |
-| `push` | `git push` + `astroai-lab save` |
-| `clean` | Manual cache pruning; monitor with `status` |
-| `doctor` | `status` / `env export` |
-| `paths`/`tools`/`check` | `status` / `env export` |
-| `notebook` | Starters ship at `/opt/astroai/notebooks/` in images |
-| `ray` | AstroAI hub / OpenResearch batch compute |
-| `env save/resume/list` | Flat `save`/`resume`/`saves` |
-| `env install-shell` | Image builds copy packaged `profile.sh`/`hooks.sh` at build time |
-| `guide` | Renamed to `help` (aggregate of all `--help`) |
-| `agent sync` / `agent sources` / `agent skills` | `agent update` |
-| `agent catalog` / `agent awesome` / `agent directory` / `agent list --all` | `agent list` / `agent list config` |
-| `agent addons` / `agent add` | `agent plugins list` / `agent plugins install` |
-| `agent project` | `agent setup --project` |
-| `agent fix-config` / `agent fix` / `agent clean` / `agent repair` | `agent verify --fix` / `agent verify --clean` |
-| `agent report` | `agent status --json` |
-| `agent interact` / `agent access` | `agent status --ui` |
+Session lifecycle and archive I/O belong to **`canfar`**. Disk and auth
+snapshots are `astroai-lab status`. Env snapshots are `save` / `resume` /
+`saves`. Notebook starters ship in the image at `/opt/astroai/notebooks/`.
 
 ## Environment variables
 
@@ -330,7 +302,7 @@ build-time defaults.
 | `ASTROAI_LAB_AGENT_GIT_TIMEOUT` | Git-op timeout, seconds (default: `120`) |
 | `ASTROAI_LAB_AGENT_INSTALL_TIMEOUT` | CLI-install timeout, seconds (default: `1500`; self-bootstrapping installers like hermes need more than 300) |
 | `ASTROAI_LAB_AGENT_LOCK_TIMEOUT` | Setup-lock timeout, seconds (default: `30`) |
-| `ASTROAI_SESSION_KIND` | Session kind label for `agent status --ui` (default: `unknown`) |
+| `ASTROAI_SESSION_KIND` | Session kind label for `agent list --ui` (default: `unknown`) |
 | `ASTROAI_AGENT_WIZARD_PORT` | Agent wizard port (default: `4792`) |
 | `ASTROAI_OPENWORKER_PORT` | OpenWorker port (default: `5000`) |
 
@@ -341,7 +313,7 @@ build-time defaults.
 | `ASTROAI_LAB_SHELL_DIR` | Dir holding `profile.sh`/`hooks.sh` (default: `/etc/astroai-lab`) |
 | `ASTROAI_LAB_PROFILE_LOADED` | Set by `profile.sh` to avoid double-sourcing |
 | `JUPYTER_CONFIG_DIR` | Jupyter config dir (default: `~/.jupyter`) |
-| `USER` / `HOSTNAME` | Identity labels used by `status` and `agent status --ui` |
+| `USER` / `HOSTNAME` | Identity labels used by `status` and `agent list --ui` |
 
 `astroai-lab env export` also **emits** derived values for downstream tools,
 including `ASTROAI_LAB_TEAM_BIN` (when a team project is present),

@@ -19,7 +19,7 @@
       "description": "Kilo CLI starter config (~/.config/kilo/kilo.jsonc)"
     },
     "cline": {
-      "description": "Cline CLI notes (~/.config/canfar/lab/cline-notes.md)"
+      "description": "Cline CLI notes (~/.config/cline/cline-notes.md)"
     },
     "codex": {
       "description": "Codex CLI MCP (~/.codex/config.toml)"
@@ -28,7 +28,7 @@
       "description": "GitHub Copilot CLI MCP (~/.copilot/mcp-config.json)"
     },
     "cli": {
-      "description": "GitHub token hook + command reminder file (~/.config/astroai/lab/)"
+      "description": "GitHub token hook + command reminder file (~/.astroai/lab/)"
     },
     "project": {
       "description": "Project .cursor/, AGENTS.md, .goosehints in target dir"

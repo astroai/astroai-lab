@@ -197,15 +197,15 @@ def test_config_show_human(lab_env: Path) -> None:
     assert "default_pm" in result.output
 
 
-def test_agent_status_human(lab_env: Path) -> None:
-    result = runner.invoke(app, ["agent", "status"])
+def test_agent_list_human(lab_env: Path) -> None:
+    result = runner.invoke(app, ["agent", "list"])
     assert result.exit_code == 0
     out = result.output.lower()
     assert "bin" in out and "cfg" in out
 
 
-def test_agent_status_json(lab_env: Path) -> None:
-    result = runner.invoke(app, ["--json", "agent", "status"])
+def test_agent_list_json(lab_env: Path) -> None:
+    result = runner.invoke(app, ["--json", "agent", "list"])
     # Fresh / incomplete setup → ok:false → exit 1; JSON still emitted.
     assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)

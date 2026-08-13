@@ -1,14 +1,9 @@
-"""Curated installable agent addons (skills, rules, MCP, tools).
+"""Install transports for agent plugins (skills, rules, MCP, tools).
 
-Phase 3: the plugin registry (``data/agent/plugins/*.yaml``) is the single
-source of truth. ``addons.json`` was migrated into ``plugins/*.yaml``
-(entries carry ``addon: true``), so every function here is a thin shim over
-``agent.plugins`` — the transports themselves (bundled / github-skill /
-github-bundle / github-rule / mcp-snippet / cli-tool / agent-skill) live in
-``_apply_addon`` and are also reachable via ``agent plugins install``.
-
-Not a catalog of agents — recommendations that help produce correct, lean code
-plus science/data skills useful on AstroAI sessions.
+Plugin YAML under ``data/agent/plugins/*.yaml`` is the catalog. This module
+applies those entries (bundled / github-skill / github-bundle / github-rule /
+mcp-snippet / cli-tool / agent-skill) via ``_apply_addon``, also used by
+``agent plugins install``.
 """
 
 from __future__ import annotations

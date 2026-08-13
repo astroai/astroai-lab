@@ -16,7 +16,7 @@ astroai-lab agent install cursor     # Cursor Agent CLI onto $SCRATCH
 gh auth login                       # GitHub for gh + GitHub MCP
 ```
 
-Discover what’s available: `astroai-lab agent list` · configs: `astroai-lab agent list config`  
+Discover what’s available: `astroai-lab agent list` · plugins: `astroai-lab agent plugins list`  
 Plugins: `astroai-lab agent plugins install ponytail`  
 Refresh after upgrading lab in-session: `astroai-lab agent update`  
 Broken agent configs (esp. OpenCode JSON): `astroai-lab agent verify` · `astroai-lab agent verify --fix`

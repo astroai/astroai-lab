@@ -33,6 +33,9 @@ def test_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
     assert "astroai-lab" in result.stdout
+    from astroai_lab.version import PACKAGE_VERSION
+
+    assert PACKAGE_VERSION in result.stdout
 
 
 def test_help_command() -> None:
@@ -143,7 +146,16 @@ def test_config_show_json_local(lab_home: Path) -> None:
 def test_config_root(lab_home: Path) -> None:
     result = runner.invoke(app, ["config"])
     assert result.exit_code == 0
-    assert "Use: " in result.output
+    assert "config show" in result.output
+    assert "config --help" in result.output
+
+
+def test_config_root_json(lab_home: Path) -> None:
+    result = runner.invoke(app, ["--json", "config"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["help"] == "astroai-lab config --help"
+    assert "show" in data["try"]
 
 
 def test_saves_empty_json(lab_home: Path) -> None:

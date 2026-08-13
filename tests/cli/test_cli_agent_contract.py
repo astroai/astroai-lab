@@ -23,7 +23,6 @@ CANONICAL_VERBS = {
     "setup",
     "config",
     "update",
-    "status",
     "verify",
     "plugins",
 }
@@ -41,6 +40,7 @@ REMOVED_VERBS = {
     "interact",
     "models",
     "repair",
+    "status",
 }
 
 
@@ -73,6 +73,24 @@ def test_removed_verbs_are_gone() -> None:
         assert "No such command" in (result.stdout + result.stderr)
 
 
+def test_agent_bare_is_minimal() -> None:
+    result = runner.invoke(app, ["agent"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "astroai-lab agent --help" in out
+    assert "astroai-lab agent list" in out
+    assert "agent install kilo" not in out
+    assert "list config" not in out
+
+
+def test_agent_bare_json_points_at_help() -> None:
+    result = runner.invoke(app, ["--json", "agent"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["help"] == "astroai-lab agent --help"
+    assert "list" in payload["try"]
+
+
 def test_list_default_is_registry_shaped(tmp_path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -85,21 +103,49 @@ def test_list_default_is_registry_shaped(tmp_path, monkeypatch) -> None:
     assert "issues" in payload
     ids = {row["id"] for row in payload["agents"]}
     assert {"kilo", "zcode", "omp", "hermes"} <= ids
+    assert "hyperfine" not in ids
+    assert "ast-grep" not in ids
+    assert "lab" in payload
+    assert "version" in payload["lab"]
 
 
-def test_list_config() -> None:
-    result = runner.invoke(app, ["--json", "agent", "list", "config"])
+def test_list_config_removed() -> None:
+    result = runner.invoke(app, ["agent", "list", "config"])
+    assert result.exit_code != 0
+
+
+def test_plugins_list_json() -> None:
+    result = runner.invoke(app, ["--json", "agent", "plugins", "list"])
     assert result.exit_code == 0
     items = json.loads(result.stdout)
     assert isinstance(items, list)
     assert any(i.get("id") == "ponytail" for i in items)
 
 
-def test_status_json_exits_nonzero_when_unhealthy(tmp_path, monkeypatch) -> None:
+def test_plugins_bare_points_at_list() -> None:
+    result = runner.invoke(app, ["agent", "plugins"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "agent plugins list" in out
+    assert "agent plugins --help" in out
+
+
+def test_plugins_configure_removed() -> None:
+    result = runner.invoke(app, ["agent", "plugins", "configure", "git-mcp"])
+    assert result.exit_code != 0
+    assert "No such command" in (result.stdout + result.stderr)
+
+
+def test_setup_list_flag_removed() -> None:
+    result = runner.invoke(app, ["agent", "setup", "--list"])
+    assert result.exit_code != 0
+
+
+def test_list_json_exits_nonzero_when_unhealthy(tmp_path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--json", "agent", "status"])
+    result = runner.invoke(app, ["--json", "agent", "list"])
     payload = json.loads(result.stdout)
     if not payload.get("ok"):
         assert result.exit_code == 1
@@ -107,11 +153,11 @@ def test_status_json_exits_nonzero_when_unhealthy(tmp_path, monkeypatch) -> None
         assert result.exit_code == 0
 
 
-def test_status_ui_flag(tmp_path, monkeypatch) -> None:
+def test_list_ui_flag(tmp_path, monkeypatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--json", "agent", "status", "--ui"])
+    result = runner.invoke(app, ["--json", "agent", "list", "--ui"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert "endpoints" in payload

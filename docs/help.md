@@ -68,7 +68,7 @@ astroai-lab kernel ensure
 astroai-lab agent setup
 astroai-lab agent install kilo     # or goose, opencode, qoder, …
 astroai-lab agent remove kilo      # uninstall binary + config (--purge for home dirs)
-astroai-lab agent wipe             # factory reset — remove EVERY agent config + binary + state (confirm required; --dry-run preview)
+astroai-lab agent wipe             # factory reset of every agent config, binary, and state
 astroai-lab agent update
 astroai-lab agent verify
 astroai-lab agent verify --fix hermes   # regenerate/sanitize ONE agent's config
@@ -78,7 +78,7 @@ astroai-lab agent verify --fix hermes   # regenerate/sanitize ONE agent's config
 
 | Layer | Where | How it is versioned |
 |-------|-------|---------------------|
-| Platform CLIs | `/opt/astroai/venv/cadc` | Image build + optional `upgrade-cadc-tools.sh` this session |
+| Platform CLIs | `/opt/astroai/venv/cadc` | Image lock + `astroai-lab --version` (`0.4.0+g<sha>` when installed from git) |
 | Your project | `$WORK` pixi/uv env | Lockfiles (`pixi.lock`, `uv.lock`) |
 
 ```bash

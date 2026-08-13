@@ -1,4 +1,4 @@
-"""Unit tests for the Phase 3 plugin system (docs/agent-rethink-plan.md).
+"""Unit tests for the plugin system.
 
 Covers the plugins/*.yaml loader + schema validation, per-agent installed
 status, install/update/remove/configure for the skill / mcp / config kinds,
@@ -464,8 +464,8 @@ def test_cli_agent_list_json_is_status_shaped(
     assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     assert "agents" in data
-    # Plugins live under `agent list config` / `agent plugins list`.
-    plugins = runner.invoke(app, ["--json", "agent", "list", "config"])
+    # Plugins live under `agent plugins list`.
+    plugins = runner.invoke(app, ["--json", "agent", "plugins", "list"])
     assert plugins.exit_code == 0
     ids = {row["id"] for row in json.loads(plugins.stdout)}
     assert "canfar-ray" in ids
@@ -566,7 +566,7 @@ def test_install_addon_transport_skips_when_installed(
 
 
 def test_configure_addon_transport_uses_dispatcher(tmp_path: Path) -> None:
-    """`plugins configure git-mcp` must not KeyError on a missing `entry`."""
+    """configure_plugin(git-mcp) must not KeyError on a missing `entry`."""
     results = configure_plugin("git-mcp", home=tmp_path, dry_run=True)
     assert results
     assert all(r.status == "would_install" for r in results)

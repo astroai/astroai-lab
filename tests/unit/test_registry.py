@@ -1,4 +1,4 @@
-"""Unit tests for the Phase 1 agent registry (docs/agent-rethink-plan.md).
+"""Unit tests for the agent registry.
 
 Covers loader + schema validation, status detection, verify issues
 (installed-only gating), install dispatch, and catalog/list integration.
@@ -441,6 +441,14 @@ def test_agent_list_includes_every_tools_entry() -> None:
     assert "hyperfine" not in TOOLS
 
 
+def test_kilo_and_opencode_curl_skip_shell_rc() -> None:
+    kilo = get_registry_agent("kilo")
+    opencode = get_registry_agent("opencode")
+    assert kilo is not None and opencode is not None
+    assert "--no-modify-path" in (kilo["install"].get("args") or [])
+    assert "--no-modify-path" in (opencode["install"].get("args") or [])
+
+
 def test_cli_agent_list_covers_installable_set(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -456,20 +464,16 @@ def test_cli_agent_list_covers_installable_set(
     assert names.isdisjoint(TOOL_UTILITIES)
 
 
-def test_cli_agent_install_list_includes_migrated(
+def test_cli_agent_install_needs_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`agent install` (no arg) surfaces registry agents as installable."""
+    """Nameless `agent install` points at `agent list`, it does not list agents."""
     monkeypatch.setenv("HOME", str(tmp_path))
     result = runner.invoke(app, ["--json", "agent", "install"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    names = {str(row["name"]) for row in data}
-    assert {"kilo", "goose", "cline", "opencode", "codex", "cursor"} <= names
-    kilo = next(r for r in data if r["name"] == "kilo")
-    assert kilo["binary"] == "kilo"
-    cursor = next(r for r in data if r["name"] == "cursor")
-    assert cursor["binary"] == "agent"
+    assert data["help"] == "astroai-lab agent install NAME"
+    assert "list" in data["try"]
 
 
 def test_cli_agent_list_human_shows_status() -> None:
@@ -478,6 +482,7 @@ def test_cli_agent_list_human_shows_status() -> None:
     out = result.stdout + result.stderr
     assert "Bin" in out
     assert "Cfg" in out
+    assert "Where" in out
     assert "agent install kilo" in out
 
 
@@ -999,7 +1004,7 @@ def test_fix_registry_agent_repairs_broken_toml(tmp_path: Path) -> None:
 def test_fix_registry_agent_markdown_read_only(tmp_path: Path) -> None:
     """Existing markdown config is healthy (read-only); a missing one scaffolds."""
     home = tmp_path / "home"
-    cfg = home / ".config" / "canfar" / "lab" / "cline-notes.md"
+    cfg = home / ".config" / "cline" / "cline-notes.md"
     cfg.parent.mkdir(parents=True)
     cfg.write_text("# notes\n", encoding="utf-8")
     result = fix_registry_agent("cline", home=home)
@@ -1011,7 +1016,7 @@ def test_fix_registry_agent_markdown_read_only(tmp_path: Path) -> None:
     home2.mkdir()
     result2 = fix_registry_agent("cline", home=home2)
     assert any("created config" in a for a in result2["actions"])
-    assert (home2 / ".config" / "canfar" / "lab" / "cline-notes.md").is_file()
+    assert (home2 / ".config" / "cline" / "cline-notes.md").is_file()
 
 
 def test_fix_registry_agent_dry_run_writes_nothing(tmp_path: Path) -> None:

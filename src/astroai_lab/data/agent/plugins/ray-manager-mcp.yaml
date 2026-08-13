@@ -1,5 +1,5 @@
 # ray-manager-mcp — Ray cluster ops MCP server from the ray-manager session.
-# kind: mcp — `agent plugins configure ray-manager-mcp` merges an mcpServers
+# kind: mcp — `agent plugins install ray-manager-mcp` merges an mcpServers
 # entry into each host agent's config. Dynamic URL ONLY: the Jobs API address
 # is resolved from $ASTROAI_RAY_JOBS_ADDRESS at runtime (exported by the
 # ray-manager startup script), never a hardcoded per-session manager URL.

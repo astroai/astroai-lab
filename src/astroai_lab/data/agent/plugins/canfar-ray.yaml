@@ -1,8 +1,4 @@
-# canfar-ray — Drive CANFAR Ray clusters (Phase 3 plugin seed).
-# Schema: docs/agent-rethink-plan.md §4 Phase 3. One YAML per plugin under
-# data/agent/plugins/*.yaml; `agent plugins install/update/remove/configure`
-# drive every kind. Dynamic URLs only — never bake a per-session manager URL.
-# `addon: true` marks it as a curated plugin (`plugins list` / `plugins install`).
+# canfar-ray — Drive CANFAR Ray clusters.
 id: canfar-ray
 kind: skill                    # skill | bundle | mcp | tool | rule | config | addon
 addon: true

@@ -67,12 +67,11 @@ def test_resolve_paths(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert paths.config_dir == lab_home / ".astroai" / "lab"
 
 
-def test_migrates_legacy_canfar_lab_config(lab_home: Path) -> None:
-    from astroai_lab import _migrated_homes, config_dir
+def test_config_dir_ignores_legacy_canfar_lab(lab_home: Path) -> None:
+    from astroai_lab import config_dir
 
-    _migrated_homes.clear()
-    legacy = lab_home / ".canfar" / "lab"
-    legacy.mkdir(parents=True)
-    (legacy / "config.yaml").write_text("default_pm: uv\n")
+    leftover = lab_home / ".canfar" / "lab"
+    leftover.mkdir(parents=True)
+    (leftover / "config.yaml").write_text("default_pm: uv\n")
     assert config_dir() == lab_home / ".astroai" / "lab"
-    assert (lab_home / ".astroai" / "lab" / "config.yaml").read_text() == "default_pm: uv\n"
+    assert not (lab_home / ".astroai" / "lab").exists()

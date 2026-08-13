@@ -199,6 +199,7 @@ def build_agent_report(home: Path | None = None, *, probe_ver: bool = False) -> 
     from astroai_lab.agent.inventory import verify_setup
     from astroai_lab.agent.registry import list_registry_agents, registry_agent_status
     from astroai_lab.core.session_resources import collect_resources
+    from astroai_lab.version import version_info
 
     home = home or Path.home()
     state = read_setup_state(home)
@@ -239,6 +240,7 @@ def build_agent_report(home: Path | None = None, *, probe_ver: bool = False) -> 
     ]
     return {
         "ok": state.ok and not issues,
+        "lab": version_info(),
         "setup": state.to_dict(),
         "issues": issues,
         "agents": agents,

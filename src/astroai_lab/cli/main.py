@@ -6,7 +6,6 @@ from typing import Annotated
 
 import typer
 
-from astroai_lab import __version__
 from astroai_lab.cli import init_clone_env
 from astroai_lab.cli import status as status_mod
 from astroai_lab.cli.agent_cmd import agent_app
@@ -16,6 +15,7 @@ from astroai_lab.cli.context import GlobalOpts, merge_opts
 from astroai_lab.cli.env import env_app
 from astroai_lab.cli.help_cmd import command_path_completer, help_cmd_body
 from astroai_lab.cli.kernel import kernel_app
+from astroai_lab.version import display_version
 
 app = typer.Typer(
     name="astroai-lab",
@@ -50,7 +50,7 @@ def main(
     """In-session workbench for environments and AI agents."""
     ctx.obj = GlobalOpts(json=json_output, yes=yes, dry_run=dry_run, quiet=quiet)
     if version:
-        typer.echo(f"astroai-lab {__version__}")
+        typer.echo(f"astroai-lab {display_version()}")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         show_banner(json_output=json_output)

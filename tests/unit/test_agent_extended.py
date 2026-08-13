@@ -6,16 +6,18 @@ import pytest
 from typer.testing import CliRunner
 
 from astroai_lab.agent.bundle_path import bundle_root
-from astroai_lab.agent.bundles import (
+from astroai_lab.agent.setup import (
     ensure_agent_dirs,
     install_goose_config,
-    install_upstream_skills,
-    list_github_sources,
     merge_claude_json,
     merge_opencode_mcp,
     run_bundle,
-    update_github_source,
     write_stamp,
+)
+from astroai_lab.agent.upstream import (
+    install_upstream_skills,
+    list_github_sources,
+    update_github_source,
 )
 from astroai_lab.cli.main import app
 
@@ -90,7 +92,7 @@ def test_list_github_sources() -> None:
 
 
 def test_list_skills_inventory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from astroai_lab.agent.bundles import list_skills_inventory
+    from astroai_lab.agent.inventory import list_skills_inventory
 
     home = tmp_path / "home"
     skill = home / ".cursor" / "skills" / "astroai-lab-workflow"
@@ -114,7 +116,7 @@ def test_agent_list_default_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert result.exit_code == 0
     out = result.stdout + result.stderr
     assert "Bin" in out
-    assert "list config" in out.lower()
+    assert "plugins list" in out.lower()
 
 
 def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

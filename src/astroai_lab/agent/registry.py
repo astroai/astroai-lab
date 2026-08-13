@@ -358,9 +358,10 @@ def _install_curl(agent: dict[str, Any]) -> str:
         _curl_pipe_bash,
         _link_into_local_bin,
         _verify_cmd,
+        find_curl_binary,
     )
 
-    binary = agent["binary"]
+    binary = str(agent["binary"])
     # Registry installs can pass installer-specific env (e.g. XDG_BIN_DIR,
     # GOOSE_BIN_DIR) with a {bin_dir} token expanded to the session bin dir.
     env = {
@@ -370,14 +371,8 @@ def _install_curl(agent: dict[str, Any]) -> str:
     raw_args = agent["install"].get("args") or []
     script_args = [str(a) for a in raw_args]
     _curl_pipe_bash(str(agent["install"]["source"]), env=env or None, args=script_args or None)
-    home = Path.home()
-    candidates = [
-        _bin_dir() / binary,
-        *(Path(p).expanduser() for p in agent["install"].get("post_binary_paths", [])),
-    ]
-    # self-contained installers may drop the binary in $HOME-relative spots
-    candidates.extend([home / ".local" / "bin" / binary, home / f".{binary}" / "bin" / binary])
-    found = next((p for p in candidates if p.is_file()), None)
+    extra = [Path(p).expanduser() for p in agent["install"].get("post_binary_paths", [])]
+    found = find_curl_binary(binary, extra=extra)
     if found is None:
         raise LabError(
             f"{binary} not found after install — open a new shell",
@@ -385,7 +380,7 @@ def _install_curl(agent: dict[str, Any]) -> str:
             "(see `astroai-lab env export` / ASTROAI_LAB_BIN_DIR)",
         )
     _link_into_local_bin(found, binary)
-    _verify_cmd(binary, extra_paths=candidates)
+    _verify_cmd(binary, extra_paths=extra)
     return binary
 
 
@@ -599,7 +594,8 @@ def _remove_registry_method(
     if config.get("path"):
         cfg = _expand_home(str(config["path"]), home)
         rm(cfg, f"config:{cfg}")
-        if purge and cfg.parent != home:
+        lab_dir = home / ".astroai" / "lab"
+        if purge and cfg.parent not in {home, lab_dir}:
             rm_tree(cfg.parent, f"purge:{cfg.parent}")
 
     # Plugin-applied files (Phase 3 recursive removal). Run the precise
@@ -677,14 +673,12 @@ def setup_registry_agent(
     dry_run: bool = False,
     post_install: bool = False,
 ) -> dict[str, Any]:
-    """Registry-driven `agent setup <id>` (docs/agent-rethink-plan.md Phase 2).
-
-    Writes configs/skills/MCP for ONE registered agent:
+    """Write configs, skills, and MCP for one registered agent.
 
     1. Scaffold the declared config file when missing (never clobber existing).
     2. Create the agent's skills dir (AGENT_SKILL_DIRS, when declared).
     3. Re-apply every plugin whose support matrix includes this agent.
-    4. Optionally run ``setup.post_install`` (interactive — opt-in).
+    4. Optionally run ``setup.post_install`` (interactive, opt-in).
     5. Record the setup stamp (mode=setup:<id>).
 
     Returns ``{ok, partial, agent, actions, errors}`` (human-readable action
@@ -787,7 +781,7 @@ def update_registry_agent(
     force_reinstall: bool = False,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Registry-driven `agent update <id>` (docs/agent-rethink-plan.md Phase 2).
+    """Refresh one registered agent's CLI and configs.
 
     1. Refresh the CLI binary (install if missing, or always with --reinstall).
     2. Force re-apply every plugin supporting this agent (skills/MCP/config).
@@ -845,7 +839,7 @@ def fix_registry_agent(
     home: Path | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Registry-driven `agent verify --fix <id>` (docs/agent-rethink-plan.md Phase 2).
+    """Regenerate or sanitize one registered agent's config.
 
     Regenerate/sanitize ONE registered agent's config from the registry,
     reusing ``fix.py``'s repair pattern (syntax check → reset to a minimal

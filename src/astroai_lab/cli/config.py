@@ -5,7 +5,7 @@ from typing import Annotated
 import typer
 
 from astroai_lab import ui
-from astroai_lab.cli.context import merge_opts
+from astroai_lab.cli.context import get_opts, merge_opts
 from astroai_lab.config.settings import config_file_path, get_settings
 
 config_app = typer.Typer(
@@ -17,7 +17,18 @@ config_app = typer.Typer(
 @config_app.callback(invoke_without_command=True)
 def config_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        ui.print_hint("Use: `astroai-lab config show` | `astroai-lab config path`")
+        opts = get_opts(ctx)
+        if opts.json:
+            ui.print_json(
+                {
+                    "help": "astroai-lab config --help",
+                    "try": ["show", "path"],
+                }
+            )
+            return
+        ui.print_hint("Lab preferences (~/.astroai/lab/config.yaml).")
+        ui.print_hint("  astroai-lab config show")
+        ui.print_hint("  astroai-lab config --help")
 
 
 @config_app.command("show")

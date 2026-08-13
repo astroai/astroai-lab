@@ -1,4 +1,4 @@
-"""Plugin registry: skills / MCP / config / addon packages across agents (Phase 3).
+"""Plugin registry: skills / MCP / config packages across agents.
 
 One YAML file per plugin under ``data/agent/plugins/*.yaml`` declares the
 support matrix (which agents can host it) and how it is applied. ``agent
@@ -6,39 +6,37 @@ plugins install/update/remove/configure`` drive every kind; ``install``
 applies to every *installed* agent in the matrix by default and ``--agent``
 scopes it.
 
-Schema (see docs/agent-rethink-plan.md §4 Phase 3):
+Example::
 
     id: canfar-ray
-    kind: skill                 # skill | mcp | config | addon
+    kind: skill
     tags: [science, ray, canfar]
     summary: Drive CANFAR Ray clusters (ensure/status/scale/dashboard)
-    agents: [hermes, openclaw]  # support matrix
+    agents: [hermes, openclaw]
     install:
-      source: canfar-ray        # skill: bundled dir under bundle_root()/skills/<source>
-      targets:                  # optional home-relative paths (default AGENT_SKILL_DIRS)
+      source: canfar-ray
+      targets:
         hermes: .hermes/skills/canfar-ray
         openclaw: .openclaw/skills/canfar-ray
 
 Kinds:
-  skill  — copy a bundled SKILL.md tree into each target agent's skill dir
-  bundle — legacy github-bundle addon transport (skills + rules from a repo)
-  mcp    — merge an ``mcpServers`` entry into each agent's config (configure)
-  tool   — legacy cli-tool addon transport (install a CLI binary)
-  rule   — legacy bundled/github-rule addon transport (Cursor rules)
-  config — write a config snippet to a home-relative target path
-  addon  — legacy delegation (addons.add_addon)
+  skill   copy a bundled SKILL.md tree into each target agent's skill dir
+  bundle  github-bundle transport (skills + rules from a repo)
+  mcp     merge an ``mcpServers`` entry into each agent's config (configure)
+  tool    cli-tool transport (install a CLI binary)
+  rule    bundled/github-rule transport (Cursor rules)
+  config  write a config snippet to a home-relative target path
+  addon   extra skill/MCP/tool packaged as a plugin (``addon: true``)
 
-Any plugin whose ``install`` block declares ``type`` (bundled / github-skill /
-github-bundle / github-rule / mcp-snippet / cli-tool / agent-skill) is a
-legacy addon migrated from addons.json: it routes through the shared
-``addons._apply_addon`` dispatcher so `agent plugins install` and
-`agent add` behave identically. Entries also carry ``addon: true`` so the
-`agent plugins list` surfaces them (see ``addons.load_addons``).
+Plugins with an ``install.type`` (bundled / github-skill / github-bundle /
+github-rule / mcp-snippet / cli-tool / agent-skill) go through
+``addons._apply_addon``. ``addon: true`` marks curated plugins for
+``agent plugins list``.
 
 Removal is recursive: dropping an agent removes its plugin-applied files
-(see ``remove_agent_plugin_files``, wired into ``registry._remove_registry_method``).
-Dynamic URLs only — an mcp ``entry`` must reference env vars (e.g.
-``$ASTROAI_RAY_JOBS_ADDRESS``), never a hardcoded per-session manager URL.
+(see ``remove_agent_plugin_files``). Dynamic URLs only: an mcp ``entry``
+must reference env vars (e.g. ``$ASTROAI_RAY_JOBS_ADDRESS``), never a
+hardcoded per-session manager URL.
 """
 
 from __future__ import annotations
@@ -56,8 +54,7 @@ from astroai_lab.errors import LabError
 PLUGIN_KINDS = ("skill", "bundle", "mcp", "tool", "rule", "config", "addon")
 REQUIRED_KEYS = ("id", "kind", "summary", "agents", "install")
 
-# Legacy addon transports (migrated from addons.json) — dispatched through
-# addons._apply_addon / addons.addon_installed via plugin_as_addon.
+# Install transports dispatched through addons._apply_addon.
 ADDON_TRANSPORTS = (
     "bundled",
     "github-skill",
@@ -430,7 +427,7 @@ def _apply(
 ) -> PluginResult:
     install = plugin.get("install") or {}
     if install.get("type"):
-        # Legacy addon transport — shared dispatcher, identical to `agent add`.
+        # Install transport — shared dispatcher in addons._apply_addon.
         from astroai_lab.agent.addons import _apply_addon, plugin_as_addon
 
         result = _apply_addon(
@@ -563,12 +560,12 @@ def _remove_from_agent(
     plugin: dict[str, Any], agent: str, home: Path, *, dry_run: bool
 ) -> PluginResult:
     if (plugin.get("install") or {}).get("type"):
-        # Legacy addon transports have no uninstall (bundled / cloned skills).
+        # These transports have no uninstall (bundled / cloned skills).
         return PluginResult(
             plugin["id"],
             agent,
             "no-op",
-            "legacy addon has no removal — remove files manually (agent plugins list)",
+            "no automated removal; remove files manually (agent plugins list)",
         )
     kind = plugin["kind"]
     if kind == "skill":

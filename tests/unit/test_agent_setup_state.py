@@ -75,11 +75,11 @@ def test_agent_setup_lock_dead_holder_is_stolen(
     assert not path.exists()
 
 
-def test_agent_status_json_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_list_json_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--json", "agent", "status"])
+    result = runner.invoke(app, ["--json", "agent", "list"])
     assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     assert "ok" in data
@@ -125,11 +125,11 @@ def test_agent_setup_json_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert "errors" in data
 
 
-def test_agent_status_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_list_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--json", "agent", "status"])
+    result = runner.invoke(app, ["--json", "agent", "list"])
     assert result.exit_code in (0, 1)
     data = json.loads(result.stdout)
     assert "agents" in data
@@ -137,11 +137,11 @@ def test_agent_status_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert result.exit_code == 1
 
 
-def test_agent_status_includes_resources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_list_includes_resources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    result = runner.invoke(app, ["--json", "agent", "status"])
+    result = runner.invoke(app, ["--json", "agent", "list"])
     data = json.loads(result.stdout)
     assert "resources" in data
     assert "mem_pct" in data["resources"]

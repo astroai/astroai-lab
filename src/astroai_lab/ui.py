@@ -10,6 +10,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from astroai_lab.utils.console import console
+from astroai_lab.version import display_version
 
 
 def print_json(data: Any) -> None:
@@ -125,7 +126,7 @@ def status_human(
     vault=None,
     resources: dict | None = None,
 ) -> None:
-    console.print("[bold]astroai-lab status[/bold]\n")
+    console.print(f"[bold]astroai-lab {display_version()}[/bold]  status\n")
     if resources:
         mem = resources.get("mem_pct")
         cpu = resources.get("cpu_pct")

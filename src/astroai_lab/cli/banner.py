@@ -6,6 +6,7 @@ from astroai_lab.core.git import git_status
 from astroai_lab.core.paths import quota_used_pct, resolve_paths
 from astroai_lab.core.project import detect_project, list_saves
 from astroai_lab.core.storage import arc_project_statuses
+from astroai_lab.version import display_version, version_info
 
 
 def show_banner(*, json_output: bool = False) -> None:
@@ -22,6 +23,7 @@ def show_banner(*, json_output: bool = False) -> None:
     if json_output:
         ui.print_json(
             {
+                "version": version_info(),
                 "work_dir": str(paths.work_dir),
                 "scratch_dir": str(paths.scratch_dir) if paths.scratch_dir else None,
                 "save_dir": str(paths.save_dir),
@@ -44,7 +46,7 @@ def show_banner(*, json_output: bool = False) -> None:
         )
         return
 
-    ui.print_info("[bold]astroai-lab[/bold] — AstroAI session workbench")
+    ui.print_info(f"[bold]astroai-lab {display_version()}[/bold] — AstroAI session workbench")
     ui.print_hint(f"  work:    {paths.work_dir}  (code / notebooks — ephemeral)")
     ui.print_hint(
         f"  scratch: {paths.scratch_dir or '(not mounted)'}  (fast I/O + caches — ephemeral)"

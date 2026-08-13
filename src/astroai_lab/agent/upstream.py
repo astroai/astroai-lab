@@ -1,8 +1,4 @@
-"""GitHub upstream skill sync (clone / refresh / install).
-
-Extracted from ``bundles.py`` in the Phase 0 decomposition
-(docs/agent-rethink-plan.md) — behavior is byte-identical to the original.
-"""
+"""GitHub upstream skill sync (clone / refresh / install)."""
 
 from __future__ import annotations
 

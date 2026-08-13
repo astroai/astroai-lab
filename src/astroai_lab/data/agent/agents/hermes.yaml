@@ -1,6 +1,4 @@
 # Hermes Agent (Nous Research) — registry entry.
-# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
-# `agent list` / `agent install` / `agent verify`.
 id: hermes
 name: Hermes Agent
 homepage: https://github.com/nousresearch/hermes-agent

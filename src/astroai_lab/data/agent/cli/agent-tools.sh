@@ -8,7 +8,7 @@
 #
 # Platform CLI upgrade (this session):  upgrade-cadc-tools.sh --upgrade astroai-lab
 # Agent overview:                       astroai-lab agent list
-# Configs (skills/MCP/addons):          astroai-lab agent list config
+# Plugins (skills/MCP/rules/tools):     astroai-lab agent plugins list
 # Plugins (e.g. ponytail):              astroai-lab agent plugins install ponytail
 # Agent configs refresh:                astroai-lab agent update
 # Config syntax check / repair:         astroai-lab agent verify · agent verify --fix

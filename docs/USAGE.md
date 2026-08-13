@@ -222,10 +222,9 @@ enumerable, so you rarely need to guess or re-read `help`:
   astroai-lab agent plugins install <TAB>  # → ponytail, polars, …
   ```
 
-- **`--kind` filters** for `agent list config` and `agent plugins list`:
+- **`--kind` filters** for `agent plugins list`:
 
   ```bash
-  astroai-lab agent list config --kind <TAB>   # → skill, rule, mcp, tool, …
   astroai-lab agent plugins list --kind <TAB>  # → skill, mcp, …
   ```
 
@@ -241,17 +240,16 @@ verifies. `agent list` / `install` / `remove` share that set. Configs stay on
 `$HOME`; CLIs go to scratch.
 
 ```bash
-astroai-lab agent list             # installable agents (status + one-line summary)
-astroai-lab agent list config      # skills/MCP/addons
+astroai-lab agent list             # installable agents (Bin / Cfg / Where / Ver)
 astroai-lab agent install kilo     # CLI → $SCRATCH (also: cursor, claude, goose, …)
 astroai-lab agent remove kilo      # managed scratch CLI; --clean-home for $HOME copies
 astroai-lab agent remove kilo --purge  # also drop config dirs (~/.config/kilo, …)
 astroai-lab agent wipe             # factory reset (confirm or --yes; --dry-run to preview)
-astroai-lab agent setup hermes     # config scaffold + skills + plugins
+astroai-lab agent setup hermes     # settings scaffold + skills + plugins
 astroai-lab agent setup --all      # same for every managed install
 astroai-lab agent setup --project  # per-repo AGENTS.md + .cursor scaffold
-astroai-lab agent config hermes    # show/edit $HOME config (key=value / --unset)
-astroai-lab agent plugins list     # same as `list config`
+astroai-lab agent config hermes    # show/edit $HOME settings (key=value / --unset)
+astroai-lab agent plugins list     # skills / MCP / rules / tools
 astroai-lab agent plugins install ponytail
 astroai-lab agent update           # after upgrading lab in-session
 astroai-lab agent update hermes    # refresh ONE agent

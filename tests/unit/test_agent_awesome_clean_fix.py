@@ -90,19 +90,19 @@ def test_inspect_interact_endpoints() -> None:
     assert isinstance(info["endpoints"], list)
 
 
-def test_cli_agent_list_config() -> None:
-    result = runner.invoke(app, ["--json", "agent", "list", "config"])
+def test_cli_agent_plugins_list() -> None:
+    result = runner.invoke(app, ["--json", "agent", "plugins", "list"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert isinstance(data, list)
     assert any(row.get("id") == "ponytail" for row in data)
 
-    res_kind = runner.invoke(app, ["agent", "list", "config", "--kind", "skill"])
+    res_kind = runner.invoke(app, ["agent", "plugins", "list", "--kind", "skill"])
     assert res_kind.exit_code == 0
 
 
 def test_cli_agent_awesome_alias_removed() -> None:
-    """The `agent awesome` alias was removed (use `agent list` / `list config`)."""
+    """The `agent awesome` alias was removed (use `agent list` / `agent plugins list`)."""
     result = runner.invoke(app, ["--json", "agent", "awesome"])
     assert result.exit_code != 0
     assert "No such command" in (result.stdout + result.stderr)
@@ -161,18 +161,18 @@ def test_cli_agent_list_description_flags(tmp_path: Path, monkeypatch: pytest.Mo
     from astroai_lab.agent.registry import get_registry_agent
 
     summary = (get_registry_agent("hermes") or {}).get("summary") or ""
-    for flag in ("--description", "--long", "-l"):
+    for flag in ("--description",):
         result = runner.invoke(app, ["agent", "list", flag])
         assert result.exit_code == 0
         assert summary in (result.stdout + result.stderr)
 
 
-def test_cli_agent_status_ui() -> None:
-    result = runner.invoke(app, ["--json", "agent", "status", "--ui"])
+def test_cli_agent_list_ui() -> None:
+    result = runner.invoke(app, ["--json", "agent", "list", "--ui"])
     assert result.exit_code == 0
     assert "endpoints" in result.output
 
-    res_plain = runner.invoke(app, ["agent", "status", "--ui"])
+    res_plain = runner.invoke(app, ["agent", "list", "--ui"])
     assert res_plain.exit_code == 0
 
 

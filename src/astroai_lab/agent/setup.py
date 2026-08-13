@@ -1,8 +1,4 @@
-"""Agent config writing + setup orchestration.
-
-Extracted from ``bundles.py`` in the Phase 0 decomposition
-(docs/agent-rethink-plan.md) — behavior is byte-identical to the original.
-"""
+"""Agent config writing + setup orchestration."""
 
 from __future__ import annotations
 
@@ -269,7 +265,7 @@ def run_bundle(
     elif name == "cline":
         install_file(
             root / "cline" / "cline-notes.md",
-            home / ".config" / "canfar" / "lab" / "cline-notes.md",
+            home / ".config" / "cline" / "cline-notes.md",
             force=force,
             dry_run=dry_run,
         )
@@ -290,15 +286,15 @@ def run_bundle(
     elif name == "cli":
         install_file(
             root / "cli" / "agent-tools.sh",
-            home / ".config" / "canfar" / "lab" / "agent-tools-reminder.sh",
+            home / ".astroai" / "lab" / "agent-tools-reminder.sh",
             force=force,
             dry_run=dry_run,
         )
-        hook = home / ".config" / "canfar" / "lab" / "agent-env.sh"
+        hook = home / ".astroai" / "lab" / "agent-env.sh"
         if (force or not hook.is_file()) and not dry_run:
             hook.parent.mkdir(parents=True, exist_ok=True)
             hook.write_text(
-                "# AstroAI lab agent setup — GitHub token for gh + GitHub MCP\n"
+                "# AstroAI lab agent setup: GitHub token for gh + GitHub MCP\n"
                 "if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then\n"
                 '  export GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"\n'
                 "fi\n",
@@ -306,13 +302,15 @@ def run_bundle(
             )
         bashrc = home / ".bashrc"
         marker = "# astroai-lab agent setup"
-        if bashrc.exists() and marker not in bashrc.read_text() and not dry_run:
-            with bashrc.open("a", encoding="utf-8") as fh:
-                fh.write(
-                    f"\n{marker}\n"
-                    '[[ -f "${HOME}/.config/canfar/lab/agent-env.sh" ]] '
-                    '&& source "${HOME}/.config/canfar/lab/agent-env.sh"\n'
-                )
+        source_line = (
+            '[[ -f "${HOME}/.astroai/lab/agent-env.sh" ]] '
+            '&& source "${HOME}/.astroai/lab/agent-env.sh"'
+        )
+        if bashrc.exists() and not dry_run:
+            text = bashrc.read_text(encoding="utf-8")
+            if source_line not in text:
+                with bashrc.open("a", encoding="utf-8") as fh:
+                    fh.write(f"\n{marker}\n{source_line}\n")
     elif name == "marimo":
         _merge_marimo_openrouter(
             home / ".marimo.toml",
@@ -347,7 +345,7 @@ def run_bundle(
             dry_run=dry_run,
         )
     else:
-        raise LabError(f"Unknown bundle: {name}", hint="astroai-lab agent setup --list")
+        raise LabError(f"Unknown setup name: {name}", hint="astroai-lab agent setup --help")
 
 
 def ensure_agent_dirs(home: Path, *, dry_run: bool) -> None:
@@ -437,7 +435,7 @@ def agent_setup(
 
     warnings: list[str] = []
     quota = quota_used_pct(home)
-    if quota is not None and quota >= 98 and not force:
+    if quota is not None and quota >= 98 and not force and not dry_run:
         raise LabError(
             f"Home quota {quota}% — refusing agent setup",
             hint="Free space under /arc/home (caches, old envs) or pass --force",

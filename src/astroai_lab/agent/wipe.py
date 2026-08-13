@@ -99,10 +99,11 @@ def wipe_agent_state(*, home: Path | None = None, dry_run: bool = False) -> list
     # 4. Upstream skill clone cache (re-cloned by `agent update`).
     _rm(home / ".cache" / "astroai-lab" / "upstream-skills", "cache:upstream-skills")
 
-    # 5. Shared agent configs not owned by a single registry entry
-    #    (claude bundle writes ~/.claude.json; cline-notes.md lives under
-    #    ~/.config/canfar/lab).
+    # 5. Shared agent files under ~/.astroai/lab (keep saves/ and config.yaml).
+    lab = home / ".astroai" / "lab"
+    for name in ("agent-env.sh", "agent-tools-reminder.sh"):
+        _rm(lab / name, f"config:{name}")
     _rm(home / ".claude.json", "config:.claude.json")
-    _rm(home / ".config" / "canfar" / "lab", "config:canfar-lab")
+    _rm(home / ".config" / "canfar" / "lab", "leftover:canfar-lab")
 
     return results

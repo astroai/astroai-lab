@@ -1,6 +1,4 @@
 # OpenClaw (openclaw/openclaw) — registry entry.
-# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
-# `agent list` / `agent install` / `agent verify`.
 id: openclaw
 name: OpenClaw
 homepage: https://github.com/openclaw/openclaw

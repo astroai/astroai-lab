@@ -1,6 +1,4 @@
 # Cursor Agent CLI — registry entry.
-# Schema: docs/agent-rethink-plan.md §4 Phase 1. Single source of truth for
-# `agent list` / `agent install` / `agent remove` / `agent verify`.
 # The on-disk binary remains `agent` (upstream name); the registry id is
 # `cursor` so it matches plugins/setup.
 id: cursor

@@ -318,6 +318,51 @@ def _session_environ(extra: dict[str, str] | None = None) -> dict[str, str]:
     return merged
 
 
+def installer_sandbox_home() -> Path:
+    """Scratch ``HOME`` for curl install scripts (never /arc/home).
+
+    Cursor/kilo/opencode/claude installers hardcode ``$HOME/.local/bin``,
+    ``$HOME/.kilo/bin``, ``$HOME/.opencode/bin``. Pointing the subprocess HOME
+    at scratch keeps those droppings off the Ceph quota. Real ``~/.config``
+    stays via ``XDG_CONFIG_HOME``.
+    """
+    root = _bin_dir().parent / "installer-home"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def curl_installer_environ(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Env for an upstream curl|bash installer: binaries on scratch, configs on $HOME."""
+    sandbox = installer_sandbox_home()
+    merged = _session_environ(extra)
+    merged["HOME"] = str(sandbox)
+    merged["XDG_CONFIG_HOME"] = str(Path.home() / ".config")
+    merged.setdefault("XDG_BIN_DIR", str(_bin_dir()))
+    return merged
+
+
+def find_curl_binary(binary: str, extra: list[Path] | None = None) -> Path | None:
+    """Locate a CLI just dropped by a curl installer (sandbox, scratch, or leftover home)."""
+    sandbox = installer_sandbox_home()
+    home = Path.home()
+    candidates = [
+        _bin_dir() / binary,
+        sandbox / ".local" / "bin" / binary,
+        sandbox / f".{binary}" / "bin" / binary,
+        sandbox / ".kilo" / "bin" / binary,
+        sandbox / ".opencode" / "bin" / binary,
+        sandbox / ".hermes" / "bin" / binary,
+        sandbox / ".agy" / "bin" / binary,
+        *(extra or []),
+        home / ".local" / "bin" / binary,
+        home / f".{binary}" / "bin" / binary,
+        home / ".kilo" / "bin" / binary,
+        home / ".opencode" / "bin" / binary,
+        home / ".hermes" / "bin" / binary,
+    ]
+    return next((p for p in candidates if p.is_file()), None)
+
+
 def _installer_noise(line: str) -> bool:
     """Upstream installers often spam glog / PATH chatter we already handle."""
     text = line.strip()
@@ -342,14 +387,15 @@ def _curl_pipe_bash(
 ) -> None:
     """Fetch an install script and run it, capturing chatter.
 
-    Upstream scripts (agy, claude, …) often print home paths and glog noise.
-    We capture stdout/stderr, surface only useful lines on failure, and let
-    ``agent install`` report the managed scratch path after linking.
+    Upstream scripts (cursor, kilo, opencode, claude, …) hardcode ``$HOME/.local``
+    or ``$HOME/.<name>/bin``. The subprocess HOME is a scratch sandbox so those
+    writes never land on /arc/home. ``XDG_CONFIG_HOME`` still points at the
+    real ``~/.config``.
     """
     from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
 
     _require("curl")
-    merged = _session_environ(env)
+    merged = curl_installer_environ(env)
     # Keep curl + bash within INSTALL_TIMEOUT_SEC total (including curl's +5 slack).
     total = max(60, INSTALL_TIMEOUT_SEC)
     curl_budget = max(20, (total - 5) // 3)
@@ -429,10 +475,38 @@ def _link_into_local_bin(src: Path, name: str) -> None:
     except OSError:
         dst.symlink_to(src)
         return
+    _copy_installer_siblings(src)
     home = Path.home()
     if _path_under(src, home):
         with contextlib.suppress(OSError):
             src.unlink()
+
+
+def _copy_installer_siblings(src: Path) -> None:
+    """Copy sidecar files next to a curl-dropped CLI (e.g. kilo ``tree-sitter``)."""
+    parent = src.parent
+    dst_dir = _bin_dir()
+    if parent == dst_dir or parent.name != "bin":
+        return
+    try:
+        src_key = src.resolve()
+    except OSError:
+        src_key = src
+    for child in parent.iterdir():
+        try:
+            if child.resolve() == src_key:
+                continue
+        except OSError:
+            if child.name == src.name:
+                continue
+        dest = dst_dir / child.name
+        if dest.exists() or dest.is_symlink():
+            continue
+        with contextlib.suppress(OSError):
+            if child.is_dir():
+                shutil.copytree(child, dest)
+            elif child.is_file():
+                shutil.copy2(child, dest)
 
 
 def _verify_cmd(cmd: str, *, extra_paths: list[Path] | None = None) -> None:
@@ -526,15 +600,21 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
     elif name == "cursor":
         # Upstream binary remains `agent`; registry / TOOLS id is `cursor`.
         _curl_pipe_bash("https://cursor.com/install")
-        _link_into_local_bin(Path.home() / ".local" / "bin" / "agent", "agent")
+        found = find_curl_binary("agent")
+        if found is not None:
+            _link_into_local_bin(found, "agent")
         _verify_cmd("agent")
     elif name == "claude":
         _curl_pipe_bash("https://claude.ai/install.sh")
-        _link_into_local_bin(Path.home() / ".local" / "bin" / "claude", "claude")
+        found = find_curl_binary("claude")
+        if found is not None:
+            _link_into_local_bin(found, "claude")
         _verify_cmd("claude")
     elif name == "agy":
         _curl_pipe_bash("https://antigravity.google/cli/install.sh")
-        _link_into_local_bin(Path.home() / ".local" / "bin" / "agy", "agy")
+        found = find_curl_binary("agy")
+        if found is not None:
+            _link_into_local_bin(found, "agy")
         _verify_cmd("agy")
     elif name == "copilot":
         env = {"PREFIX": str(_npm_prefix()), "CI": "1"}
@@ -555,13 +635,10 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         # Nous Research Hermes Agent — self-contained installer (bootstraps its
         # own Python/uv/Node), first-class OpenRouter + headless `hermes -z`.
         _curl_pipe_bash("https://hermes-agent.nousresearch.com/install.sh")
-        hermes_src = _bin_dir() / "hermes"
-        if not hermes_src.is_file():
-            hermes_src = Path.home() / ".local" / "bin" / "hermes"
-        if not hermes_src.is_file():
-            hermes_src = Path.home() / ".hermes" / "bin" / "hermes"
-        _link_into_local_bin(hermes_src, "hermes")
-        _verify_cmd("hermes", extra_paths=[hermes_src])
+        found = find_curl_binary("hermes")
+        if found is not None:
+            _link_into_local_bin(found, "hermes")
+        _verify_cmd("hermes")
     elif name == "openclaw":
         # Requires Node >= 24.15 — Node 24.18.1 LTS is baked into the base image.
         _require("npm")
@@ -577,13 +654,10 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         env = {"XDG_BIN_DIR": str(_bin_dir())}
         with contextlib.suppress(subprocess.CalledProcessError, LabError):
             _curl_pipe_bash("https://qoder.com/install", env=env)
-        qoder_src = _bin_dir() / "qodercli"
-        if not qoder_src.is_file():
-            qoder_src = Path.home() / ".local" / "bin" / "qodercli"
-        if qoder_src.is_file():
-            _link_into_local_bin(qoder_src, "qodercli")
-            # Convenience alias matching the install tool name.
-            _link_into_local_bin(qoder_src, "qoder")
+        found = find_curl_binary("qodercli")
+        if found is not None:
+            _link_into_local_bin(found, "qodercli")
+            _link_into_local_bin(found, "qoder")
         if shutil.which("qodercli") is None and not (_bin_dir() / "qodercli").is_file():
             _require("npm")
             run(
@@ -775,7 +849,8 @@ def uninstall_tool(
     if purge:
         for rel in TOOL_CONFIG_PATHS.get(name, []):
             d = (home / rel).parent
-            if d != home:
+            lab_dir = home / ".astroai" / "lab"
+            if d not in {home, lab_dir}:
                 result = _remove_tree(d, f"purge:{d}", dry_run=dry_run)
                 if result:
                     results.append(result)

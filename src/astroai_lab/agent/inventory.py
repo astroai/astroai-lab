@@ -1,8 +1,4 @@
-"""Inventory: skill/bundle dir scans + config presence/syntax verification.
-
-Extracted from ``bundles.py`` in the Phase 0 decomposition
-(docs/agent-rethink-plan.md) — behavior is byte-identical to the original.
-"""
+"""Inventory: skill/bundle dir scans + config presence/syntax verification."""
 
 from __future__ import annotations
 
@@ -104,7 +100,11 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
     binary is on PATH.
     """
     from astroai_lab.agent.install import classify_binary, tool_binary
-    from astroai_lab.agent.registry import get_registry_agent
+    from astroai_lab.agent.registry import (
+        get_registry_agent,
+        list_registry_agents,
+        registry_agent_status,
+    )
 
     def _agent_installed(agent_id: str) -> bool:
         agent = get_registry_agent(agent_id)
@@ -183,6 +183,19 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
     # Phase 1 registry: verify config of installed registered agents only, so
     # fresh images without hermes/openclaw don't fail the container gate.
     issues.extend(registry_verify_issues(home, installed_only=True, probe_binaries=probe_binaries))
+
+    home_clis: list[str] = []
+    for agent in list_registry_agents():
+        status = registry_agent_status(agent, home)
+        if status["binary_ok"] and status.get("home_install") and not status.get("managed"):
+            home_clis.append(agent["id"])
+    if home_clis:
+        issues.append(
+            "Agent CLIs under $HOME (should be $SCRATCH): "
+            + ", ".join(home_clis)
+            + ". Move with: astroai-lab agent remove NAME --clean-home"
+            + " && astroai-lab agent install NAME"
+        )
 
     return issues
 

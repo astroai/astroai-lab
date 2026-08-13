@@ -1,4 +1,4 @@
-"""Unit tests for `agent config <id>` (Phase 2, docs/agent-rethink-plan.md).
+"""Unit tests for `agent config <id>`.
 
 Covers format-aware show/get/set/unset across jsonc/json5 (textual edits
 preserve comments), yaml, toml, and the read-only markdown case, plus the
@@ -123,7 +123,7 @@ def test_read_broken_json_raises(tmp_path: Path) -> None:
 
 
 def test_read_markdown_readonly(tmp_path: Path) -> None:
-    home = _home(tmp_path, "cline", ".config/canfar/lab/cline-notes.md", "# notes\n")
+    home = _home(tmp_path, "cline", ".config/cline/cline-notes.md", "# notes\n")
     with pytest.raises(LabError, match="read-only"):
         ac.read_agent_config("cline", home=home)
 

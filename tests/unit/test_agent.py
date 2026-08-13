@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from astroai_lab.agent.bundles import agent_setup, install_file, list_bundles, verify_setup
+from astroai_lab.agent.inventory import list_bundles, verify_setup
+from astroai_lab.agent.setup import agent_setup, install_file
 from astroai_lab.cli.main import app
 
 runner = CliRunner()
@@ -36,7 +37,7 @@ def test_agent_setup_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     agent_setup(bundles=["cli"], dry_run=True)
-    assert not (home / ".config" / "canfar" / "lab" / "agent-env.sh").is_file()
+    assert not (home / ".astroai" / "lab" / "agent-env.sh").is_file()
 
 
 def test_agent_verify_fresh_home_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -91,8 +92,39 @@ def test_agent_verify_cursor_required_when_installed(
     assert any("Cursor MCP not configured" in i for i in issues)
 
 
+def test_agent_verify_reports_home_owned_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+
+    def _classify(binary: str, *, home=None):
+        if binary in ("agent", "cursor"):
+            return {
+                "binary": binary,
+                "path": str(tmp_path / "home" / ".local" / "bin" / "agent"),
+                "source": "home",
+                "managed": False,
+                "home_install": True,
+                "home_path": str(tmp_path / "home" / ".local" / "bin" / "agent"),
+            }
+        return {
+            "binary": binary,
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _classify)
+    issues = verify_setup(home)
+    assert any("$HOME" in i and "cursor" in i and "$SCRATCH" in i for i in issues)
+
+
 def test_agent_verify_opencode_syntax(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from astroai_lab.agent.bundles import verify_config_syntax
+    from astroai_lab.agent.inventory import verify_config_syntax
 
     home = tmp_path / "home"
     oc = home / ".config" / "opencode"
@@ -104,7 +136,7 @@ def test_agent_verify_opencode_syntax(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def test_agent_verify_jsonc_ok(tmp_path: Path) -> None:
-    from astroai_lab.agent.bundles import verify_config_syntax
+    from astroai_lab.agent.inventory import verify_config_syntax
 
     home = tmp_path / "home"
     oc = home / ".config" / "opencode"
@@ -116,12 +148,12 @@ def test_agent_verify_jsonc_ok(tmp_path: Path) -> None:
     assert verify_config_syntax(home) == []
 
 
-def test_agent_install_list() -> None:
+def test_agent_install_requires_name() -> None:
     result = runner.invoke(app, ["agent", "install"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert "kilo" in out
-    assert "zcode" in out or "omp" in out
+    assert "agent list" in out
+    assert "agent install NAME" in out
 
 
 def test_agent_list_overview() -> None:
@@ -129,18 +161,20 @@ def test_agent_list_overview() -> None:
     assert result.exit_code in (0, 1)
     out = result.stdout + result.stderr
     assert "Bin" in out and "Cfg" in out
-    assert "list config" in out.lower() or "agent install kilo" in out
-    cfg = runner.invoke(app, ["agent", "list", "config"])
-    assert cfg.exit_code == 0
-    bout = cfg.stdout + cfg.stderr
-    assert "ponytail" in bout or "Configs" in bout
+    assert "Where" in out
+    assert "agent install kilo" in out or "plugins list" in out.lower()
+    plugins = runner.invoke(app, ["agent", "plugins", "list"])
+    assert plugins.exit_code == 0
+    bout = plugins.stdout + plugins.stderr
+    assert "ponytail" in bout or "Plugins" in bout
 
 
-def test_agent_setup_list() -> None:
-    result = runner.invoke(app, ["agent", "setup", "--list"])
-    assert result.exit_code == 0
-    out = result.stdout + result.stderr
-    assert "cursor" in out
+def test_agent_setup_unknown_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    result = runner.invoke(app, ["--dry-run", "agent", "setup", "not-a-setup-name"])
+    assert result.exit_code != 0
 
 
 def test_agent_setup_cli_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -168,7 +202,7 @@ def test_install_tool_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_merge_mcp_servers(tmp_path: Path) -> None:
-    from astroai_lab.agent.bundles import merge_mcp_servers
+    from astroai_lab.agent.setup import merge_mcp_servers
     from astroai_lab.utils.json_utils import read_json, write_json
 
     src = tmp_path / "src.json"
@@ -239,6 +273,70 @@ def test_cli_install_agent_name_rejected(tmp_path: Path, monkeypatch: pytest.Mon
     data = json.loads(result.stdout)
     assert data["ok"] is False
     assert "Unknown" in data["errors"][0]
+
+
+def test_curl_installer_environ_uses_scratch_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astroai_lab.agent import install as install_mod
+
+    home = tmp_path / "home"
+    scratch_bin = tmp_path / "scratch" / "bin"
+    home.mkdir()
+    scratch_bin.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(install_mod, "_bin_dir", lambda: scratch_bin)
+    monkeypatch.setattr(
+        install_mod,
+        "_session_environ",
+        lambda extra=None: {"PATH": "/usr/bin", **(extra or {})},
+    )
+    env = install_mod.curl_installer_environ({"GOOSE_BIN_DIR": str(scratch_bin)})
+    assert env["HOME"] == str(scratch_bin.parent / "installer-home")
+    assert env["HOME"] != str(home)
+    assert env["XDG_CONFIG_HOME"] == str(home / ".config")
+    assert env["XDG_BIN_DIR"] == str(scratch_bin)
+    assert env["GOOSE_BIN_DIR"] == str(scratch_bin)
+    assert not (home / ".local" / "bin").exists()
+
+
+def test_find_curl_binary_prefers_sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from astroai_lab.agent import install as install_mod
+
+    home = tmp_path / "home"
+    scratch_bin = tmp_path / "scratch" / "bin"
+    sandbox_bin = scratch_bin.parent / "installer-home" / ".kilo" / "bin"
+    home.mkdir()
+    scratch_bin.mkdir(parents=True)
+    sandbox_bin.mkdir(parents=True)
+    (sandbox_bin / "kilo").write_text("#!/bin/sh\n", encoding="utf-8")
+    leftover = home / ".local" / "bin"
+    leftover.mkdir(parents=True)
+    (leftover / "kilo").write_text("#!/bin/sh\nold\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(install_mod, "_bin_dir", lambda: scratch_bin)
+    found = install_mod.find_curl_binary("kilo")
+    assert found == sandbox_bin / "kilo"
+
+
+def test_link_copies_kilo_tree_sitter_sibling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astroai_lab.agent import install as install_mod
+
+    scratch_bin = tmp_path / "scratch" / "bin"
+    src_dir = tmp_path / "scratch" / "installer-home" / ".kilo" / "bin"
+    scratch_bin.mkdir(parents=True)
+    src_dir.mkdir(parents=True)
+    kilo = src_dir / "kilo"
+    kilo.write_text("#!/bin/sh\n", encoding="utf-8")
+    kilo.chmod(0o755)
+    (src_dir / "tree-sitter").mkdir()
+    (src_dir / "tree-sitter" / "lib.so").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(install_mod, "_bin_dir", lambda: scratch_bin)
+    install_mod._link_into_local_bin(kilo, "kilo")
+    assert (scratch_bin / "kilo").is_file()
+    assert (scratch_bin / "tree-sitter" / "lib.so").is_file()
 
 
 def test_classify_binary_managed_vs_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

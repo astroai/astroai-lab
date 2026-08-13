@@ -1,7 +1,7 @@
 """Lean `astroai-lab agent` CLI surface.
 
 Canonical verbs: list, install, remove, wipe, setup, config, update,
-status, verify, plugins.
+verify, plugins.
 """
 
 from __future__ import annotations
@@ -25,17 +25,16 @@ from astroai_lab.errors import LabError
 agent_app = typer.Typer(
     help=(
         "AI coding agents: list/install/remove CLIs, configs, plugins.\n\n"
-        "CLIs install to $SCRATCH ($ASTROAI_LAB_BIN_DIR); configs stay on $HOME.\n\n"
+        "CLIs install to $SCRATCH ($ASTROAI_LAB_BIN_DIR); settings stay on $HOME.\n\n"
         "Quick map:\n"
-        "  list          installable agents (binary / config / source / version)\n"
-        "  list config   skills/MCP/addons (plugins)\n"
-        "  install       download a CLI binary onto scratch\n"
-        "  remove        remove managed CLI (--clean-home for $HOME copies)\n"
-        "  setup         write MCP/rules/skills (--project for repo scaffold)\n"
-        "  config        read/write per-agent config on $HOME\n"
-        "  status        same table as list (+ --ui for container endpoints)\n"
-        "  verify        health check (--fix to auto-repair, --clean for stale state)\n"
-        "  plugins       install/update/remove/configure plugins"
+        "  list          agents (Bin/Cfg/Where/Ver; --description, --ui)\n"
+        "  install       CLI binary onto scratch\n"
+        "  remove        managed CLI (--clean-home for $HOME copies)\n"
+        "  setup         first-run scaffold (--project for a repo)\n"
+        "  config        read/write that agent's settings file on $HOME\n"
+        "  update        refresh CLI and upstream skills\n"
+        "  verify        health check (--fix, --clean)\n"
+        "  plugins       extras: skills, MCP, rules, tools"
     ),
 )
 
@@ -43,12 +42,18 @@ agent_app = typer.Typer(
 @agent_app.callback(invoke_without_command=True)
 def agent_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        ui.print_hint("AI agents — pick one:")
-        ui.print_hint("  astroai-lab agent list              # agents")
-        ui.print_hint("  astroai-lab agent list config       # skills/MCP/addons")
-        ui.print_hint("  astroai-lab agent install [NAME]    # omit NAME to list")
-        ui.print_hint("  astroai-lab agent setup             # MCP/rules/skills")
-        ui.print_hint("  astroai-lab agent verify [--fix]")
+        opts = get_opts(ctx)
+        if opts.json:
+            ui.print_json(
+                {
+                    "help": "astroai-lab agent --help",
+                    "try": ["list", "install", "setup", "verify"],
+                }
+            )
+            return
+        ui.print_hint("AI agent CLIs go on $SCRATCH; settings stay on $HOME.")
+        ui.print_hint("  astroai-lab agent list")
+        ui.print_hint("  astroai-lab agent --help")
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +145,10 @@ def _print_status_table(
     failed: str | None = None,
     show_description: bool = False,
 ) -> None:
-    ui.print_hint("  Agent         Bin  Cfg  Src      Ver")
+    from astroai_lab.version import display_version
+
+    ui.print_hint(f"  astroai-lab {display_version()}")
+    ui.print_hint("  Agent         Bin  Cfg  Where    Ver")
     ui.print_hint("  ────────────  ───  ───  ───────  ────────")
     for row in report["agents"]:
         binary_ok = bool(row.get("binary_ok", row.get("binary")))
@@ -154,11 +162,17 @@ def _print_status_table(
         name = row.get("id") or row.get("agent") or "?"
         # cursor runs as upstream binary `agent` — note when installed.
         name_disp = "cursor→agent" if name == "cursor" and binary_ok else name
-        src = row.get("binary_source") or ("managed" if row.get("managed") else "-")
+        src_raw = row.get("binary_source") or ("managed" if row.get("managed") else "-")
         if not binary_ok:
             src = "-"
         elif row.get("home_install") and not row.get("managed"):
             src = "home"
+        elif src_raw == "managed":
+            src = "scratch"
+        elif src_raw == "other":
+            src = "image"
+        else:
+            src = src_raw
         name_cell = f"[bold]{name_disp:<13}[/bold]" if binary_ok else f"{name_disp:<13}"
         b_cell = f"[bold]{b:<3}[/bold]" if binary_ok else f"{b:<3}"
         c_cell = f"[bold]{c:<3}[/bold]" if config_installed else f"{c:<3}"
@@ -179,74 +193,35 @@ def _print_status_table(
         ui.print_warn(f"  Last failure: {failed}")
     ui.print_hint("")
     ui.print_hint("  Try:  agent install kilo && agent setup kilo && agent verify")
-    ui.print_hint("  Tip:  agent list --description   ·   configs: agent list config")
-    ui.print_hint("  Marks: ✓ present  - missing/n/a   Src: managed=$SCRATCH home=$HOME other=PATH")
+    ui.print_hint("  More:  agent list --description   ·   agent plugins list")
+    ui.print_hint("  Cfg: settings file on $HOME   Where: scratch=$SCRATCH  home=$HOME  image=PATH")
 
 
-def _print_bundles(as_json: bool) -> None:
-    rows = agent_setup_mod.agent_list_bundles()
-    if as_json:
-        ui.print_json(rows)
-        return
-    ui.print_hint("Config bundles — apply with: astroai-lab agent setup [NAME…]")
-    ui.print_hint("  (repo scaffold is `agent setup --project [DIR]`, not the `project` bundle)")
-    for name, desc in rows.items():
-        ui.print_hint(f"  {name:<14} {desc}")
+# ---------------------------------------------------------------------------
+# list
+# ---------------------------------------------------------------------------
 
 
-def _installable_agents() -> list[dict]:
-    """Registry agents only (install listing — no utilities)."""
-    from astroai_lab.agent.registry import list_registry_agents, registry_agent_status
-
-    rows: list[dict] = []
-    for agent in list_registry_agents():
-        status = registry_agent_status(agent, probe_ver=False)
-        rows.append(
-            {
-                "name": agent["id"],
-                "binary": agent["binary"],
-                "description": agent.get("summary", ""),
-                "installed": status["binary_ok"],
-            }
-        )
-    return rows
-
-
-def _print_tools(as_json: bool) -> None:
-    rows = _installable_agents()
-    if as_json:
-        ui.print_json(rows)
-        return
-    ui.print_hint("Installable agents — install with: astroai-lab agent install NAME")
-    ui.print_hint("  Name         Binary       On PATH   Description")
-    ui.print_hint("  ───────────  ───────────  ────────  ───────────")
-    for row in rows:
-        mark = "✓" if row["installed"] else "-"
-        ui.print_hint(f"  {row['name']:<12} {row['binary']:<12} {mark:<8} {row['description']}")
-
-
-def _print_config_plugins(
-    as_json: bool,
-    *,
-    kind: str | None = None,
+@agent_app.command("list")
+def agent_list_cmd(
+    ctx: typer.Context,
+    description: Annotated[
+        bool,
+        typer.Option(
+            "--description/--no-description",
+            help="Show one-line summary under each agent.",
+        ),
+    ] = False,
+    ui_endpoints: Annotated[
+        bool,
+        typer.Option("--ui", help="Show active container UI endpoints."),
+    ] = False,
 ) -> None:
-    rows = agent_plugins.list_plugins(kind=kind)
-    if as_json:
-        ui.print_json(rows)
+    """Every installable agent: binary / settings / where / version."""
+    if ui_endpoints:
+        _print_interact(get_opts(ctx))
         return
-    if not rows:
-        ui.print_hint("Configs: none in the plugin registry")
-        return
-    ui.print_hint("Configs (skills/MCP/addons) — install: astroai-lab agent plugins install ID")
-    ui.print_hint("  Id                               Kind     Applied  Summary")
-    ui.print_hint("  ───────────────────────────────  ───────  ───────  ────────")
-    for row in rows:
-        installed = bool(row["any_installed"])
-        applied = "✓" if installed else "-"
-        summary = (row.get("summary") or "")[:48]
-        id_cell = f"[bold]{row['id']:<32}[/bold]" if installed else f"{row['id']:<32}"
-        applied_cell = f"[bold]{applied:<7}[/bold]" if installed else f"{applied:<7}"
-        ui.print_markup(f"  {id_cell} {row['kind']:<8} {applied_cell} {summary}")
+    _emit_agent_list(ctx, show_description=description)
 
 
 def _print_plugins(
@@ -262,7 +237,7 @@ def _print_plugins(
     if not rows:
         ui.print_hint("Plugins: none in the registry (data/agent/plugins/*.yaml)")
         return
-    ui.print_hint("Plugins (skills/MCP/config) — apply: astroai-lab agent plugins install ID")
+    ui.print_hint("Plugins (skills/MCP/rules/tools). Apply: astroai-lab agent plugins install ID")
     ui.print_hint("  Id          Kind     Status   Agents")
     ui.print_hint("  ──────────  ───────  ───────  ──────────────")
     for row in rows:
@@ -295,28 +270,8 @@ def _print_plugin_results(results, *, verb: str, dry_run: bool) -> None:
     ui.print_ok(f"{verb} complete")
 
 
-# ---------------------------------------------------------------------------
-# Commands
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# list (agents) / list config (plugins)
-# ---------------------------------------------------------------------------
-
-list_app = typer.Typer(
-    help=(
-        "List every agent `astroai-lab agent install` can install "
-        "(binary / config / source / version), or configs via `list config`. "
-        "Add --description / --long for one-line summaries."
-    ),
-    invoke_without_command=True,
-)
-agent_app.add_typer(list_app, name="list")
-
-
 def _want_version_probe(opts) -> bool:
-    """Human list/status probe versions; JSON/automation skip unless overridden."""
+    """Human list probes versions; JSON/automation skip unless overridden."""
     import os
 
     return (not opts.json) and os.environ.get("ASTROAI_LAB_PROBE_VERSION", "1") not in (
@@ -346,59 +301,18 @@ def _emit_agent_list(ctx: typer.Context, *, show_description: bool = False) -> N
     )
 
 
-@list_app.callback(invoke_without_command=True)
-def list_root(
-    ctx: typer.Context,
-    description: Annotated[
-        bool,
-        typer.Option(
-            "--description/--no-description",
-            help="Show one-line summary under each agent.",
-        ),
-    ] = False,
-    long: Annotated[
-        bool,
-        typer.Option("--long", "-l", help="Alias for --description."),
-    ] = False,
-) -> None:
-    """Every installable agent: binary / config / source / version."""
-    if ctx.invoked_subcommand is None:
-        _emit_agent_list(ctx, show_description=description or long)
-
-
-@list_app.command("config")
-def list_config_cmd(
-    ctx: typer.Context,
-    kind: Annotated[
-        str | None,
-        typer.Option(
-            "--kind",
-            "-k",
-            help="Filter: skill, bundle, mcp, tool, rule, config, addon.",
-            autocompletion=_plugin_kind_completer,
-        ),
-    ] = None,
-) -> None:
-    """List skills/MCP/addons from the plugin registry."""
-    _print_config_plugins(get_opts(ctx).json, kind=kind)
-
-
 @agent_app.command("setup")
 def agent_setup_cmd(
     ctx: typer.Context,
     bundle: Annotated[
         list[str] | None,
         typer.Argument(
-            help="Config bundle(s) or registered agent id(s). "
+            help="Agent id(s) or a setup name (marimo, cursor, …). "
             "With --project, first arg is the target directory.",
             autocompletion=_bundle_completer,
         ),
     ] = None,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
-    list_bundles: Annotated[
-        bool,
-        typer.Option("--list", "-l", help="List config bundles (not installable CLIs)."),
-    ] = False,
     all_agents: Annotated[
         bool,
         typer.Option("--all", help="Registry-driven setup for every installed agent."),
@@ -472,10 +386,6 @@ def agent_setup_cmd(
             for err in result.errors:
                 ui.print_error(err)
             raise typer.Exit(result.exit_code)
-        return
-
-    if list_bundles:
-        _print_bundles(opts.json)
         return
 
     from astroai_lab.agent.registry import (
@@ -856,32 +766,6 @@ def agent_config_cmd(
     ui.print_ok("Config updated")
 
 
-@agent_app.command("status")
-def agent_status_cmd(
-    ctx: typer.Context,
-    ui_endpoints: Annotated[
-        bool,
-        typer.Option("--ui", help="Show active container UI endpoints."),
-    ] = False,
-) -> None:
-    """Same table as `agent list` (versions probed); `--ui` for container endpoints."""
-    from astroai_lab.agent.setup_state import build_agent_report, read_setup_state
-
-    opts = get_opts(ctx)
-    if ui_endpoints:
-        _print_interact(opts)
-        return
-    home = Path.home()
-    report = build_agent_report(home, probe_ver=_want_version_probe(opts))
-    if opts.json:
-        ui.print_json(report)
-        if not report.get("ok"):
-            raise typer.Exit(1)
-        return
-    state = read_setup_state(home)
-    _print_status_table(report, stamp=state.stamp, failed=state.failed)
-
-
 @agent_app.command("verify")
 def agent_verify_cmd(
     ctx: typer.Context,
@@ -1005,20 +889,23 @@ def agent_install_cmd(
     ctx: typer.Context,
     tool: Annotated[
         str | None,
-        typer.Argument(help="Tool name (omit to list).", autocompletion=_tool_completer),
+        typer.Argument(help="Agent name (see `agent list`).", autocompletion=_tool_completer),
     ] = None,
-    list_tools: Annotated[
-        bool,
-        typer.Option("--list", "-l", help="List installable CLIs (same as omitting TOOL)."),
-    ] = False,
 ) -> None:
-    """Install AI coding CLIs to $ASTROAI_LAB_BIN_DIR (scratch/team, not $HOME)."""
+    """Install an AI coding CLI to $ASTROAI_LAB_BIN_DIR (scratch/team, not $HOME)."""
     opts = get_opts(ctx)
-    if list_tools or not tool:
-        _print_tools(opts.json)
-        if not tool and not list_tools:
-            ui.print_hint("")
-            ui.print_hint("Install one with: astroai-lab agent install NAME")
+    if not tool:
+        if opts.json:
+            ui.print_json(
+                {
+                    "help": "astroai-lab agent install NAME",
+                    "try": ["list"],
+                }
+            )
+            return
+        ui.print_hint("Install needs an agent name.")
+        ui.print_hint("  astroai-lab agent list")
+        ui.print_hint("  astroai-lab agent install NAME")
         return
     try:
         from astroai_lab.agent.registry import get_registry_agent, install_registry_agent
@@ -1230,7 +1117,8 @@ def agent_wipe_cmd(
 # ---------------------------------------------------------------------------
 
 plugins_app = typer.Typer(
-    help="Plugins: skills/MCP/config across installed agents (data/agent/plugins/*.yaml)."
+    help="Plugins: skills, MCP, rules, and tools applied onto agents.",
+    invoke_without_command=True,
 )
 agent_app.add_typer(plugins_app, name="plugins")
 
@@ -1238,7 +1126,18 @@ agent_app.add_typer(plugins_app, name="plugins")
 @plugins_app.callback(invoke_without_command=True)
 def plugins_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
-        _print_plugins(get_opts(ctx).json)
+        opts = get_opts(ctx)
+        if opts.json:
+            ui.print_json(
+                {
+                    "help": "astroai-lab agent plugins --help",
+                    "try": ["list", "install", "remove"],
+                }
+            )
+            return
+        ui.print_hint("Plugins are extras (skills, MCP, rules, tools) applied onto agents.")
+        ui.print_hint("  astroai-lab agent plugins list")
+        ui.print_hint("  astroai-lab agent plugins --help")
 
 
 @plugins_app.command("list")
@@ -1373,41 +1272,3 @@ def plugins_remove_cmd(
             raise typer.Exit(1)
         return
     _print_plugin_results(results, verb="remove", dry_run=opts.dry_run)
-
-
-@plugins_app.command("configure")
-def plugins_configure_cmd(
-    ctx: typer.Context,
-    plugin: Annotated[str, typer.Argument(autocompletion=_plugin_completer)],
-    agent: Annotated[
-        str | None,
-        typer.Option("--agent", "-a", help="Scope to one agent."),
-    ] = None,
-    force: Annotated[bool, typer.Option("--force", "-f")] = False,
-) -> None:
-    """Per-agent config merge (kind: mcp) or config write (kind: config)."""
-    opts = get_opts(ctx)
-    try:
-        results = agent_plugins.configure_plugin(
-            plugin, agent=agent, force=force or opts.yes, dry_run=opts.dry_run
-        )
-    except LabError as exc:
-        if opts.json:
-            ui.print_json({"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]})
-        else:
-            ui.print_error(str(exc))
-        raise typer.Exit(1) from exc
-    if opts.json:
-        ui.print_json(
-            {
-                "ok": not any(r.status == "failed" for r in results),
-                "plugin": plugin,
-                "actions": [r.__dict__ for r in results],
-                "errors": [r.detail for r in results if r.status == "failed"],
-                "dry_run": opts.dry_run,
-            }
-        )
-        if any(r.status == "failed" for r in results):
-            raise typer.Exit(1)
-        return
-    _print_plugin_results(results, verb="configure", dry_run=opts.dry_run)

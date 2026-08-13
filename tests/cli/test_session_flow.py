@@ -144,6 +144,8 @@ def test_status_json_includes_arc_projects(lab_env: Path) -> None:
     assert len(data["arc_projects"]) == 1
     assert data["gms_groups"] is None
     assert data["vault"] is None
+    assert "version" in data
+    assert "display" in data["version"]
 
 
 def test_banner_json(lab_env: Path) -> None:
@@ -151,3 +153,5 @@ def test_banner_json(lab_env: Path) -> None:
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert "work_dir" in data
+    assert "version" in data
+    assert "display" in data["version"]

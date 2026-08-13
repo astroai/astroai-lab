@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from astroai_lab.agent.bundles import SetupResult, agent_setup
+from astroai_lab.agent.setup import SetupResult, agent_setup
 from astroai_lab.agent.setup_state import (
     append_setup_log,
     dump_json,
@@ -167,7 +167,8 @@ def test_resources_cgroup_and_gpu(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
 
 
 def test_agent_sync_ok_and_partial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from astroai_lab.agent.bundles import SourceUpdateResult, agent_sync
+    from astroai_lab.agent.setup import agent_sync
+    from astroai_lab.agent.upstream import SourceUpdateResult
 
     home = tmp_path / "home"
     home.mkdir()

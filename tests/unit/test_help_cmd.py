@@ -132,7 +132,7 @@ def test_completer_filters_by_incomplete_prefix() -> None:
     agent_offered = complete(None, "agent")
     assert "agent" in agent_offered
     assert "agent list" in agent_offered
-    # startswith matches every agent subpath (agent add, agent models, ...).
+    # Completions are prefix matches of registered paths only.
     assert all(p.startswith("agent") for p in agent_offered)
     assert "env export" not in agent_offered
     assert all(p.startswith("env") for p in complete(None, "env"))

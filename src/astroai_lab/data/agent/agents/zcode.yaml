@@ -1,5 +1,4 @@
 # ZCode CLI (zcode-app-cli) — unofficial terminal client for Z.AI ZCode runtime.
-# Schema: docs/agent-rethink-plan.md §4 Phase 1.
 id: zcode
 name: ZCode CLI
 homepage: https://github.com/kingsword09/zcode-cli

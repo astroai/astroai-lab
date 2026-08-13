@@ -149,6 +149,6 @@ def test_plugin_kind_completer_offers_kinds() -> None:
     assert "mcp" in offered
 
 
-def test_list_config_kind_option_wired() -> None:
-    param = _param("agent list config", "kind")
+def test_plugins_list_kind_option_wired() -> None:
+    param = _param("agent plugins list", "kind")
     assert getattr(param, "_custom_shell_complete", None) is not None
