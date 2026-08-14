@@ -14,3 +14,13 @@ def bundle_root() -> Path:
     if pkg.is_dir():
         return pkg
     raise FileNotFoundError(f"Agent bundle not found: {pkg}")
+
+
+def bundled_skill_src(name: str) -> Path:
+    """Bundled SKILL.md tree: ``skills/<name>`` or ``cursor/skills/<name>``."""
+    root = bundle_root()
+    for rel in (Path("skills") / name, Path("cursor") / "skills" / name):
+        src = root / rel
+        if (src / "SKILL.md").is_file():
+            return src
+    return root / "skills" / name

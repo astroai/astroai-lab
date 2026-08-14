@@ -6,8 +6,7 @@ tags:
 - python
 summary: Modern Python tooling — uv, ruff, ty, pytest (Trail of Bits)
 homepage: https://github.com/trailofbits/skills
-agents:
-- cursor
+agents: [skill-hosts]
 install:
   type: github-skill
   repo: trailofbits/skills

@@ -249,7 +249,7 @@ astroai-lab agent setup hermes     # settings scaffold + skills + plugins
 astroai-lab agent setup --all      # same for every managed install
 astroai-lab agent setup --project  # per-repo AGENTS.md + .cursor scaffold
 astroai-lab agent config hermes    # show/edit $HOME settings (key=value / --unset)
-astroai-lab agent plugins list     # skills / MCP / rules / tools
+astroai-lab agent plugins list     # Kind / On / Def / Agents; --description for summaries
 astroai-lab agent plugins install ponytail
 astroai-lab agent update           # after upgrading lab in-session
 astroai-lab agent update hermes    # refresh ONE agent

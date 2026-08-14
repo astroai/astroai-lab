@@ -5,8 +5,7 @@ tags:
 - lean
 summary: Timezone / time MCP — no API key
 homepage: ''
-agents:
-- cursor
+agents: [mcp-hosts]
 install:
   type: mcp-snippet
   server: time

@@ -169,7 +169,7 @@ configs stay on `$HOME` (/arc/home). Some ids still install via battle-tested
 | `agent config ID` | Show/edit an agent's `$HOME` settings file (`--key`, `key=value`, `--unset`) |
 | `agent update [ID]` | Refresh CLI + upstream skills; with ID refreshes one agent |
 | `agent verify` | Health check; `--fix` auto-repairs shared setup + installed agents; `--fix ID` for one agent; `--clean` stale state |
-| `agent plugins …` | list / install / update / remove extras (skills, MCP, rules, tools) |
+| `agent plugins …` | list / install / update / remove extras (skills, MCP, rules, tools). `plugins list` is Kind / On / Def / Agents; `--description` for summaries |
 
 ```bash
 astroai-lab agent list                 # registered agents
@@ -187,6 +187,7 @@ astroai-lab agent remove kilo          # uninstall (--purge removes ~/.<agent> h
 astroai-lab agent wipe --dry-run
 astroai-lab agent wipe --yes
 astroai-lab agent plugins list
+astroai-lab agent plugins list --description
 astroai-lab agent plugins list --kind mcp
 astroai-lab agent plugins install canfar-ray
 astroai-lab agent plugins install canfar-ray --agent hermes
@@ -209,9 +210,11 @@ astroai-lab agent update openclaw --reinstall
 **Agent plugins** (`data/agent/plugins/*.yaml`) are the uniform surface for
 skills / MCP servers / config snippets across *all* installed agents.
 Each plugin declares a support matrix (`agents:`), a `kind`, and how it is
-applied. `plugins install <id>` applies to every installed agent in the matrix
-by default; `--agent` scopes it. For `kind: mcp` that merge is an `mcpServers`
-entry with **dynamic URLs only** (e.g. `$ASTROAI_RAY_JOBS_ADDRESS`).
+applied. Generic skills use `agents: [skill-hosts]` (every agent that loads
+SKILL.md); MCP plugins use `agents: [mcp-hosts]`. `plugins install <id>`
+applies to every *installed* agent in the matrix by default; `--agent` scopes
+it. For `kind: mcp` that merge is an `mcpServers` entry with **dynamic URLs
+only** (e.g. `$ASTROAI_RAY_JOBS_ADDRESS`).
 
 **`ray-manager-mcp`** (the shipped `kind: mcp` example) configures
 `astroai-workload mcp serve` with a runtime-resolved

@@ -15,17 +15,18 @@ from typing import Any
 
 from astroai_lab.agent.agent_targets import (
     AGENT_SKILL_DIRS,
+    MCP_TARGETS,
     mcp_server_present,
     mcp_target,
     merge_mcp_server,
+    skill_path,
 )
 from astroai_lab.agent.agent_targets import cursor_to_opencode as _cursor_to_opencode
-from astroai_lab.agent.bundle_path import bundle_root
+from astroai_lab.agent.bundle_path import bundled_skill_src
 from astroai_lab.agent.install import install_tool, tool_on_path
 from astroai_lab.agent.upstream import (
     _refresh_upstream_repo,
     _upstream_cache_root,
-    update_github_source,
 )
 from astroai_lab.errors import LabError
 
@@ -104,36 +105,35 @@ def list_addons(
     return rows
 
 
-def addon_installed(item: dict[str, Any], home: Path) -> bool:
+def addon_installed(item: dict[str, Any], home: Path, agent: str | None = None) -> bool:
     install = item.get("install") or {}
     itype = install.get("type")
     addon_id = item["id"]
 
     if itype == "agent-skill":
-        targets = _agent_skill_targets(item, home)
+        targets = _agent_skill_targets(item, home, agent=agent)
         return bool(targets) and all((t / "SKILL.md").is_file() for t in targets.values())
 
     if itype == "bundled":
-        if addon_id == "astroai-lab-workflow":
-            return (home / ".cursor" / "skills" / "astroai-lab-workflow" / "SKILL.md").is_file()
         if addon_id == "token-efficient":
             return (home / ".cursor" / "rules" / "token-efficient.mdc").is_file()
         if addon_id.startswith("mcp-"):
             server = addon_id.removeprefix("mcp-")
-            return _mcp_server_present(home, server)
+            return _mcp_server_present(home, server, agent=agent)
         return False
 
     if itype == "github-skill":
         name = Path(install["path"]).name
-        return (home / ".cursor" / "skills" / name / "SKILL.md").is_file()
+        dests = _skill_dests(item, home, name, agent=agent)
+        return bool(dests) and all((p / "SKILL.md").is_file() for p in dests.values())
 
     if itype == "github-bundle":
         skills = install.get("skills") or []
         if not skills:
             return False
-        # Installed if primary skill present
         name = Path(skills[0]).name
-        return (home / ".cursor" / "skills" / name / "SKILL.md").is_file()
+        dests = _skill_dests(item, home, name, agent=agent)
+        return bool(dests) and all((p / "SKILL.md").is_file() for p in dests.values())
 
     if itype == "github-rule":
         rule = Path(install.get("path", "")).name
@@ -141,10 +141,11 @@ def addon_installed(item: dict[str, Any], home: Path) -> bool:
 
     if itype == "mcp-snippet":
         server = install.get("server", "")
-        agents = list(item.get("agents") or [])
-        if not server or not agents:
+        agents = [agent] if agent else list(item.get("agents") or [])
+        hosts = [a for a in agents if mcp_target(a)]
+        if not server or not hosts:
             return False
-        return any(mcp_server_present(home, a, server) for a in agents if mcp_target(a))
+        return all(mcp_server_present(home, a, server) for a in hosts)
 
     if itype == "cli-tool":
         return tool_on_path(install.get("tool", addon_id))
@@ -157,23 +158,39 @@ def addon_installed(item: dict[str, Any], home: Path) -> bool:
 # (Import above: AGENT_SKILL_DIRS)
 
 
-def _agent_skill_targets(item: dict[str, Any], home: Path) -> dict[str, Path]:
-    """Map each configured agent to its skill dir for this addon (known agents only)."""
+def _matrix_agents(item: dict[str, Any], agent: str | None = None) -> list[str]:
     install = item.get("install") or {}
     agents = list(install.get("agents") or item.get("agents") or [])
+    if agent:
+        return [a for a in agents if a == agent]
+    return agents
+
+
+def _agent_skill_targets(
+    item: dict[str, Any], home: Path, agent: str | None = None
+) -> dict[str, Path]:
+    """Map each configured agent to its skill dir for this addon (known agents only)."""
+    return _skill_dests(item, home, item["id"], agent=agent)
+
+
+def _skill_dests(
+    item: dict[str, Any], home: Path, name: str, agent: str | None = None
+) -> dict[str, Path]:
+    """Skill install paths for one agent, or every skill-host in the matrix."""
     out: dict[str, Path] = {}
-    for agent in agents:
-        rel = AGENT_SKILL_DIRS.get(agent)
-        if rel:
-            out[agent] = home / rel / item["id"]
+    for ag in _matrix_agents(item, agent):
+        dst = skill_path(home, ag, name)
+        if dst is not None:
+            out[ag] = dst
     return out
 
 
-def _mcp_server_present(home: Path, server: str) -> bool:
-    """Back-compat: True when *any* MCP target already has ``server``."""
+def _mcp_server_present(home: Path, server: str, agent: str | None = None) -> bool:
+    """True when the given agent (or every MCP host, if omitted) has ``server``."""
     if not server:
         return False
-    return any(mcp_server_present(home, agent, server) for agent in ("cursor", "copilot", "claude"))
+    agents = [agent] if agent else list(MCP_TARGETS)
+    return all(mcp_server_present(home, a, server) for a in agents)
 
 
 def add_addon(
@@ -217,24 +234,17 @@ def _apply_addon(
             install.get("note") or "bundled — run: astroai-lab agent setup",
         )
 
-    if not force:
-        if agent and itype == "mcp-snippet":
-            server = install.get("server", "")
-            if server and mcp_server_present(home, agent, server):
-                return AddonResult(addon_id, "skipped", "already installed")
-        elif addon_installed(item, home):
-            return AddonResult(addon_id, "skipped", "already installed")
+    if not force and addon_installed(item, home, agent=agent):
+        return AddonResult(addon_id, "skipped", "already installed")
 
     if itype == "agent-skill":
-        targets = _agent_skill_targets(item, home)
-        if agent:
-            targets = {k: v for k, v in targets.items() if k == agent}
+        targets = _agent_skill_targets(item, home, agent=agent)
         if not targets:
             raise LabError(
                 f"Addon {addon_id} has no known agent skill targets",
                 hint="known agents: " + ", ".join(sorted(AGENT_SKILL_DIRS)),
             )
-        src = bundle_root() / "skills" / addon_id
+        src = bundled_skill_src(str(install.get("source") or addon_id))
         if not (src / "SKILL.md").is_file():
             raise LabError(f"Addon {addon_id} missing bundled SKILL.md at {src}")
         if dry_run:
@@ -249,19 +259,10 @@ def _apply_addon(
         return AddonResult(addon_id, "installed", "; ".join(installed))
 
     if itype == "github-skill":
-        name = Path(install["path"]).name
-        result = update_github_source(
-            home,
-            name,
-            install["repo"],
-            install["path"],
-            force=force,
-            dry_run=dry_run,
-        )
-        return AddonResult(addon_id, result.status, result.detail or result.repo)
+        return _install_github_skill(item, home=home, force=force, dry_run=dry_run, agent=agent)
 
     if itype == "github-bundle":
-        return _install_github_bundle(item, home=home, force=force, dry_run=dry_run)
+        return _install_github_bundle(item, home=home, force=force, dry_run=dry_run, agent=agent)
 
     if itype == "github-rule":
         return _install_github_rule(item, home=home, force=force, dry_run=dry_run)
@@ -310,12 +311,66 @@ def add_addons(
     return [add_addon(aid, home=home, force=force, dry_run=dry_run) for aid in ordered]
 
 
+def _copy_skill_tree(src: Path, dst: Path) -> None:
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(src, dst)
+
+
+def _src_in_cache(cache_root: Path, rel: str) -> Path | str:
+    """Resolve ``rel`` under the cache, or return an error string if it escapes."""
+    cache_resolved = cache_root.resolve()
+    src = (cache_root / rel).resolve()
+    try:
+        src.relative_to(cache_resolved)
+    except ValueError:
+        return f"path escapes cache: {rel}"
+    return src
+
+
+def _install_github_skill(
+    item: dict[str, Any],
+    *,
+    home: Path,
+    force: bool,
+    dry_run: bool,
+    agent: str | None = None,
+) -> AddonResult:
+    install = item["install"]
+    name = Path(install["path"]).name
+    dests = _skill_dests(item, home, name, agent=agent)
+    if not dests:
+        return AddonResult(item["id"], "skipped", "no skill target for this agent")
+    pending = {ag: dst for ag, dst in dests.items() if force or not (dst / "SKILL.md").is_file()}
+    if not pending:
+        return AddonResult(item["id"], "skipped", "already installed")
+    if dry_run:
+        return AddonResult(item["id"], "dry-run", ", ".join(sorted(pending)))
+
+    cache_root = _upstream_cache_root(home, install["repo"])
+    status, detail = _refresh_upstream_repo(cache_root, install["repo"], install["path"])
+    if status == "failed":
+        return AddonResult(item["id"], "failed", detail)
+    src = _src_in_cache(cache_root, install["path"])
+    if isinstance(src, str):
+        return AddonResult(item["id"], "failed", src)
+    if not (src / "SKILL.md").is_file():
+        return AddonResult(item["id"], "failed", f"missing SKILL.md at {install['path']}")
+    installed: list[str] = []
+    for ag, dst in sorted(pending.items()):
+        _copy_skill_tree(src, dst)
+        installed.append(ag)
+    return AddonResult(item["id"], "installed", f"{name} → {', '.join(installed)}")
+
+
 def _install_github_bundle(
     item: dict[str, Any],
     *,
     home: Path,
     force: bool,
     dry_run: bool,
+    agent: str | None = None,
 ) -> AddonResult:
     install = item["install"]
     repo = install["repo"]
@@ -325,8 +380,10 @@ def _install_github_bundle(
     if not paths:
         raise LabError(f"Addon {item['id']} bundle has no skills/rules")
 
+    agents = _matrix_agents(item, agent)
     if dry_run:
-        return AddonResult(item["id"], "dry-run", f"{repo}: {', '.join(paths)}")
+        hosts = ", ".join(agents)
+        return AddonResult(item["id"], "dry-run", f"{repo}: {', '.join(paths)} → {hosts}")
 
     cache_root = _upstream_cache_root(home, repo)
     status, detail = _refresh_upstream_repo(cache_root, repo, paths)
@@ -334,37 +391,40 @@ def _install_github_bundle(
         return AddonResult(item["id"], "failed", detail)
 
     installed: list[str] = []
-    cache_resolved = cache_root.resolve()
     for rel in skills:
-        src = (cache_root / rel).resolve()
-        try:
-            src.relative_to(cache_resolved)
-        except ValueError:
-            return AddonResult(item["id"], "failed", f"path escapes cache: {rel}")
+        src = _src_in_cache(cache_root, rel)
+        if isinstance(src, str):
+            return AddonResult(item["id"], "failed", src)
         if not (src / "SKILL.md").is_file():
             return AddonResult(item["id"], "failed", f"missing SKILL.md at {rel}")
         name = Path(rel).name
-        dst = home / ".cursor" / "skills" / name
-        if dst.exists():
-            shutil.rmtree(dst)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(src, dst)
-        installed.append(f"skill:{name}")
+        for ag in agents:
+            dst = skill_path(home, ag, name)
+            if dst is None:
+                continue
+            if not force and (dst / "SKILL.md").is_file():
+                continue
+            _copy_skill_tree(src, dst)
+            installed.append(f"skill:{ag}/{name}")
 
-    for rel in rules:
-        src = (cache_root / rel).resolve()
-        try:
-            src.relative_to(cache_resolved)
-        except ValueError:
-            return AddonResult(item["id"], "failed", f"path escapes cache: {rel}")
-        if not src.is_file():
-            return AddonResult(item["id"], "failed", f"missing rule at {rel}")
-        dst = home / ".cursor" / "rules" / src.name
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        installed.append(f"rule:{src.name}")
+    # Cursor rules (.mdc) are not SKILL.md — only write them for cursor.
+    if "cursor" in agents:
+        for rel in rules:
+            src = _src_in_cache(cache_root, rel)
+            if isinstance(src, str):
+                return AddonResult(item["id"], "failed", src)
+            if not src.is_file():
+                return AddonResult(item["id"], "failed", f"missing rule at {rel}")
+            dst = home / ".cursor" / "rules" / src.name
+            if dst.is_file() and not force:
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            installed.append(f"rule:{src.name}")
 
-    return AddonResult(item["id"], status, "; ".join(installed))
+    if not installed and not force:
+        return AddonResult(item["id"], "skipped", "already installed")
+    return AddonResult(item["id"], "installed", "; ".join(installed))
 
 
 def _install_github_rule(

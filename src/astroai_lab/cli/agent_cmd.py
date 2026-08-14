@@ -34,7 +34,7 @@ agent_app = typer.Typer(
         "  config        read/write that agent's settings file on $HOME\n"
         "  update        refresh CLI and upstream skills\n"
         "  verify        health check (--fix, --clean)\n"
-        "  plugins       extras: skills, MCP, rules, tools"
+        "  plugins       extras (Kind/On/Def/Agents; --description)"
     ),
 )
 
@@ -229,23 +229,67 @@ def _print_plugins(
     *,
     kind: str | None = None,
     agent: str | None = None,
+    show_description: bool = False,
 ) -> None:
+    from astroai_lab.agent.agent_targets import mcp_hosts, skill_hosts
+    from astroai_lab.version import display_version
+
+    skill = list(skill_hosts())
+    mcp = list(mcp_hosts())
     rows = agent_plugins.list_plugins(kind=kind, agent=agent)
     if as_json:
         ui.print_json(rows)
         return
     if not rows:
-        ui.print_hint("Plugins: none in the registry (data/agent/plugins/*.yaml)")
+        if kind or agent:
+            ui.print_hint("No plugins match the filter.")
+            ui.print_hint("  astroai-lab agent plugins list")
+        else:
+            ui.print_hint("Plugins: none in the registry (data/agent/plugins/*.yaml)")
         return
-    ui.print_hint("Plugins (skills/MCP/rules/tools). Apply: astroai-lab agent plugins install ID")
-    ui.print_hint("  Id          Kind     Status   Agents")
-    ui.print_hint("  ──────────  ───────  ───────  ──────────────")
+    id_w = max(len("Plugin"), max(len(str(row["id"])) for row in rows))
+    kind_w = max(7, max(len(str(row["kind"])) for row in rows))
+    gap = "  "
+    ui.print_hint(f"  astroai-lab {display_version()}")
+    ui.print_hint(
+        f"  {'Plugin':<{id_w}}{gap}{'Kind':<{kind_w}}{gap}{'On':<3}{gap}{'Def':<3}{gap}Agents"
+    )
+    ui.print_hint(
+        f"  {'─' * id_w}{gap}{'─' * kind_w}{gap}{'─' * 3}{gap}{'─' * 3}{gap}{'─' * 14}"
+    )
     for row in rows:
-        status = "installed" if row["any_installed"] else "-"
-        agents = ",".join(a for a in row["agents"] if row["installed"].get(a)) or row["agents"][0]
-        ui.print_hint(f"  {row['id']:<11} {row['kind']:<8} {status:<7} {agents}")
-        if row["summary"]:
-            ui.print_hint(f"    {row['summary']}")
+        installed = bool(row["any_installed"])
+        is_default = bool(row.get("default"))
+        on = "✓" if installed else "-"
+        default = "✓" if is_default else "-"
+        agents = [str(a) for a in row["agents"]]
+        if agents == skill:
+            agents_cell = "skill-hosts"
+        elif agents == mcp:
+            agents_cell = "mcp-hosts"
+        else:
+            agents_cell = ",".join(agents)
+        name = str(row["id"])
+        kind_cell = str(row["kind"])
+        name_cell = f"[bold]{name:<{id_w}}[/bold]" if installed else f"{name:<{id_w}}"
+        on_cell = f"[bold]{on:<3}[/bold]" if installed else f"{on:<3}"
+        def_cell = f"[bold]{default:<3}[/bold]" if is_default else f"{default:<3}"
+        ui.print_markup(
+            f"  {name_cell}{gap}{kind_cell:<{kind_w}}{gap}"
+            f"{on_cell}{gap}{def_cell}{gap}{agents_cell}"
+        )
+        if show_description:
+            summary = (row.get("summary") or "").strip()
+            if summary:
+                # Same hanging indent as `agent list --description` so long
+                # summaries wrap instead of sitting under a 30-char id column.
+                ui.print_hint(f"               {summary}")
+    ui.print_hint("")
+    ui.print_hint("  Try:  agent plugins install ponytail")
+    ui.print_hint("  More:  agent plugins list --description   ·   agent list")
+    ui.print_hint("  On: applied to an agent   Def: included in agent setup")
+    ui.print_hint(f"  skill-hosts: {','.join(skill)}")
+    ui.print_hint(f"  mcp-hosts:   {','.join(mcp)}")
 
 
 def _print_plugin_results(results, *, verb: str, dry_run: bool) -> None:
@@ -1156,9 +1200,21 @@ def plugins_list_cmd(
         str | None,
         typer.Option("--agent", "-a", help="Only plugins applied to this agent."),
     ] = None,
+    description: Annotated[
+        bool,
+        typer.Option(
+            "--description/--no-description",
+            help="Show one-line summary under each plugin.",
+        ),
+    ] = False,
 ) -> None:
-    """List installed + available plugins."""
-    _print_plugins(get_opts(ctx).json, kind=kind, agent=agent)
+    """Every plugin: kind / applied / setup-default / agents."""
+    _print_plugins(
+        get_opts(ctx).json,
+        kind=kind,
+        agent=agent,
+        show_description=description,
+    )
 
 
 @plugins_app.command("install")

@@ -36,7 +36,12 @@ def test_add_agent_skill_installs_to_hermes_and_openclaw(
     monkeypatch.setenv("HOME", str(home))
     result = add_addon("canfar-ray", home=home)
     assert result.status == "installed"
-    for rel in (".hermes/skills/canfar-ray/SKILL.md", ".openclaw/skills/canfar-ray/SKILL.md"):
+    for rel in (
+        ".hermes/skills/canfar-ray/SKILL.md",
+        ".openclaw/skills/canfar-ray/SKILL.md",
+        ".cursor/skills/canfar-ray/SKILL.md",
+        ".claude/skills/canfar-ray/SKILL.md",
+    ):
         assert (home / rel).is_file(), f"missing {rel}"
     # Idempotent second call skips.
     assert add_addon("canfar-ray", home=home).status == "skipped"
@@ -86,6 +91,33 @@ def test_add_mcp_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("HOME", str(home))
     result = add_addon("git-mcp", home=home, dry_run=True)
     assert result.status == "dry-run"
+
+
+def test_github_skill_copies_only_scoped_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """github-skill writes the SKILL.md tree to one support-matrix host."""
+    from astroai_lab.agent import addons as addons_mod
+    from astroai_lab.agent.addons import _apply_addon
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    item = get_addon("polars")
+    assert item is not None
+    cache = (
+        home / ".cache" / "astroai-lab" / "upstream-skills" / "k-dense-ai_claude-scientific-skills"
+    )
+    src = cache / "skills" / "polars"
+    src.mkdir(parents=True)
+    (src / "SKILL.md").write_text("# polars\n", encoding="utf-8")
+    monkeypatch.setattr(
+        addons_mod, "_refresh_upstream_repo", lambda *a, **k: ("cloned", item["install"]["repo"])
+    )
+    result = _apply_addon(item, home=home, agent="hermes")
+    assert result.status == "installed"
+    assert (home / ".hermes" / "skills" / "polars" / "SKILL.md").is_file()
+    assert not (home / ".cursor" / "skills" / "polars").exists()
 
 
 def test_add_mcp_merge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,8 +176,12 @@ def test_add_addon_delegates_to_plugins_install(
     assert addon_result.status == "installed"
     plugin_results = install_plugin("canfar-ray", home=home, installed_only=False)
     # Both paths produced the same skill dirs.
-    for agent in ("hermes", "openclaw"):
-        rel = f".{agent}/skills/canfar-ray/SKILL.md"
+    for agent in ("hermes", "openclaw", "cursor"):
+        rel = (
+            ".cursor/skills/canfar-ray/SKILL.md"
+            if agent == "cursor"
+            else f".{agent}/skills/canfar-ray/SKILL.md"
+        )
         assert (home / rel).is_file()
     assert all(r.status == "skipped" for r in plugin_results)
 

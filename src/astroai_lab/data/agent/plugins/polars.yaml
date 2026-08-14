@@ -9,8 +9,7 @@ tags:
 - python
 summary: Polars DataFrame workflows for agents
 homepage: https://github.com/k-dense-ai/claude-scientific-skills
-agents:
-- cursor
+agents: [skill-hosts]
 install:
   type: github-skill
   repo: k-dense-ai/claude-scientific-skills

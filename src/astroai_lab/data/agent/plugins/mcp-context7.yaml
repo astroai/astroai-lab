@@ -6,8 +6,7 @@ tags:
 summary: Live library docs (already in agent setup)
 homepage: ''
 default: true
-agents:
-- cursor
+agents: [mcp-hosts]
 install:
   type: bundled
   note: Included in agent setup MCP configs

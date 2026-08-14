@@ -126,8 +126,11 @@ def update_github_source(
     force: bool,
     dry_run: bool,
 ) -> SourceUpdateResult:
-    dst = home / ".cursor" / "skills" / name
-    if (dst / "SKILL.md").is_file() and not force:
+    from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS
+
+    dests = [home / rel / name for rel in AGENT_SKILL_DIRS.values()]
+    pending = [d for d in dests if force or not (d / "SKILL.md").is_file()]
+    if not pending:
         return SourceUpdateResult(name, repo, "skipped", "already installed")
 
     if dry_run:
@@ -142,9 +145,11 @@ def update_github_source(
     if not (src / "SKILL.md").is_file():
         return SourceUpdateResult(name, repo, "failed", f"missing SKILL.md at {path}")
 
-    if dst.exists():
-        shutil.rmtree(dst)
-    shutil.copytree(src, dst)
+    for dst in pending:
+        if dst.exists():
+            shutil.rmtree(dst)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dst)
     return SourceUpdateResult(name, repo, status, path)
 
 

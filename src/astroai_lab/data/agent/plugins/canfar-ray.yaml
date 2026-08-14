@@ -5,9 +5,6 @@ addon: true
 tags: [science, ray, compute, canfar]
 summary: Drive CANFAR Ray clusters — ensure/status/stop/scale/dashboard via astroai-workload
 homepage: https://github.com/astroai/astroai-workload
-agents: [hermes, openclaw]     # support matrix (which agents can host this plugin)
+agents: [skill-hosts]
 install:
   source: canfar-ray           # skill: bundled dir under bundle_root()/skills/<source>
-  targets:                     # optional home-relative paths (default: AGENT_SKILL_DIRS)
-    hermes: .hermes/skills/canfar-ray
-    openclaw: .openclaw/skills/canfar-ray

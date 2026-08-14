@@ -8,7 +8,7 @@ kind: mcp
 tags: [science, ray, compute, canfar, mcp]
 summary: Ray cluster MCP tools (ensure/status/scale/dashboard) served from the ray-manager session
 homepage: https://github.com/astroai/astroai-workload
-agents: [cursor, hermes, openclaw]    # support matrix (MCP-capable hosts)
+agents: [mcp-hosts]    # support matrix (MCP-capable hosts)
 install:
   server: ray-manager
   entry:

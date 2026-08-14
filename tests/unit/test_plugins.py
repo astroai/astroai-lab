@@ -44,6 +44,17 @@ def _write_plugin_yaml(root: Path, name: str, body: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
+def test_expand_agent_matrix_aliases() -> None:
+    from astroai_lab.agent.agent_targets import mcp_hosts, skill_hosts
+    from astroai_lab.agent.plugins import expand_agent_matrix
+
+    assert expand_agent_matrix(["skill-hosts"]) == list(skill_hosts())
+    assert expand_agent_matrix(["mcp-hosts"]) == list(mcp_hosts())
+    assert expand_agent_matrix(["cursor"]) == ["cursor"]
+    assert "hermes" in expand_agent_matrix(["skill-hosts"])
+    assert "claude" in expand_agent_matrix(["mcp-hosts"])
+
+
 def test_load_plugins_includes_canfar_ray() -> None:
     plugins = load_plugins()
     ids = [p["id"] for p in plugins]
@@ -52,7 +63,10 @@ def test_load_plugins_includes_canfar_ray() -> None:
     plugin = get_plugin("canfar-ray")
     assert plugin is not None
     assert plugin["kind"] == "skill"
-    assert set(plugin["agents"]) == {"hermes", "openclaw"}
+    from astroai_lab.agent.agent_targets import skill_hosts
+
+    assert set(plugin["agents"]) == set(skill_hosts())
+    assert "cursor" in plugin["agents"]
     assert plugin["install"]["source"] == "canfar-ray"
 
 
@@ -431,6 +445,35 @@ def test_cli_plugins_list_json() -> None:
     assert row["kind"] == "skill"
 
 
+def test_cli_plugins_list_matches_agent_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["agent", "plugins", "list"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "Plugin" in out
+    assert "Kind" in out
+    assert "On" in out
+    assert "Def" in out
+    assert "Agents" in out
+    assert "ponytail" in out
+    assert "matplotlib-data-visualization" in out
+    assert "agent plugins list --description" in out
+    assert "skill-hosts" in out
+    assert "mcp-hosts" in out
+    assert "YAGNI ladder" not in out
+
+
+def test_cli_plugins_list_description(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = runner.invoke(app, ["agent", "plugins", "list", "--description"])
+    assert result.exit_code == 0
+    out = result.stdout + result.stderr
+    assert "YAGNI ladder" in out
+    assert "Matplotlib plotting" in out
+
+
 def test_cli_plugins_install_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     argv = ["--json", "--dry-run", "agent", "plugins", "install", "canfar-ray"]
@@ -562,7 +605,9 @@ def test_install_addon_transport_skips_when_installed(
     (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers": {}}\n', encoding="utf-8")
     _merge_cursor_mcp(tmp_path / ".cursor" / "mcp.json", "git", {"command": "uvx"}, force=True)
     results = install_plugin("git-mcp", home=tmp_path, installed_only=False)
-    assert all(r.status == "skipped" for r in results)
+    by_agent = {r.agent: r.status for r in results}
+    assert by_agent["cursor"] == "skipped"
+    assert any(status == "installed" for agent, status in by_agent.items() if agent != "cursor")
 
 
 def test_configure_addon_transport_uses_dispatcher(tmp_path: Path) -> None:
@@ -577,7 +622,9 @@ def test_load_plugins_includes_ray_manager_mcp() -> None:
     plugin = get_plugin("ray-manager-mcp")
     assert plugin is not None
     assert plugin["kind"] == "mcp"
-    assert set(plugin["agents"]) == {"cursor", "hermes", "openclaw"}
+    from astroai_lab.agent.agent_targets import mcp_hosts
+
+    assert set(plugin["agents"]) == set(mcp_hosts())
     assert plugin["install"]["server"] == "ray-manager"
     entry = plugin["install"]["entry"]
     assert entry["command"] == "astroai-workload"

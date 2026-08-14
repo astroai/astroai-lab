@@ -6,8 +6,7 @@ tags:
 - science
 summary: SQLite MCP on scratch DB path — no API key
 homepage: ''
-agents:
-- cursor
+agents: [mcp-hosts]
 install:
   type: mcp-snippet
   server: sqlite

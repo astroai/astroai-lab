@@ -6,8 +6,6 @@ tags:
 summary: AstroAI / CANFAR session workflow (bundled)
 homepage: ''
 default: true
-agents:
-- cursor
+agents: [skill-hosts]
 install:
-  type: bundled
-  note: Installed by astroai-lab agent setup
+  source: astroai-lab-workflow

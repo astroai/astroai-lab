@@ -21,9 +21,16 @@ from astroai_lab.errors import LabError
 from astroai_lab.utils.json_utils import merge_dicts, read_json, read_jsonc, write_json
 
 # agentskills.io SKILL.md layout under the agent home tree.
+# Only agents that actually load this convention belong here — a plugin
+# listing `skill-hosts` fans out to every key.
 AGENT_SKILL_DIRS: dict[str, str] = {
+    "claude": ".claude/skills",
+    "codex": ".codex/skills",
+    "cursor": ".cursor/skills",
+    "goose": ".config/goose/skills",
     "hermes": ".hermes/skills",
     "openclaw": ".openclaw/skills",
+    "opencode": ".config/opencode/skills",
 }
 
 McpFormat = Literal["json", "json5", "yaml"]
@@ -53,6 +60,24 @@ MCP_TARGETS: dict[str, McpTarget] = {
 
 def mcp_target(agent: str) -> McpTarget | None:
     return MCP_TARGETS.get(agent)
+
+
+def skill_hosts() -> tuple[str, ...]:
+    """Agents that load agentskills.io SKILL.md trees from AGENT_SKILL_DIRS."""
+    return tuple(sorted(AGENT_SKILL_DIRS))
+
+
+def mcp_hosts() -> tuple[str, ...]:
+    """Agents that accept MCP server merges via MCP_TARGETS."""
+    return tuple(sorted(MCP_TARGETS))
+
+
+def skill_path(home: Path, agent: str, name: str) -> Path | None:
+    """``<home>/<skill-dir>/<name>`` for a skill-host agent, else None."""
+    rel = AGENT_SKILL_DIRS.get(agent)
+    if not rel:
+        return None
+    return home / rel / name
 
 
 def expand_home(path: str, home: Path) -> Path:

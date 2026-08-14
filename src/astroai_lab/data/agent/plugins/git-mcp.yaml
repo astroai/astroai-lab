@@ -6,8 +6,7 @@ tags:
 - review
 summary: Local git MCP (uvx mcp-server-git) — no API key
 homepage: ''
-agents:
-- cursor
+agents: [mcp-hosts]
 install:
   type: mcp-snippet
   server: git

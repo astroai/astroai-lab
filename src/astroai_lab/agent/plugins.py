@@ -12,12 +12,9 @@ Example::
     kind: skill
     tags: [science, ray, canfar]
     summary: Drive CANFAR Ray clusters (ensure/status/scale/dashboard)
-    agents: [hermes, openclaw]
+    agents: [skill-hosts]
     install:
       source: canfar-ray
-      targets:
-        hermes: .hermes/skills/canfar-ray
-        openclaw: .openclaw/skills/canfar-ray
 
 Kinds:
   skill   copy a bundled SKILL.md tree into each target agent's skill dir
@@ -31,7 +28,8 @@ Kinds:
 Plugins with an ``install.type`` (bundled / github-skill / github-bundle /
 github-rule / mcp-snippet / cli-tool / agent-skill) go through
 ``addons._apply_addon``. ``addon: true`` marks curated plugins for
-``agent plugins list``.
+``agent plugins list``. Support-matrix aliases: ``skill-hosts`` (SKILL.md
+agents) and ``mcp-hosts`` (MCP merge agents).
 
 Removal is recursive: dropping an agent removes its plugin-applied files
 (see ``remove_agent_plugin_files``). Dynamic URLs only: an mcp ``entry``
@@ -48,7 +46,7 @@ from typing import Any
 
 import yaml
 
-from astroai_lab.agent.bundle_path import bundle_root
+from astroai_lab.agent.bundle_path import bundle_root, bundled_skill_src
 from astroai_lab.errors import LabError
 
 PLUGIN_KINDS = ("skill", "bundle", "mcp", "tool", "rule", "config", "addon")
@@ -83,6 +81,22 @@ def _plugins_dir(root: Path | None = None) -> Path:
     return (root or bundle_root()) / "plugins"
 
 
+def expand_agent_matrix(agents: list[str]) -> list[str]:
+    """Expand ``skill-hosts`` / ``mcp-hosts`` aliases; preserve order, drop dupes."""
+    from astroai_lab.agent.agent_targets import mcp_hosts, skill_hosts
+
+    aliases = {"skill-hosts": skill_hosts, "mcp-hosts": mcp_hosts}
+    out: list[str] = []
+    seen: set[str] = set()
+    for name in agents:
+        expanded = list(aliases[name]()) if name in aliases else [name]
+        for item in expanded:
+            if item not in seen:
+                seen.add(item)
+                out.append(item)
+    return out
+
+
 def _validate(data: dict[str, Any], source: Path) -> dict[str, Any]:
     """Validate + normalize a single plugin entry; raise LabError on problems."""
     # Presence check uses `is None` so an empty list (agents: []) or empty
@@ -102,6 +116,9 @@ def _validate(data: dict[str, Any], source: Path) -> dict[str, Any]:
     agents = data.get("agents")
     if not isinstance(agents, list) or not agents:
         raise LabError(f"Plugin {data['id']} requires a non-empty agents support matrix")
+    data["agents"] = expand_agent_matrix([str(a) for a in agents])
+    if not data["agents"]:
+        raise LabError(f"Plugin {data['id']} support matrix expanded to empty")
     install = data.get("install") or {}
     if not isinstance(install, dict):
         raise LabError(f"Plugin {data['id']} install must be a mapping in {source.name}")
@@ -256,7 +273,7 @@ def plugin_installed(plugin: dict[str, Any], home: Path, agent: str | None = Non
         # Legacy addon transport — delegate to the addons presence checks.
         from astroai_lab.agent.addons import addon_installed, plugin_as_addon
 
-        return addon_installed(plugin_as_addon(plugin), home)
+        return addon_installed(plugin_as_addon(plugin), home, agent=agent)
     if kind == "skill":
         targets = _skill_targets(plugin, home)
         if agent:
@@ -338,7 +355,7 @@ def _selected_agents(plugin: dict[str, Any], agent: str | None) -> list[str]:
 def _install_skill(
     plugin: dict[str, Any], agent: str, home: Path, *, force: bool, dry_run: bool
 ) -> PluginResult:
-    src = bundle_root() / "skills" / str(plugin["install"]["source"])
+    src = bundled_skill_src(str(plugin["install"]["source"]))
     if not (src / "SKILL.md").is_file():
         return PluginResult(plugin["id"], agent, "failed", f"missing bundled SKILL.md at {src}")
     targets = _skill_targets(plugin, home)
