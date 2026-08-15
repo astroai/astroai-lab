@@ -220,9 +220,8 @@ applies to every *installed* agent in the matrix by default; `--agent` scopes
 it. For `kind: mcp` that merge is an `mcpServers` entry with **dynamic URLs
 only** (e.g. `$ASTROAI_RAY_JOBS_ADDRESS`).
 
-**`ray-manager-mcp`** (the shipped `kind: mcp` example) configures
-`astroai-workload mcp serve` with a runtime-resolved
-`$ASTROAI_RAY_JOBS_ADDRESS`.
+**`ray-manager-mcp`** configures `astroai-workload mcp serve` (cluster plus
+jobs) with `$ASTROAI_RAY_JOBS_ADDRESS` resolved at runtime.
 
 ## Not this CLI
 

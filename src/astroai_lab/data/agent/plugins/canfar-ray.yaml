@@ -3,7 +3,7 @@ id: canfar-ray
 kind: skill                    # skill | bundle | mcp | tool | rule
 addon: true
 tags: [science, ray, compute, canfar]
-summary: Drive CANFAR Ray clusters — ensure/status/stop/scale/dashboard via astroai-workload
+summary: Start or resize a CANFAR Ray cluster and run jobs on it (astroai-workload)
 homepage: https://github.com/astroai/astroai-workload
 agents: [skill-hosts]
 install:

@@ -133,7 +133,7 @@ Related:
 | Repo | Role |
 |------|------|
 | [astroai-containers](https://github.com/astroai/astroai-containers) | Session images (`webterm`, `notebook`, `ray-manager`, …) |
-| [astroai-workload](https://github.com/astroai/astroai-workload) | Ray Jobs submit helpers |
+| [astroai-workload](https://github.com/astroai/astroai-workload) | Ray cluster workers + `run` jobs |
 | [canfar](https://github.com/opencadc/canfar) | Platform client |
 
 Platform documentation: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)

@@ -70,6 +70,14 @@ def test_load_plugins_includes_canfar_ray() -> None:
     assert plugin["install"]["source"] == "canfar-ray"
 
 
+def test_canfar_ray_skill_points_at_workload_run() -> None:
+    from astroai_lab.agent.bundle_path import bundled_skill_src
+
+    text = (bundled_skill_src("canfar-ray") / "SKILL.md").read_text(encoding="utf-8")
+    assert "astroai-workload run" in text
+    assert "Do not call `ray job submit`" in text
+
+
 def test_load_plugins_empty_dir(tmp_path: Path) -> None:
     assert load_plugins(tmp_path) == []
 

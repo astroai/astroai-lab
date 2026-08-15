@@ -284,5 +284,5 @@ uv pip install --python /opt/astroai/venv/cadc \
 ## See also
 
 - [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md) — images, portal session types
-- [astroai-workload](https://github.com/astroai/astroai-workload) — submit Ray Jobs (`astroai-workload run`) on ray-manager
+- [astroai-workload](https://github.com/astroai/astroai-workload) — `cluster ensure` then `run` on ray-manager
 - [CANFAR client docs](https://opencadc.github.io/canfar/)

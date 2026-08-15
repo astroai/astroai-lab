@@ -11,7 +11,7 @@ Example::
     id: canfar-ray
     kind: skill
     tags: [science, ray, canfar]
-    summary: Drive CANFAR Ray clusters (ensure/status/scale/dashboard)
+    summary: Start or resize a CANFAR Ray cluster and run jobs on it
     agents: [skill-hosts]
     install:
       source: canfar-ray
