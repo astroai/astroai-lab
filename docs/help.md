@@ -35,7 +35,7 @@ Marimo path: Science Portal → **marimo** image →
 
 | Tier | Typical path | Purpose |
 |------|--------------|---------|
-| Work | `WORK` → `/srcdir` | Ephemeral code (fast, session-local) |
+| Work | `WORK` → `$SCRATCH/src` on CANFAR | Ephemeral code (survives container OOM; dies with the session) |
 | Scratch | `SCRATCH` → `/scratch` | Ephemeral data and package caches |
 | Home | `/arc/home` | Persistent config and env saves |
 | Projects | `/arc/projects` | Team persistent storage (read-only for most users) |

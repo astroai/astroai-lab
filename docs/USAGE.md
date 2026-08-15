@@ -123,7 +123,7 @@ flowchart TD
 
 | Tier | Env / path | Lifetime | Use for |
 |------|------------|----------|---------|
-| Work | `WORK` (`/srcdir`) | Session | Source trees, pixi/uv projects |
+| Work | `WORK` (`$SCRATCH/src` on CANFAR) | Session (survives container OOM) | Source trees, pixi/uv projects |
 | Scratch | `SCRATCH` (`/scratch`) | Session | Datasets, build caches, temp |
 | Home | `/arc/home/<you>` | Persistent | Config, `~/.astroai/lab/saves/`, certs |
 | Projects | `/arc/projects/<group>` | Persistent | Shared data and team env-saves |

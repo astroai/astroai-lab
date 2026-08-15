@@ -9,6 +9,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from astroai_lab import config_dir, saves_dir
+from astroai_lab.core.session_common import overlay_work_dir
 
 
 class LabSettings(BaseSettings):
@@ -31,9 +32,18 @@ class LabSettings(BaseSettings):
     clone_from_env: str | None = None
 
     def resolve_work_dir(self) -> Path:
+        scratch = self.resolve_scratch_dir()
         for raw in (self.work_dir, _env_path("WORK")):
-            if raw is not None and raw.is_dir() and os.access(raw, os.W_OK):
+            if raw is None:
+                continue
+            relocated = overlay_work_dir(raw, scratch)
+            if relocated is not None:
+                return relocated
+            if raw.is_dir() and os.access(raw, os.W_OK):
                 return raw
+        relocated = overlay_work_dir(Path("/srcdir"), scratch)
+        if relocated is not None:
+            return relocated
         for candidate in (Path("/srcdir"), Path.home() / "work"):
             if candidate.is_dir() and os.access(candidate, os.W_OK):
                 return candidate

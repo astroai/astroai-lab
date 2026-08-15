@@ -60,7 +60,7 @@ def kernel_register(
 
     Examples:
         astroai-lab kernel register
-        astroai-lab kernel register /srcdir/mylab --name mylab
+        astroai-lab kernel register $WORK/mylab --name mylab
     """
     project = path or Path.cwd()
     try:

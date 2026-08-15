@@ -242,7 +242,7 @@ or set explicitly.
 
 | Variable | Purpose |
 |----------|---------|
-| `WORK` | Session work dir; code and project envs live here (Skaha: `/srcdir`) |
+| `WORK` | Session work dir; code and project envs. On CANFAR: `$SCRATCH/src` (survives container OOM; still dies with the session). Elsewhere often `/srcdir` |
 | `SCRATCH` | Session scratch; data, caches, runtime installs (Skaha: `/scratch`) |
 | `PROJECT` | Team project dir (e.g. `/arc/projects/<group>`); used for team tools |
 
@@ -251,6 +251,7 @@ or set explicitly.
 | Variable | Purpose |
 |----------|---------|
 | `WORK` / `SCRATCH` / `PROJECT` | Set explicitly to override detected session paths |
+| `ASTROAI_LAB_WORK_ON_SCRATCH` | Set `0` to keep `WORK=/srcdir` even when `/scratch` is a separate volume |
 | `ASTROAI_LAB_SAVE_DIR` | Env saves dir (default: `~/.astroai/lab/saves`) |
 | `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`; last resort: work `.runtime-$USER/bin` — never `~/.local`) |
 | `ASTROAI_LAB_RUNTIME_ROOT` | Runtime uv/pixi/mamba roots (default: scratch `.runtime-$USER`) |

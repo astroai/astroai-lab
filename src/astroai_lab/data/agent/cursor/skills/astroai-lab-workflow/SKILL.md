@@ -40,7 +40,7 @@ Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subco
 
 | Path | What |
 |------|------|
-| `${WORK}` | Code + project `.pixi`/`.venv` — **ephemeral** |
+| `${WORK}` | Code + project `.pixi`/`.venv` — ephemeral (on CANFAR: `$SCRATCH/src`, survives container OOM) |
 | `${SCRATCH}` | Data, download caches, runtime installs (`ASTROAI_LAB_BIN_DIR`, uv/pixi roots) |
 | `/opt/astroai/venv/cadc` | Platform CLIs: `canfar`, `cadcget`, `astroai-lab` — **writable this session** |
 | `/arc/projects/<team>/.local` | Shared team tools (persistent) |
