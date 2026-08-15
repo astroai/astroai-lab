@@ -75,6 +75,9 @@ def _ceph_dir_usage(path: Path) -> DiskUsage | None:
             )
         if cur.parent == cur:
             break
+        # Quotas live on the user home or project dir, not on /arc or /arc/home.
+        if cur.parent in (Path("/arc/home"), Path("/arc/projects"), Path("/arc")):
+            break
         cur = cur.parent
     return None
 

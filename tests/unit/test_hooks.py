@@ -12,3 +12,4 @@ def test_hooks_keep_scratch_reminder_off_the_quota_nag() -> None:
     assert "quota_reminder" not in text
     assert "__astroai_lab_quota_used_pct" not in text
     assert "check astroai-lab status for details" not in text
+    assert '*"__astroai_lab_scratch_reminder"*' in text

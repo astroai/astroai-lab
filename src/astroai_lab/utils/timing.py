@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeout
 from contextlib import contextmanager
 from typing import TypeVar
 
@@ -37,17 +36,26 @@ def call_with_timeout(
     timeout_sec: float,
     default: T,
 ) -> T:
-    """Run ``fn`` in a worker thread; return ``default`` if it exceeds ``timeout_sec``.
+    """Run ``fn`` in a daemon thread; return ``default`` if it exceeds ``timeout_sec``.
 
-    The worker is not cancelled. A stuck CADC client can keep a thread busy after
-    status has already moved on. That is still better than blocking the CLI.
+    ThreadPoolExecutor workers are non-daemon and are joined at interpreter
+    shutdown. A hung CADC/VOSpace call would then freeze ``astroai-lab status``
+    after the timeout had already fired. Daemon threads do not block exit.
     """
-    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lab-timeout")
-    fut = pool.submit(fn)
-    try:
-        return fut.result(timeout=timeout_sec)
-    except FuturesTimeout:
+    box: list[tuple[str, object]] = []
+
+    def _run() -> None:
+        try:
+            box.append(("ok", fn()))
+        except Exception as exc:
+            box.append(("err", exc))
+
+    thread = threading.Thread(target=_run, name="lab-timeout", daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_sec)
+    if thread.is_alive() or not box:
         return default
-    finally:
-        # Do not join the worker. A hung CADC client must not block status.
-        pool.shutdown(wait=False, cancel_futures=True)
+    kind, payload = box[0]
+    if kind == "err":
+        raise payload  # type: ignore[misc]
+    return payload  # type: ignore[return-value]

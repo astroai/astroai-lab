@@ -71,6 +71,24 @@ def test_used_pct_rounds_half_up() -> None:
     assert used_pct(1, 0) == 0
 
 
+def test_ceph_usage_does_not_inherit_arc_parent_quota(monkeypatch: pytest.MonkeyPatch) -> None:
+    from astroai_lab.core.disk_usage import _ceph_dir_usage
+
+    def fake_getxattr(path: str | bytes, name: str | bytes) -> bytes:
+        key = name.decode() if isinstance(name, bytes) else name
+        p = str(path)
+        if p.rstrip("/") == "/arc/home" and key == "ceph.quota.max_bytes":
+            return b"999999"
+        if p.rstrip("/") == "/arc/home" and key == "ceph.dir.rbytes":
+            return b"900000"
+        raise OSError("missing")
+
+    monkeypatch.setattr("os.getxattr", fake_getxattr, raising=False)
+    monkeypatch.setattr(Path, "is_dir", lambda self: True)
+    info = _ceph_dir_usage(Path("/arc/home/alice"))
+    assert info is None
+
+
 def test_disk_usage_skips_statvfs_on_arc_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

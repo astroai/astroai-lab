@@ -63,6 +63,22 @@ def test_dir_size_prefers_ceph_rbytes(tmp_path: Path, monkeypatch) -> None:
         du.assert_not_called()
 
 
+def test_dir_bytes_does_not_retry_du_after_timeout(tmp_path: Path) -> None:
+    from astroai_lab.core.storage import dir_bytes
+
+    d = tmp_path / "d"
+    d.mkdir()
+    calls: list[list[str]] = []
+
+    def _du(cmd: list[str], **kwargs: object) -> str:
+        calls.append(cmd)
+        raise LabError("Command timed out after 2.0s: du -sb")
+
+    with patch("astroai_lab.utils.subprocess.run_capture", side_effect=_du):
+        assert dir_bytes(d, timeout_sec=2.0) is None
+    assert calls == [["du", "-sb", str(d)]]
+
+
 def test_home_breakdown(tmp_path: Path) -> None:
     cache = tmp_path / ".cache"
     cache.mkdir()

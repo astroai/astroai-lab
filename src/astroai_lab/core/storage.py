@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 HOME_DIR_TIMEOUT_SEC = 2.0
 DIR_SIZE_TIMEOUT_SEC = 8.0
 VAULT_TIMEOUT_SEC = 8.0
+LIST_ARC_TIMEOUT_SEC = 5.0
 PROJECT_PROBE_WORKERS = 8
 
 
@@ -67,8 +68,12 @@ def _du_bytes(path: Path, timeout_sec: float) -> int | None:
     try:
         out = run_capture(["du", "-sb", str(path)], timeout=timeout_sec)
         return int(out.split()[0])
-    except (LabError, ValueError, IndexError):
-        pass
+    except (ValueError, IndexError):
+        return None
+    except LabError as exc:
+        # A timeout must not start a second walk with `du -sk`.
+        if "timed out" in str(exc).lower():
+            return None
     try:
         out = run_capture(["du", "-sk", str(path)], timeout=timeout_sec)
         return int(out.split()[0]) * 1024
@@ -231,8 +236,8 @@ def arc_project_statuses(
     """Team projects under /arc/projects with access, ACL groups, GMS, and vault."""
     clock = timer or PhaseTimer()
     cwd_root = find_arc_project_root(start)
-    projects = list_arc_projects()
     with clock.phase("team projects"):
+        projects = call_with_timeout(list_arc_projects, LIST_ARC_TIMEOUT_SEC, [])
         if projects:
             workers = min(PROJECT_PROBE_WORKERS, len(projects))
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="lab-arc") as pool:

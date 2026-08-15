@@ -59,7 +59,7 @@ __astroai_lab_scratch_reminder() {
     printf '%s' "${_now}" > "${_reminder_file}"
 }
 
-if [[ -t 1 ]]; then
+if [[ -t 1 && "${PROMPT_COMMAND:-}" != *"__astroai_lab_scratch_reminder"* ]]; then
     if [[ -z "${PROMPT_COMMAND:-}" ]]; then
         PROMPT_COMMAND="__astroai_lab_scratch_reminder"
     else
