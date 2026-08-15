@@ -538,6 +538,14 @@ def test_load_plugins_includes_migrated_addons() -> None:
     # Defaults carried over.
     assert by_id["token-efficient"]["default"] is True
     assert by_id["ponytail"].get("default") is None
+    assert {Path(p).name for p in by_id["ponytail"]["install"]["skills"]} == {
+        "ponytail",
+        "ponytail-review",
+        "ponytail-audit",
+        "ponytail-debt",
+        "ponytail-gain",
+        "ponytail-help",
+    }
     # Opt-in skills point at real SKILL.md paths (not skill-forge recipes/ packaging dirs).
     assert by_id["polars"]["install"]["path"] == "skills/polars"
     assert by_id["librarian"]["install"]["repo"] == "mitsuhiko/agent-stuff"

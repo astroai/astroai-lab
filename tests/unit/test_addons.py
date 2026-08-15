@@ -161,6 +161,32 @@ def test_load_addons_is_plugin_registry_shim() -> None:
     assert item["kind"] == "bundle"
     assert item["install"]["type"] == "github-bundle"
     assert isinstance(item["install"]["skills"], list)
+    assert {Path(p).name for p in item["install"]["skills"]} == {
+        "ponytail",
+        "ponytail-review",
+        "ponytail-audit",
+        "ponytail-debt",
+        "ponytail-gain",
+        "ponytail-help",
+    }
+
+
+def test_github_bundle_installed_requires_every_skill(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    item = get_addon("ponytail")
+    assert item is not None
+    names = [Path(p).name for p in item["install"]["skills"]]
+    first = home / ".cursor" / "skills" / names[0]
+    first.mkdir(parents=True)
+    (first / "SKILL.md").write_text("# partial\n")
+    assert not addon_installed(item, home, agent="cursor")
+    for name in names:
+        dest = home / ".cursor" / "skills" / name
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "SKILL.md").write_text("# ok\n")
+    (home / ".cursor" / "rules").mkdir(parents=True, exist_ok=True)
+    (home / ".cursor" / "rules" / "ponytail.mdc").write_text("rule\n")
+    assert addon_installed(item, home, agent="cursor")
 
 
 def test_add_addon_delegates_to_plugins_install(

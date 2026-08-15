@@ -129,11 +129,27 @@ def addon_installed(item: dict[str, Any], home: Path, agent: str | None = None) 
 
     if itype == "github-bundle":
         skills = install.get("skills") or []
-        if not skills:
+        rules = install.get("rules") or []
+        if not skills and not rules:
             return False
-        name = Path(skills[0]).name
-        dests = _skill_dests(item, home, name, agent=agent)
-        return bool(dests) and all((p / "SKILL.md").is_file() for p in dests.values())
+        agents = _matrix_agents(item, agent)
+        saw_skill_host = False
+        for rel in skills:
+            dests = _skill_dests(item, home, Path(rel).name, agent=agent)
+            if not dests:
+                continue
+            saw_skill_host = True
+            if not all((p / "SKILL.md").is_file() for p in dests.values()):
+                return False
+        if skills and not saw_skill_host:
+            return False
+        if "cursor" in agents:
+            for rel in rules:
+                if not (home / ".cursor" / "rules" / Path(rel).name).is_file():
+                    return False
+        elif not skills:
+            return False
+        return True
 
     if itype == "github-rule":
         rule = Path(install.get("path", "")).name
