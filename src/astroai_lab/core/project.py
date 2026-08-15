@@ -7,8 +7,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import humanize
-
+from astroai_lab.core.disk_usage import naturalsize
 from astroai_lab.errors import LabError
 from astroai_lab.models.manifest import EnvManifest, ProjectKind
 from astroai_lab.utils.subprocess import run
@@ -350,7 +349,7 @@ def format_dir_size(path: Path) -> str:
     size = dir_size(path)
     if size == 0:
         return "0 B"
-    return humanize.naturalsize(size, binary=True)
+    return naturalsize(size)
 
 
 def init_project(target: Path, *, use_uv: bool = False) -> ProjectKind:

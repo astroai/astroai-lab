@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from astroai_lab.version import PACKAGE_VERSION, display_version, package_version, version_info
+from astroai_lab.version import PACKAGE_VERSION, display_version, version_info
 
 
 def test_package_version_matches_pyproject() -> None:
@@ -14,7 +14,6 @@ def test_package_version_matches_pyproject() -> None:
     pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
     data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     assert data["project"]["version"] == PACKAGE_VERSION
-    assert package_version() == PACKAGE_VERSION
 
 
 def test_display_version_without_direct_url(monkeypatch: pytest.MonkeyPatch) -> None:

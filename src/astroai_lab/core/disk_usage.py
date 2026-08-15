@@ -140,6 +140,18 @@ def used_pct(used: int, total: int) -> int:
     return min(100, (used * 100 + total // 2) // total)
 
 
+def naturalsize(n: int) -> str:
+    """Binary size string (1024): ``12 B``, ``1.5 KiB``."""
+    value = float(n)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if abs(value) < 1024.0 or unit == "TiB":
+            if unit == "B":
+                return f"{int(round(value))} B"
+            return f"{value:.1f} {unit}"
+        value /= 1024.0
+    return f"{value:.1f} TiB"
+
+
 def quota_used_pct(path: Path) -> int | None:
     """Percent used (0–100), or None if unknown."""
     info = disk_usage(path)

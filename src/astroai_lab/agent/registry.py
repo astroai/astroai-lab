@@ -13,6 +13,7 @@ from typing import Any
 
 import yaml
 
+from astroai_lab.agent.agent_targets import expand_home
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.errors import LabError
 
@@ -22,15 +23,6 @@ REQUIRED_KEYS = ("id", "name", "homepage", "binary", "install")
 
 def _agents_dir(root: Path | None = None) -> Path:
     return (root or bundle_root()) / "agents"
-
-
-def _expand_home(path: str, home: Path) -> Path:
-    """Expand a leading `~` against an explicit home (test-friendly)."""
-    if path == "~":
-        return home
-    if path.startswith("~/"):
-        return home / path[2:]
-    return Path(path).expanduser()
 
 
 def _validate(data: dict[str, Any], source: Path) -> dict[str, Any]:
@@ -245,7 +237,7 @@ def registry_agent_status(
     # No config declared → N/A (ok for health; table shows "-" like missing).
     config_ok = True
     if config_declared:
-        cfg_path = _expand_home(str(config["path"]), home)
+        cfg_path = expand_home(str(config["path"]), home)
         config_ok = cfg_path.is_file()
     version = probe_version(probe_name) if (probe_ver and binary_ok) else None
     return {
@@ -592,7 +584,7 @@ def _remove_registry_method(
     # Config file (registry config.path).
     config = agent.get("config") or {}
     if config.get("path"):
-        cfg = _expand_home(str(config["path"]), home)
+        cfg = expand_home(str(config["path"]), home)
         rm(cfg, f"config:{cfg}")
         lab_dir = home / ".astroai" / "lab"
         if purge and cfg.parent not in {home, lab_dir}:
@@ -693,7 +685,7 @@ def setup_registry_agent(
 
     config = agent.get("config") or {}
     if config.get("path"):
-        cfg = _expand_home(str(config["path"]), home)
+        cfg = expand_home(str(config["path"]), home)
         if cfg.is_file():
             actions.append(f"config exists ({cfg})")
         elif dry_run:
@@ -733,7 +725,6 @@ def setup_registry_agent(
                 None,
                 force=force,
                 dry_run=False,
-                upstream_skills=False,
             )
             actions.append(f"applied config bundle ({agent_id})")
 
@@ -867,7 +858,7 @@ def fix_registry_agent(
 
     config = agent.get("config") or {}
     if config.get("path"):
-        cfg = _expand_home(str(config["path"]), home)
+        cfg = expand_home(str(config["path"]), home)
         fmt = str(config.get("format", "json"))
         if not cfg.is_file():
             if dry_run:

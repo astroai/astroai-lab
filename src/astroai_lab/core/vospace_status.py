@@ -4,11 +4,9 @@ import logging
 import os
 from dataclasses import dataclass, field
 
-import humanize
-
 from astroai_lab.core.arc_permissions import GmsGroups
 from astroai_lab.core.cadc_auth import cadc_cert_path, has_cadc_netrc
-from astroai_lab.core.disk_usage import used_pct
+from astroai_lab.core.disk_usage import naturalsize, used_pct
 from astroai_lab.core.storage import QuotaLine
 
 logger = logging.getLogger(__name__)
@@ -40,9 +38,9 @@ class VaultNodeStatus:
         return QuotaLine(
             label=f"{self.name} (vault)",
             path=self.uri,
-            used=humanize.naturalsize(used, binary=True),
-            total=humanize.naturalsize(self.quota_bytes, binary=True),
-            free=humanize.naturalsize(free, binary=True),
+            used=naturalsize(used),
+            total=naturalsize(self.quota_bytes),
+            free=naturalsize(free),
             pct=used_pct(used, self.quota_bytes),
             current=current,
             source="vospace",

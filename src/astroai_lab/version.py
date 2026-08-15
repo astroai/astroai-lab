@@ -38,11 +38,6 @@ def _direct_url_commit() -> str | None:
     return None
 
 
-def package_version() -> str:
-    """In-tree / running-code marketing version (matches pyproject)."""
-    return PACKAGE_VERSION
-
-
 def display_version() -> str:
     """``0.4.0+g2f7e99de`` when the wheel came from git, else ``0.4.0``."""
     base = PACKAGE_VERSION

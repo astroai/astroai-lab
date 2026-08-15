@@ -22,36 +22,7 @@ def _format_text(text: str) -> str:
         return text
     import re
 
-    lines = []
-    for line in text.splitlines():
-        # Match lines starting with optional whitespace, followed by a command
-        # e.g., "  astroai-lab init mylab" or "  cd target"
-        match = re.match(
-            r"^(\s*)(astroai-lab|canfar|git|pixi|uv|gh|cd|kilo|goose|cline|eval|setfacl|rsync)\b([^#\n]*)(.*)$",
-            line,
-        )
-        if match:
-            indent, cmd, rest, comment = match.groups()
-            # `agent list` rows look like "  kilo         ✓      home …" — the
-            # name collides with a CLI token, but this is a table, not a command.
-            if (
-                re.match(r"^\s{2,}", rest)
-                or "✓" in rest
-                or "—" in rest
-                or "·" in rest
-                or " - " in rest
-            ):
-                lines.append(line)
-            else:
-                line_str = f"{indent}[bold #00d7ff]{cmd}{rest}[/bold #00d7ff]"
-                if comment:
-                    line_str += f"[dim]{comment}[/dim]"
-                lines.append(line_str)
-        else:
-            # Inline replacements for backtick block like `command`
-            line = re.sub(r"`([^`]+)`", r"[bold #ffaf00]\1[/bold #ffaf00]", line)
-            lines.append(line)
-    return "\n".join(lines)
+    return re.sub(r"`([^`]+)`", r"[bold #ffaf00]\1[/bold #ffaf00]", text)
 
 
 def print_error(message: str) -> None:

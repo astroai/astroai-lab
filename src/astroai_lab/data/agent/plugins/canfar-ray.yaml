@@ -1,6 +1,6 @@
 # canfar-ray — Drive CANFAR Ray clusters.
 id: canfar-ray
-kind: skill                    # skill | bundle | mcp | tool | rule | config | addon
+kind: skill                    # skill | bundle | mcp | tool | rule
 addon: true
 tags: [science, ray, compute, canfar]
 summary: Drive CANFAR Ray clusters — ensure/status/stop/scale/dashboard via astroai-workload

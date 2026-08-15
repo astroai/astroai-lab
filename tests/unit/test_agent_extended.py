@@ -14,11 +14,6 @@ from astroai_lab.agent.setup import (
     run_bundle,
     write_stamp,
 )
-from astroai_lab.agent.upstream import (
-    install_upstream_skills,
-    list_github_sources,
-    update_github_source,
-)
 from astroai_lab.cli.main import app
 
 runner = CliRunner()
@@ -64,13 +59,6 @@ def test_install_goose_config(tmp_path: Path) -> None:
     assert (home / ".config" / "goose" / "config.yaml").is_file()
 
 
-def test_install_upstream_skills_dry_run() -> None:
-    root = bundle_root()
-    home = Path("/tmp/unused")
-    count = install_upstream_skills(root, home, force=False, dry_run=True)
-    assert count >= 0
-
-
 def test_agent_project_via_setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = tmp_path / "repo"
     project.mkdir()
@@ -86,28 +74,6 @@ def test_project_command_removed() -> None:
     assert "No such command" in (result.stdout + result.stderr)
 
 
-def test_list_github_sources() -> None:
-    sources = list_github_sources()
-    assert any(s["name"] == "ast-grep" for s in sources)
-
-
-def test_list_skills_inventory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from astroai_lab.agent.inventory import list_skills_inventory
-
-    home = tmp_path / "home"
-    skill = home / ".cursor" / "skills" / "astroai-lab-workflow"
-    skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("# skill\n")
-    monkeypatch.setenv("HOME", str(home))
-    rows = list_skills_inventory(home)
-    names = {r["name"] for r in rows}
-    assert "astroai-lab-workflow" in names
-    assert "ast-grep" in names
-    workflow = next(r for r in rows if r["name"] == "astroai-lab-workflow")
-    assert workflow["installed"] is True
-    assert workflow["source"] == "bundled"
-
-
 def test_agent_list_default_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -119,21 +85,6 @@ def test_agent_list_default_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert "plugins list" in out.lower()
 
 
-def test_update_github_source_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-    result = update_github_source(
-        home,
-        "ast-grep",
-        "ast-grep/agent-skill",
-        "ast-grep/skills/ast-grep",
-        force=True,
-        dry_run=True,
-    )
-    assert result.status == "dry-run"
-
-
 def test_agent_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -141,8 +92,7 @@ def test_agent_update_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     result = runner.invoke(app, ["--dry-run", "agent", "update"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert "refreshed skill" in out or "would refresh skill" in out
-    assert "ast-grep" in out
+    assert "would refresh agent configs" in out or "Agent config updated" in out
 
 
 def test_agent_sources_alias_removed() -> None:

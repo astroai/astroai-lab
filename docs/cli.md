@@ -171,7 +171,7 @@ configs stay on `$HOME` (/arc/home). Some ids still install via battle-tested
 | `agent wipe` | Factory reset: remove every agent settings file, binary, and state; confirmation or `--yes` |
 | `agent setup [NAME…]` | First-run scaffold for an agent id or setup name; `--all` / `--project` |
 | `agent config ID` | Show/edit an agent's `$HOME` settings file (`--key`, `key=value`, `--unset`) |
-| `agent update [ID]` | Refresh CLI + upstream skills; with ID refreshes one agent |
+| `agent update [ID]` | Refresh agent configs; with ID refreshes one agent |
 | `agent verify` | Health check; `--fix` auto-repairs shared setup + installed agents; `--fix ID` for one agent; `--clean` stale state |
 | `agent plugins …` | list / install / update / remove extras (skills, MCP, rules, tools). `plugins list` is Kind / On / Def / Agents; `--description` for summaries |
 

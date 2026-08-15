@@ -74,8 +74,8 @@ def test_progress_task_quiet() -> None:
 
 def test_format_text() -> None:
     assert "[bold #ffaf00]mycmd[/bold #ffaf00]" in ui._format_text("`mycmd`")
-    assert "[bold #00d7ff]git status[/bold #00d7ff]" in ui._format_text("  git status")
+    assert ui._format_text("  git status") == "  git status"
     # `agent list` rows collide with CLI names (kilo/goose/cline) — keep plain.
     row = "  kilo         ✓      ✓      home    7.4.11"
     assert "[bold" not in ui._format_text(row)
-    assert "[bold #00d7ff]kilo auth[/bold #00d7ff]" in ui._format_text("  kilo auth")
+    assert ui._format_text("  kilo auth") == "  kilo auth"

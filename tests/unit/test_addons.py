@@ -8,19 +8,23 @@ from typer.testing import CliRunner
 from astroai_lab.agent.addons import (
     add_addon,
     addon_installed,
-    get_addon,
-    list_addons,
-    load_addons,
+    plugin_as_addon,
 )
+from astroai_lab.agent.plugins import get_plugin, load_plugins
 from astroai_lab.cli.main import app
 from astroai_lab.errors import LabError
 
 runner = CliRunner()
 
 
-def test_load_addons_has_ponytail_and_polars() -> None:
-    addons = load_addons()
-    ids = {a["id"] for a in addons}
+def _addon(plugin_id: str) -> dict:
+    plugin = get_plugin(plugin_id)
+    assert plugin is not None
+    return plugin_as_addon(plugin)
+
+
+def test_load_plugins_has_ponytail_and_polars() -> None:
+    ids = {p["id"] for p in load_plugins()}
     assert "ponytail" in ids
     assert "polars" in ids
     assert "modern-python" in ids
@@ -46,7 +50,7 @@ def test_add_agent_skill_installs_to_hermes_and_openclaw(
     # Idempotent second call skips.
     assert add_addon("canfar-ray", home=home).status == "skipped"
     # Installed detection agrees.
-    assert addon_installed(get_addon("canfar-ray"), home)
+    assert addon_installed(_addon("canfar-ray"), home)
 
 
 def test_add_agent_skill_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -66,15 +70,15 @@ def test_add_agent_skill_force_reinstalls(tmp_path: Path, monkeypatch: pytest.Mo
     assert add_addon("canfar-ray", home=home, force=True).status == "installed"
 
 
-def test_list_addons_filter_tag() -> None:
-    lean = list_addons(tag="lean")
+def test_list_plugins_filter_tag() -> None:
+    lean = [p for p in load_plugins() if "lean" in p.get("tags", [])]
     assert any(r["id"] == "ponytail" for r in lean)
-    science = list_addons(tag="science")
+    science = [p for p in load_plugins() if "science" in p.get("tags", [])]
     assert any(r["id"] == "polars" for r in science)
 
 
-def test_get_addon_unknown() -> None:
-    assert get_addon("not-a-real-addon") is None
+def test_get_plugin_unknown() -> None:
+    assert get_plugin("not-a-real-addon") is None
 
 
 def test_add_bundled_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -103,7 +107,7 @@ def test_github_skill_copies_only_scoped_host(
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    item = get_addon("polars")
+    item = _addon("polars")
     assert item is not None
     cache = (
         home / ".cache" / "astroai-lab" / "upstream-skills" / "k-dense-ai_claude-scientific-skills"
@@ -129,7 +133,7 @@ def test_add_mcp_merge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.status == "installed"
     data = (home / ".cursor" / "mcp.json").read_text()
     assert '"git"' in data
-    assert addon_installed(get_addon("git-mcp"), home)
+    assert addon_installed(_addon("git-mcp"), home)
 
 
 def test_add_mcp_refuses_corrupt_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -148,15 +152,9 @@ def test_strip_jsonc_preserves_comma_in_string() -> None:
     assert parse_jsonc('{"a": 1,}') == {"a": 1}
 
 
-def test_load_addons_is_plugin_registry_shim() -> None:
-    """addons.json was migrated — load_addons reads the plugin registry."""
-    from astroai_lab.agent.plugins import load_plugins
-
-    plugin_ids = {p["id"] for p in load_plugins() if p.get("addon")}
-    addon_ids = {a["id"] for a in load_addons()}
-    assert addon_ids == plugin_ids
-    # Legacy shape preserved: install.type transport + kind vocabulary.
-    item = get_addon("ponytail")
+def test_plugin_as_addon_preserves_ponytail_transport() -> None:
+    """github-bundle plugins keep the install transport after plugin_as_addon."""
+    item = _addon("ponytail")
     assert item is not None
     assert item["kind"] == "bundle"
     assert item["install"]["type"] == "github-bundle"
@@ -173,7 +171,7 @@ def test_load_addons_is_plugin_registry_shim() -> None:
 
 def test_github_bundle_installed_requires_every_skill(tmp_path: Path) -> None:
     home = tmp_path / "home"
-    item = get_addon("ponytail")
+    item = _addon("ponytail")
     assert item is not None
     names = [Path(p).name for p in item["install"]["skills"]]
     first = home / ".cursor" / "skills" / names[0]

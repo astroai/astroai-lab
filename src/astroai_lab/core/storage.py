@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import humanize
-
 from astroai_lab.core.arc_permissions import (
     AclGroupEntry,
     GmsGroups,
@@ -16,7 +14,7 @@ from astroai_lab.core.arc_permissions import (
     project_gms_member,
     read_acl_groups,
 )
-from astroai_lab.core.disk_usage import ceph_dir_rbytes, disk_usage
+from astroai_lab.core.disk_usage import ceph_dir_rbytes, disk_usage, naturalsize
 from astroai_lab.core.session_common import find_arc_project_root
 from astroai_lab.errors import LabError
 from astroai_lab.utils.timing import PhaseTimer, call_with_timeout
@@ -53,9 +51,9 @@ def df_line(path: Path, label: str, *, current: bool = False) -> QuotaLine | Non
     return QuotaLine(
         label=label,
         path=info.path,
-        used=humanize.naturalsize(info.used_bytes, binary=True),
-        total=humanize.naturalsize(info.total_bytes, binary=True),
-        free=humanize.naturalsize(info.free_bytes, binary=True),
+        used=naturalsize(info.used_bytes),
+        total=naturalsize(info.total_bytes),
+        free=naturalsize(info.free_bytes),
         pct=info.pct,
         current=current,
         source=info.source,
@@ -126,7 +124,7 @@ def home_breakdown(home: Path) -> list[tuple[str, str, str]]:
         n = dir_bytes(path, timeout_sec=HOME_DIR_TIMEOUT_SEC)
         if n is None:
             return (dirname, "—", f"{label} (timed out)")
-        return (dirname, humanize.naturalsize(n, binary=True), label)
+        return (dirname, naturalsize(n), label)
 
     workers = min(PROJECT_PROBE_WORKERS, len(present))
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="lab-home") as pool:

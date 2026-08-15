@@ -166,39 +166,36 @@ def test_resources_cgroup_and_gpu(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     assert snap.gpu[0]["name"] == "TestGPU"
 
 
-def test_agent_sync_ok_and_partial(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_sync_applies_bundles_and_stamps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from astroai_lab.agent.setup import agent_sync
-    from astroai_lab.agent.upstream import SourceUpdateResult
 
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    seen: list[str] = []
     monkeypatch.setattr(
         "astroai_lab.agent.setup.default_bundle_names",
         lambda root: ["cli"],
     )
     monkeypatch.setattr(
         "astroai_lab.agent.setup.run_bundle",
+        lambda name, *a, **k: seen.append(name),
+    )
+    monkeypatch.setattr(
+        "astroai_lab.agent.setup.ensure_agent_dirs",
         lambda *a, **k: None,
     )
-    monkeypatch.setattr(
-        "astroai_lab.agent.setup.update_all_github_sources",
-        lambda *a, **k: [
-            SourceUpdateResult("x", "org/x", "updated"),
-        ],
-    )
-    results = agent_sync(dry_run=False)
-    assert results[0].status == "updated"
+    agent_sync(dry_run=False)
+    assert seen == ["cli"]
     assert read_setup_state(home).ok
 
-    monkeypatch.setattr(
-        "astroai_lab.agent.setup.update_all_github_sources",
-        lambda *a, **k: [
-            SourceUpdateResult("x", "org/x", "failed", "boom"),
-        ],
-    )
-    agent_sync(dry_run=False)
-    assert read_setup_state(home).failed is not None
+    dry_home = tmp_path / "dry"
+    dry_home.mkdir()
+    monkeypatch.setenv("HOME", str(dry_home))
+    agent_sync(dry_run=True)
+    assert read_setup_state(dry_home).ok is False
 
 
 def test_install_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

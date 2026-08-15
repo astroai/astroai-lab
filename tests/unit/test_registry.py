@@ -464,9 +464,7 @@ def test_cli_agent_list_covers_installable_set(
     assert names.isdisjoint(TOOL_UTILITIES)
 
 
-def test_cli_agent_install_needs_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cli_agent_install_needs_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Nameless `agent install` points at `agent list`, it does not list agents."""
     monkeypatch.setenv("HOME", str(tmp_path))
     result = runner.invoke(app, ["--json", "agent", "install"])
@@ -638,21 +636,12 @@ def test_setup_registry_agent_applies_defaults_only(
     home = tmp_path / "home"
     home.mkdir()
     seen: list[str] = []
-    upstream_calls: list[bool] = []
 
     def fake_install(plugin_id, **kwargs):
         seen.append(plugin_id)
         return [PluginResult(plugin_id, "cursor", "skipped", "test")]
 
-    def fake_upstream(*_a, **_k):
-        upstream_calls.append(True)
-        return 0
-
     monkeypatch.setattr(plugins_mod, "install_plugin", fake_install)
-    monkeypatch.setattr(
-        "astroai_lab.agent.setup.install_upstream_skills",
-        fake_upstream,
-    )
     # Pretend cursor is installed so installed_only does not filter the matrix.
     monkeypatch.setattr(
         "astroai_lab.agent.install.classify_binary",
@@ -671,7 +660,6 @@ def test_setup_registry_agent_applies_defaults_only(
     assert "librarian" not in seen
     assert "pydantic-skills" not in seen
     assert "astroai-lab-workflow" in seen or "token-efficient" in seen
-    assert upstream_calls == [], "registry setup must not pull skills-sources.json"
     assert any("applied config bundle" in a for a in result["actions"])
 
 

@@ -1,7 +1,7 @@
 """Unit tests for the plugin system.
 
 Covers the plugins/*.yaml loader + schema validation, per-agent installed
-status, install/update/remove/configure for the skill / mcp / config kinds,
+status, install/update/remove/configure for the skill / mcp kinds,
 recursive agent removal (remove_agent_plugin_files), and the CLI surface.
 """
 
@@ -345,28 +345,6 @@ def test_plugin_installed_mcp_present(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# config kind
-# ---------------------------------------------------------------------------
-
-
-def test_install_config_kind(tmp_path: Path) -> None:
-    plugin = {
-        "id": "kilo-preset",
-        "kind": "config",
-        "agents": ["kilo"],
-        "install": {"target": "~/.config/kilo/preset.jsonc", "content": '{"model": "free"}\n'},
-    }
-    results = install_plugin_from_dict(plugin, tmp_path)
-    assert results[0].status == "installed"
-    assert (tmp_path / ".config" / "kilo" / "preset.jsonc").is_file()
-    results = install_plugin_from_dict(plugin, tmp_path)
-    assert results[0].status == "skipped"
-    results = remove_plugin_from_dict(plugin, tmp_path)
-    assert results[0].status == "removed"
-    assert not (tmp_path / ".config" / "kilo" / "preset.jsonc").exists()
-
-
-# ---------------------------------------------------------------------------
 # Recursive agent removal
 # ---------------------------------------------------------------------------
 
@@ -408,15 +386,6 @@ def configure_plugin_from_dict(plugin: dict, home: Path, *, agent=None, force=Fa
     plugins_mod.get_plugin = fake_get
     try:
         return configure_plugin(plugin["id"], agent=agent, home=home, force=force, dry_run=dry_run)
-    finally:
-        plugins_mod.get_plugin = original
-
-
-def install_plugin_from_dict(plugin: dict, home: Path, *, force=False):
-    plugins_mod, original, fake_get = _plugin_ctx(plugin)
-    plugins_mod.get_plugin = fake_get
-    try:
-        return install_plugin(plugin["id"], home=home, force=force, installed_only=False)
     finally:
         plugins_mod.get_plugin = original
 
@@ -607,11 +576,11 @@ def test_install_addon_transport_skips_when_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Migrated mcp-snippet addon: skipped once the server is in the config."""
-    from astroai_lab.agent.addons import _merge_cursor_mcp
+    from astroai_lab.agent.agent_targets import merge_mcp_server
 
     (tmp_path / ".cursor").mkdir(parents=True)
     (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers": {}}\n', encoding="utf-8")
-    _merge_cursor_mcp(tmp_path / ".cursor" / "mcp.json", "git", {"command": "uvx"}, force=True)
+    merge_mcp_server(tmp_path, "cursor", "git", {"command": "uvx"}, force=True)
     results = install_plugin("git-mcp", home=tmp_path, installed_only=False)
     by_agent = {r.agent: r.status for r in results}
     assert by_agent["cursor"] == "skipped"

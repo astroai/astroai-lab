@@ -1,4 +1,4 @@
-"""Plugin registry: skills / MCP / config packages across agents.
+"""Plugin registry: skills / MCP / tools / rules across agents.
 
 One YAML file per plugin under ``data/agent/plugins/*.yaml`` declares the
 support matrix (which agents can host it) and how it is applied. ``agent
@@ -22,8 +22,6 @@ Kinds:
   mcp     merge an ``mcpServers`` entry into each agent's config (configure)
   tool    cli-tool transport (install a CLI binary)
   rule    bundled/github-rule transport (Cursor rules)
-  config  write a config snippet to a home-relative target path
-  addon   extra skill/MCP/tool packaged as a plugin (``addon: true``)
 
 Plugins with an ``install.type`` (bundled / github-skill / github-bundle /
 github-rule / mcp-snippet / cli-tool / agent-skill) go through
@@ -49,7 +47,7 @@ import yaml
 from astroai_lab.agent.bundle_path import bundle_root, bundled_skill_src
 from astroai_lab.errors import LabError
 
-PLUGIN_KINDS = ("skill", "bundle", "mcp", "tool", "rule", "config", "addon")
+PLUGIN_KINDS = ("skill", "bundle", "mcp", "tool", "rule")
 REQUIRED_KEYS = ("id", "kind", "summary", "agents", "install")
 
 # Install transports dispatched through addons._apply_addon.
@@ -132,10 +130,6 @@ def _validate(data: dict[str, Any], source: Path) -> dict[str, Any]:
             f"Plugin {data['id']} kind=mcp requires install.server and install.entry "
             f"in {source.name}"
         )
-    if kind == "config" and not install.get("target"):
-        raise LabError(f"Plugin {data['id']} kind=config requires install.target in {source.name}")
-    if kind == "addon" and not install.get("addon"):
-        raise LabError(f"Plugin {data['id']} kind=addon requires install.addon in {source.name}")
     if kind in ("bundle", "tool", "rule"):
         raise LabError(f"Plugin {data['id']} kind={kind} requires install.type in {source.name}")
     return data
@@ -210,29 +204,16 @@ def plugin_ids(root: Path | None = None) -> set[str]:
     return {p["id"] for p in load_plugins(root)}
 
 
-def _expand_home(path: str, home: Path) -> Path:
-    """Resolve a target path against ``home``: `~`, `~/...`, or a bare relative
-    path are all home-relative; absolute paths pass through."""
-    if path == "~":
-        return home
-    if path.startswith("~/"):
-        return home / path[2:]
-    p = Path(path)
-    if p.is_absolute():
-        return p
-    return home / p
-
-
 def _skill_targets(plugin: dict[str, Any], home: Path) -> dict[str, Path]:
     """Map each support-matrix agent to its skill target dir for this plugin."""
-    from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS
+    from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS, expand_home
 
     install = plugin.get("install") or {}
     explicit = install.get("targets") or {}
     out: dict[str, Path] = {}
     for agent in plugin.get("agents", []):
         if agent in explicit:
-            out[agent] = _expand_home(str(explicit[agent]), home)
+            out[agent] = expand_home(str(explicit[agent]), home)
         elif agent in AGENT_SKILL_DIRS:
             out[agent] = home / AGENT_SKILL_DIRS[agent] / plugin["id"]
     return out
@@ -285,14 +266,6 @@ def plugin_installed(plugin: dict[str, Any], home: Path, agent: str | None = Non
         if agent:
             return _mcp_present(agent, server, home)
         return any(_mcp_present(a, server, home) for a in agents)
-    if kind == "config":
-        target = _expand_home(str(install["target"]), home)
-        return target.is_file()
-    if kind == "addon":
-        from astroai_lab.agent.addons import addon_installed, get_addon
-
-        item = get_addon(str(install["addon"]))
-        return bool(item and addon_installed(item, home))
     return False
 
 
@@ -409,31 +382,6 @@ def _configure_mcp(
     )
 
 
-def _install_config(
-    plugin: dict[str, Any], agent: str, home: Path, *, force: bool, dry_run: bool
-) -> PluginResult:
-    install = plugin["install"]
-    target = _expand_home(str(install["target"]), home)
-    content = str(install.get("content", ""))
-    if target.is_file() and not force:
-        return PluginResult(plugin["id"], agent, "skipped", f"already present ({target})")
-    if dry_run:
-        return PluginResult(plugin["id"], agent, "would_install", str(target))
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-    return PluginResult(plugin["id"], agent, "installed", str(target))
-
-
-def _install_addon(
-    plugin: dict[str, Any], agent: str, home: Path, *, force: bool, dry_run: bool
-) -> PluginResult:
-    from astroai_lab.agent.addons import add_addon
-
-    addon_id = str(plugin["install"]["addon"])
-    result = add_addon(addon_id, home=home, force=force, dry_run=dry_run)
-    return PluginResult(plugin["id"], agent, result.status, result.detail)
-
-
 def _apply(
     plugin: dict[str, Any],
     agent: str,
@@ -457,9 +405,7 @@ def _apply(
         return _install_skill(plugin, agent, home, force=force, dry_run=dry_run)
     if kind == "mcp":
         return _configure_mcp(plugin, agent, home, force=force, dry_run=dry_run)
-    if kind == "config":
-        return _install_config(plugin, agent, home, force=force, dry_run=dry_run)
-    return _install_addon(plugin, agent, home, force=force, dry_run=dry_run)
+    return PluginResult(plugin["id"], agent, "failed", f"unsupported kind {kind}")
 
 
 def _addon_status_to_plugin(status: str, dry_run: bool) -> str:
@@ -605,20 +551,11 @@ def _remove_from_agent(
 
         remove_mcp_server(home, agent, server)
         return PluginResult(plugin["id"], agent, "removed", f"mcpServers.{server}")
-    if kind == "config":
-        target = _expand_home(str(plugin["install"]["target"]), home)
-        if not target.is_file():
-            return PluginResult(plugin["id"], agent, "skipped", "not installed")
-        if dry_run:
-            return PluginResult(plugin["id"], agent, "would_remove", str(target))
-        target.unlink(missing_ok=True)
-        return PluginResult(plugin["id"], agent, "removed", str(target))
-    # addon kind: legacy transport has no uninstall — tell the user.
     return PluginResult(
         plugin["id"],
         agent,
         "no-op",
-        "addon kind has no removal — use `astroai-lab agent remove` for agents",
+        "no automated removal; remove files manually (agent plugins list)",
     )
 
 
@@ -630,9 +567,9 @@ def configure_plugin(
     force: bool = False,
     dry_run: bool = False,
 ) -> list[PluginResult]:
-    """Per-agent config merge (kind: mcp) or config write (kind: config).
+    """Per-agent config merge (kind: mcp).
 
-    Applies to the full support matrix (or --agent); for skill/addon kinds the
+    Applies to the full support matrix (or --agent); for skill kinds the
     user is pointed at install/update instead.
     """
     plugin = get_plugin(plugin_id)
@@ -650,16 +587,12 @@ def configure_plugin(
         kind = plugin["kind"]
         if kind == "mcp":
             results.append(_configure_mcp(plugin, a, home, force=force, dry_run=dry_run))
-        elif kind == "config":
-            results.append(_install_config(plugin, a, home, force=force, dry_run=dry_run))
         elif kind == "skill":
             results.append(
                 PluginResult(plugin_id, a, "no-op", "skills have no config — use `plugins update`")
             )
         else:
-            results.append(
-                PluginResult(plugin_id, a, "no-op", "addon kind — use `plugins install/update`")
-            )
+            results.append(PluginResult(plugin_id, a, "no-op", "use `plugins install/update`"))
     return results
 
 

@@ -10,11 +10,6 @@ from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.agent.inventory import list_bundles, verify_setup
-from astroai_lab.agent.upstream import (
-    SourceUpdateResult,
-    install_upstream_skills,
-    update_all_github_sources,
-)
 from astroai_lab.errors import LabError
 from astroai_lab.utils.json_utils import read_json
 
@@ -202,7 +197,6 @@ def run_bundle(
     *,
     force: bool,
     dry_run: bool,
-    upstream_skills: bool = True,
 ) -> None:
     if name == "cursor":
         merge_mcp_servers(
@@ -223,10 +217,7 @@ def run_bundle(
             force=force,
             dry_run=dry_run,
         )
-        # Full `agent setup` / sync pulls GitHub skills-sources; registry
-        # `setup <id>` skips them so opt-in plugins stay on `plugins install`.
-        if upstream_skills:
-            install_upstream_skills(root, home, force=force, dry_run=dry_run)
+        # Opt-in GitHub skills stay on `astroai-lab agent plugins install`.
     elif name == "claude":
         merge_claude_json(
             root / "claude" / "mcp.json",
@@ -514,11 +505,10 @@ def agent_setup(
         return _run()
 
 
-def agent_sync(*, dry_run: bool = False) -> list[SourceUpdateResult]:
-    """Refresh all agent MCP, rules, skills, configs, and GitHub skill sources."""
+def agent_sync(*, dry_run: bool = False) -> None:
+    """Refresh bundled agent MCP, rules, skills, and configs."""
     from astroai_lab.agent.setup_state import (
         agent_setup_lock,
-        record_setup_failed,
         record_setup_ok,
     )
 
@@ -526,39 +516,18 @@ def agent_sync(*, dry_run: bool = False) -> list[SourceUpdateResult]:
     home = Path.home()
     names = default_bundle_names(root)
 
-    def _run() -> list[SourceUpdateResult]:
+    def _run() -> None:
         ensure_agent_dirs(home, dry_run=dry_run)
         for name in names:
             run_bundle(name, root, home, None, force=True, dry_run=dry_run)
-        results = update_all_github_sources(home, force=True, dry_run=dry_run)
-        if dry_run:
-            return results
-        failures = [r for r in results if r.status == "failed"]
-        if failures:
-            detail = "; ".join(f"{r.name}: {r.detail}" for r in failures)[:500]
-            record_setup_failed(home, exit_code=2, detail=detail)
-            # Keep last-attempt stamp without clearing the failed marker.
-            stamp_path = home / ".astroai" / "lab" / "agent-setup-stamp"
-            stamp_path.parent.mkdir(parents=True, exist_ok=True)
-            from datetime import datetime, timezone
-
-            ver = "unknown"
-            version_file = root / "VERSION"
-            if version_file.is_file():
-                ver = version_file.read_text(encoding="utf-8").strip()
-            stamp_path.write_text(
-                datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                + f" bundle={ver} mode=sync\n",
-                encoding="utf-8",
-            )
-        else:
+        if not dry_run:
             record_setup_ok(home, mode="sync")
-        return results
 
     if dry_run:
-        return _run()
+        _run()
+        return
     with agent_setup_lock(home):
-        return _run()
+        _run()
 
 
 def agent_verify() -> None:

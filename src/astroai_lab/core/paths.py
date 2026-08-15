@@ -58,10 +58,6 @@ def npm_prefix_dir() -> Path:
     return resolve_session_env(ensure=False).astroai_lab_npm_prefix
 
 
-def runtime_root(work_dir: Path, scratch: Path | None) -> Path:
-    return resolve_session_env(ensure=False).astroai_lab_runtime_root
-
-
 __all__ = [
     "SessionPaths",
     "disk_usage",
@@ -69,7 +65,6 @@ __all__ = [
     "npm_prefix_dir",
     "quota_used_pct",
     "resolve_paths",
-    "runtime_root",
     "scratch_cache_root",
     "user_bin_dir",
 ]

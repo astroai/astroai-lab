@@ -32,7 +32,7 @@ agent_app = typer.Typer(
         "  remove        managed CLI (--clean-home for $HOME copies)\n"
         "  setup         first-run scaffold (--project for a repo)\n"
         "  config        read/write that agent's settings file on $HOME\n"
-        "  update        refresh CLI and upstream skills\n"
+        "  update        refresh CLI and bundled agent configs\n"
         "  verify        health check (--fix, --clean)\n"
         "  plugins       extras (Kind/On/Def/Agents; --description)"
     ),
@@ -581,7 +581,7 @@ def agent_update_cmd(
         typer.Option("--reinstall", help="Force CLI reinstall even when the binary is up to date."),
     ] = False,
 ) -> None:
-    """Refresh agent MCP, rules, skills, and GitHub skill clones."""
+    """Refresh agent MCP, rules, and bundled skills."""
     if agent:
         _run_registry_agent_update(ctx, agent, reinstall=reinstall)
         return
@@ -618,11 +618,10 @@ def _run_registry_agent_update(ctx: typer.Context, agent: str, *, reinstall: boo
 def _run_agent_sync(ctx: typer.Context) -> None:
     opts = get_opts(ctx)
     try:
-        results = agent_setup_mod.agent_sync(dry_run=opts.dry_run)
+        agent_setup_mod.agent_sync(dry_run=opts.dry_run)
     except LabError as exc:
         ui.print_error(str(exc))
         raise typer.Exit(1) from exc
-    failures = [r for r in results if r.status == "failed"]
     verify_failed = False
     if not opts.dry_run:
         try:
@@ -633,15 +632,10 @@ def _run_agent_sync(ctx: typer.Context) -> None:
             from astroai_lab.agent.setup_state import record_setup_failed
 
             record_setup_failed(exit_code=2, detail=str(exc)[:500])
-    prefix = "would refresh" if opts.dry_run else "refreshed"
-    for result in results:
-        if result.status == "skipped":
-            continue
-        if result.status == "failed":
-            ui.print_error(f"{result.name}: {result.detail}")
-        else:
-            ui.print_ok(f"{prefix} skill {result.name} ({result.repo}: {result.status})")
-    if failures or verify_failed:
+    if opts.dry_run:
+        ui.print_ok("dry-run: would refresh agent configs")
+        return
+    if verify_failed:
         ui.print_warn("Agent config update finished with issues")
         raise typer.Exit(2)
     ui.print_ok("Agent config updated")

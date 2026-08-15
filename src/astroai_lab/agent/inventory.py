@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.agent.registry import registry_verify_issues
@@ -198,82 +197,6 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
         )
 
     return issues
-
-
-def list_skills_inventory(home: Path | None = None) -> list[dict[str, Any]]:
-    """Inventory of bundled + upstream skills and anything already under ~/.cursor/skills."""
-    root = bundle_root()
-    home = home or Path.home()
-    sources_path = root / "skills-sources.json"
-    catalog: dict[str, dict[str, Any]] = {}
-
-    if sources_path.is_file():
-        data = read_json(sources_path)
-        for item in data.get("local_skills", []):
-            name = item["name"]
-            catalog[name] = {
-                "name": name,
-                "source": "bundled",
-                "repo": "",
-                "path": f"cursor/skills/{name}",
-                "homepage": "",
-                "note": item.get("note", ""),
-            }
-        for item in data.get("upstream_skills", []):
-            name = item["name"]
-            catalog[name] = {
-                "name": name,
-                "source": "github",
-                "repo": item["repo"],
-                "path": item["path"],
-                "homepage": item.get("homepage", f"https://github.com/{item['repo']}"),
-                "note": "",
-            }
-        for name in data.get("pixi_skills_only", []):
-            catalog[name] = {
-                "name": name,
-                "source": "pixi-skills",
-                "repo": "",
-                "path": "",
-                "homepage": data.get("pixi_skills", {}).get(
-                    "homepage", "https://github.com/pavelzw/pixi-skills"
-                ),
-                "note": "install via pixi-skills, not agent update",
-            }
-
-    skills_dir = home / ".cursor" / "skills"
-    installed_names: set[str] = set()
-    if skills_dir.is_dir():
-        for skill_md in skills_dir.glob("*/SKILL.md"):
-            installed_names.add(skill_md.parent.name)
-
-    rows: list[dict[str, Any]] = []
-    for name, meta in catalog.items():
-        installed = name in installed_names
-        rows.append(
-            {
-                **meta,
-                "installed": installed,
-                "skill_path": str(skills_dir / name) if installed else "",
-            }
-        )
-
-    for name in sorted(installed_names - set(catalog)):
-        rows.append(
-            {
-                "name": name,
-                "source": "extra",
-                "repo": "",
-                "path": "",
-                "homepage": "",
-                "note": "present under ~/.cursor/skills but not in skills-sources.json",
-                "installed": True,
-                "skill_path": str(skills_dir / name),
-            }
-        )
-
-    rows.sort(key=lambda r: (0 if r["source"] == "bundled" else 1, r["name"]))
-    return rows
 
 
 def list_bundles() -> dict[str, str]:

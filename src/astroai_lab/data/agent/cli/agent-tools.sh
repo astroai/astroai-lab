@@ -14,5 +14,5 @@
 # Config syntax check / repair:         astroai-lab agent verify · agent verify --fix
 #
 # Default agent setup:  astroai-lab agent setup cursor  (default plugins only)
-# Opt-in skills:        astroai-lab agent plugins install polars  (see skills-sources.json)
+# Opt-in skills:        astroai-lab agent plugins install polars
 # Bulk via pixi:        pixi global install pixi-skills && pixi-skills manage --backend cursor

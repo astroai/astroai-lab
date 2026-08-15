@@ -61,50 +61,6 @@ def plugin_as_addon(plugin: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def load_addons() -> list[dict[str, Any]]:
-    """Every plugin registry entry marked ``addon: true`` (legacy catalog)."""
-    from astroai_lab.agent.plugins import load_plugins
-
-    return [plugin_as_addon(p) for p in load_plugins() if p.get("addon")]
-
-
-def get_addon(addon_id: str) -> dict[str, Any] | None:
-    from astroai_lab.agent.plugins import get_plugin
-
-    plugin = get_plugin(addon_id)
-    if plugin is None or not plugin.get("addon"):
-        return None
-    return plugin_as_addon(plugin)
-
-
-def list_addons(
-    *,
-    kind: str | None = None,
-    tag: str | None = None,
-    home: Path | None = None,
-) -> list[dict[str, Any]]:
-    home = home or Path.home()
-    rows: list[dict[str, Any]] = []
-    for item in load_addons():
-        if kind and item.get("kind") != kind:
-            continue
-        tags = item.get("tags") or []
-        if tag and tag not in tags:
-            continue
-        rows.append(
-            {
-                "id": item["id"],
-                "kind": item.get("kind", ""),
-                "tags": tags,
-                "summary": item.get("summary", ""),
-                "homepage": item.get("homepage", ""),
-                "default": bool(item.get("default")),
-                "installed": addon_installed(item, home),
-            }
-        )
-    return rows
-
-
 def addon_installed(item: dict[str, Any], home: Path, agent: str | None = None) -> bool:
     install = item.get("install") or {}
     itype = install.get("type")
@@ -216,13 +172,15 @@ def add_addon(
     force: bool = False,
     dry_run: bool = False,
 ) -> AddonResult:
-    item = get_addon(addon_id)
-    if item is None:
+    from astroai_lab.agent.plugins import get_plugin
+
+    plugin = get_plugin(addon_id)
+    if plugin is None:
         raise LabError(
             f"Unknown addon: {addon_id}",
             hint="astroai-lab agent plugins list",
         )
-    return _apply_addon(item, home=home, force=force, dry_run=dry_run)
+    return _apply_addon(plugin_as_addon(plugin), home=home, force=force, dry_run=dry_run)
 
 
 def _apply_addon(
@@ -296,35 +254,6 @@ def _apply_addon(
         return AddonResult(addon_id, "installed", tool)
 
     raise LabError(f"Addon {addon_id} has unsupported install type: {itype}")
-
-
-def add_addons(
-    ids: list[str] | None = None,
-    *,
-    tag: str | None = None,
-    home: Path | None = None,
-    force: bool = False,
-    dry_run: bool = False,
-) -> list[AddonResult]:
-    home = home or Path.home()
-    selected: list[str] = []
-    if tag:
-        selected.extend(r["id"] for r in list_addons(tag=tag, home=home) if not r.get("default"))
-    if ids:
-        selected.extend(ids)
-    # de-dupe preserving order
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for aid in selected:
-        if aid not in seen:
-            seen.add(aid)
-            ordered.append(aid)
-    if not ordered:
-        raise LabError(
-            "Specify addon id(s) or --tag",
-            hint="astroai-lab agent plugins list",
-        )
-    return [add_addon(aid, home=home, force=force, dry_run=dry_run) for aid in ordered]
 
 
 def _copy_skill_tree(src: Path, dst: Path) -> None:
@@ -513,35 +442,3 @@ def _install_mcp_snippet(
         return AddonResult(item["id"], "skipped", f"mcp:{server} already present")
     detail = f"mcp:{server}" + (f" → {', '.join(written)}" if written else "")
     return AddonResult(item["id"], "installed", detail)
-
-
-def _merge_cursor_mcp(path: Path, server: str, cfg: dict[str, Any], *, force: bool) -> None:
-    """Test/compat shim — prefer ``merge_mcp_server`` for new code."""
-    if not cfg:
-        return
-    # Infer agent from path when possible; fall back to raw file merge.
-    home = path.parent.parent if path.name == "mcp.json" else path.parent
-    agent = "cursor"
-    if path.name == "mcp-config.json":
-        agent = "copilot"
-        home = path.parent.parent
-    elif path.name == ".claude.json":
-        agent = "claude"
-        home = path.parent
-    merge_mcp_server(home, agent, server, cfg, force=force)
-
-
-def _merge_claude_mcp(path: Path, server: str, cfg: dict[str, Any], *, force: bool) -> None:
-    if not cfg:
-        return
-    merge_mcp_server(path.parent, "claude", server, cfg, force=force)
-
-
-def _merge_opencode_mcp_server(
-    path: Path, server: str, cfg: dict[str, Any], *, force: bool
-) -> None:
-    if not cfg:
-        return
-    # path is ~/.config/opencode/opencode.json → home is parents[2]
-    home = path.parent.parent.parent
-    merge_mcp_server(home, "opencode", server, cfg, force=force)
