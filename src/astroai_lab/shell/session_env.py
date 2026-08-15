@@ -7,7 +7,7 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
-from astroai_lab import config_dir, saves_dir
+from astroai_lab import config_dir
 from astroai_lab.config.settings import _env_path, get_settings
 from astroai_lab.core.session_common import find_arc_project_root, scratch_cache_root, user_tag
 
@@ -293,7 +293,7 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
         astroai_lab_team_bin=team_bin_dir(),
         astroai_lab_npm_prefix=npm_prefix_dir(bin_dir),
         astroai_lab_runtime_root=runtime,
-        astroai_lab_save_dir=Path(os.environ.get("ASTROAI_LAB_SAVE_DIR", str(saves_dir()))),
+        astroai_lab_save_dir=get_settings().resolve_save_dir(),
         astroai_lab_config_dir=config_dir(),
         uv_cache_dir=_session_cache_path("UV_CACHE_DIR", cache_root / "uv", work, scratch),
         pip_cache_dir=_session_cache_path("PIP_CACHE_DIR", cache_root / "pip", work, scratch),

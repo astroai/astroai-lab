@@ -342,6 +342,14 @@ class TestResolveSaveDir:
         with pytest.raises(LabError, match="Save not found"):
             resolve_save_dir("irrelevant", root, from_path=missing)
 
+    def test_from_parent_uses_named_child(self, tmp_path: Path) -> None:
+        parent = tmp_path / "env-saves"
+        named = parent / "mylab"
+        named.mkdir(parents=True)
+        (named / "manifest.json").write_text("{}")
+        result = resolve_save_dir("mylab", tmp_path / "saves", from_path=parent)
+        assert result == named
+
     def test_empty_save_root_raises(self, tmp_path: Path) -> None:
         root = tmp_path / "empty"
         root.mkdir()

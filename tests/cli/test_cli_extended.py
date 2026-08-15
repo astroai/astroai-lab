@@ -218,6 +218,145 @@ def test_agent_list_json(lab_env: Path) -> None:
     assert "issues" in data
 
 
+def test_resume_name_yes_accepted(lab_env: Path) -> None:
+    saves = Path.home() / ".astroai" / "lab" / "saves" / "mylab"
+    saves.mkdir(parents=True, exist_ok=True)
+    (saves / "pixi.toml").write_text('[project]\nname="p"\n')
+    (saves / "manifest.json").write_text(
+        json.dumps(
+            {
+                "name": "mylab",
+                "kind": "pixi",
+                "saved_at": "t",
+                "saved_from": "/x",
+                "user": "u",
+                "full": False,
+            }
+        )
+    )
+    get_settings.cache_clear()
+    dest = lab_env / "mylab"
+    dest.mkdir()
+    (dest / "stale.txt").write_text("x")
+    with patch("astroai_lab.core.project.restore_env"):
+        result = runner.invoke(app, ["resume", "mylab", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert not dest.exists()  # --yes rmtree before restore; mock does not recreate
+
+
+def test_resume_yes_trailing_flag(lab_env: Path, tmp_path: Path) -> None:
+    save_dir = tmp_path / "saves" / "mylab"
+    save_dir.mkdir(parents=True)
+    (save_dir / "pixi.toml").write_text('[project]\nname="p"\n')
+    (save_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "name": "mylab",
+                "kind": "pixi",
+                "saved_at": "t",
+                "saved_from": "/x",
+                "user": "u",
+                "full": False,
+            }
+        )
+    )
+    dest = lab_env / "mylab"
+    dest.mkdir()
+    leftover = dest / "stale.txt"
+    leftover.write_text("keep-me-not")
+    with patch("astroai_lab.core.project.install_project"):
+        result = runner.invoke(app, ["resume", "mylab", "--from", str(save_dir), "--yes"])
+    assert result.exit_code == 0, result.output
+    assert not leftover.exists()
+    assert (dest / "pixi.toml").is_file()
+
+
+def test_resume_nonempty_without_yes_exits(lab_env: Path, tmp_path: Path) -> None:
+    dest = lab_env / "mylab"
+    dest.mkdir()
+    leftover = dest / "stale.txt"
+    leftover.write_text("keep")
+    result = runner.invoke(app, ["resume", "mylab", "--from", str(tmp_path / "unused")])
+    assert result.exit_code == 1
+    assert leftover.is_file()
+
+
+def test_resume_yes_replaces_not_merges(lab_env: Path, tmp_path: Path) -> None:
+    save_dir = tmp_path / "saves" / "mylab"
+    save_dir.mkdir(parents=True)
+    (save_dir / "pixi.toml").write_text('[project]\nname="p"\n')
+    (save_dir / "pixi.lock").write_text("lock")
+    (save_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "name": "mylab",
+                "kind": "pixi",
+                "saved_at": "t",
+                "saved_from": "/x",
+                "user": "u",
+                "full": False,
+            }
+        )
+    )
+    dest = lab_env / "mylab"
+    dest.mkdir()
+    (dest / "old-pixi.toml").write_text("stale-kind")
+    (dest / "keep-me-not").write_text("x")
+    with patch("astroai_lab.core.project.install_project"):
+        result = runner.invoke(app, ["resume", "mylab", "--from", str(save_dir), "--yes"])
+    assert result.exit_code == 0, result.output
+    assert not (dest / "old-pixi.toml").exists()
+    assert not (dest / "keep-me-not").exists()
+    assert (dest / "pixi.toml").is_file()
+
+
+def test_dry_run_save_writes_nothing(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = lab_env / "demo"
+    _pixi(project)
+    monkeypatch.chdir(project)
+    result = runner.invoke(app, ["--dry-run", "save", "demo"])
+    assert result.exit_code == 0, result.output
+    assert "dry-run" in result.output.lower()
+    saves = Path.home() / ".astroai" / "lab" / "saves" / "demo"
+    assert not saves.exists()
+
+
+def test_resume_dry_run_does_not_rmtree(lab_env: Path, tmp_path: Path) -> None:
+    save_dir = tmp_path / "saves" / "mylab"
+    save_dir.mkdir(parents=True)
+    (save_dir / "pixi.toml").write_text('[project]\nname="p"\n')
+    (save_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "name": "mylab",
+                "kind": "pixi",
+                "saved_at": "t",
+                "saved_from": "/x",
+                "user": "u",
+                "full": False,
+            }
+        )
+    )
+    dest = lab_env / "mylab"
+    dest.mkdir()
+    leftover = dest / "stale.txt"
+    leftover.write_text("keep")
+    result = runner.invoke(app, ["--dry-run", "resume", "mylab", "--from", str(save_dir)])
+    assert result.exit_code == 0, result.output
+    assert leftover.is_file()
+
+
+def test_clone_dry_run_writes_nothing(lab_env: Path) -> None:
+    with (
+        patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"),
+        patch("astroai_lab.utils.subprocess.run") as mock_run,
+    ):
+        result = runner.invoke(app, ["--dry-run", "clone", "org/repo"])
+    assert result.exit_code == 0, result.output
+    mock_run.assert_not_called()
+    assert not (lab_env / "repo").exists()
+
+
 def test_banner_with_project(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = lab_env / "active"
     _pixi(project)

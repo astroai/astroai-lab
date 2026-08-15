@@ -49,6 +49,7 @@ Save lockfile manifest to `~/.astroai/lab/saves/`.
 ```bash
 astroai-lab save
 astroai-lab save mylab --full
+astroai-lab save mylab --to /arc/projects/team/env-saves/mylab
 ```
 
 ### `astroai-lab resume NAME`
@@ -57,6 +58,8 @@ Restore a saved environment and run install.
 
 ```bash
 astroai-lab resume mylab
+astroai-lab resume mylab --yes
+astroai-lab resume mylab --from /arc/projects/team/env-saves
 astroai-lab resume mylab --from /arc/projects/team/env-saves/mylab
 ```
 
@@ -241,7 +244,7 @@ or set explicitly.
 |----------|---------|
 | `WORK` | Session work dir; code and project envs live here (Skaha: `/srcdir`) |
 | `SCRATCH` | Session scratch; data, caches, runtime installs (Skaha: `/scratch`) |
-| `PROJECT` | Team project dir (e.g. `/arc/projects/<group>`); used for team tools and env saves |
+| `PROJECT` | Team project dir (e.g. `/arc/projects/<group>`); used for team tools |
 
 ### Path overrides
 

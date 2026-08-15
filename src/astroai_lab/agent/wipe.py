@@ -104,6 +104,5 @@ def wipe_agent_state(*, home: Path | None = None, dry_run: bool = False) -> list
     for name in ("agent-env.sh", "agent-tools-reminder.sh"):
         _rm(lab / name, f"config:{name}")
     _rm(home / ".claude.json", "config:.claude.json")
-    _rm(home / ".config" / "canfar" / "lab", "leftover:canfar-lab")
 
     return results

@@ -102,6 +102,11 @@ def register(app: typer.Typer) -> None:
         if dest.exists():
             ui.print_error(f"Target already exists: {dest}")
             raise typer.Exit(1)
+        if opts.dry_run:
+            ui.print_ok(f"dry-run: would clone {repo} -> {dest}")
+            if from_env:
+                ui.print_hint(f"  would warm caches from '{from_env}'")
+            return
         try:
             save_dir: Path | None = None
             if from_env:
@@ -132,13 +137,18 @@ def register(app: typer.Typer) -> None:
         Examples:
             astroai-lab save
             astroai-lab save mylab --full
+            astroai-lab save mylab --to /arc/projects/group/env-saves/mylab
         """
+        opts = get_opts(ctx)
         paths = resolve_paths()
         cwd = Path.cwd()
         save_name = name or cwd.name
         save_dir = to or paths.save_dir / save_name
         try:
-            require_project(cwd)
+            kind = require_project(cwd)
+            if opts.dry_run:
+                ui.print_ok(f"dry-run: would save '{save_name}' -> {save_dir} ({kind.value})")
+                return
             save_env(save_name, save_dir, cwd, full=full)
         except (LabError, OSError) as exc:
             ui.print_error(str(exc))
@@ -151,28 +161,43 @@ def register(app: typer.Typer) -> None:
         name: Annotated[str, typer.Argument()],
         target: Annotated[Path | None, typer.Argument()] = None,
         from_path: Annotated[Path | None, typer.Option("--from")] = None,
+        yes: Annotated[
+            bool, typer.Option("--yes", "-y", help="Replace a non-empty target.")
+        ] = False,
     ) -> None:
         """Restore a saved environment.
 
         Examples:
             astroai-lab resume mylab
-            astroai-lab resume mylab --from /arc/projects/group/env-saves/mylab
+            astroai-lab resume mylab --yes
+            astroai-lab resume mylab --from /arc/projects/group/env-saves
         """
         from astroai_lab.core.project import resolve_save_dir, restore_env
 
-        opts = get_opts(ctx)
+        opts = merge_opts(ctx, yes=yes)
         paths = resolve_paths()
         dest = target or paths.work_dir / name
-        if dest.exists() and any(dest.iterdir()):
+        nonempty = dest.is_dir() and any(dest.iterdir())
+        if dest.exists() and dest.is_file():
+            ui.print_error(f"Target exists and is a file: {dest}")
+            raise typer.Exit(1)
+        if nonempty:
             ui.print_warn(f"Target exists and is not empty: {dest}")
-            if not opts.yes:
+            if not opts.yes and not opts.dry_run:
                 ui.print_hint("  Use --yes to overwrite, or choose a different target.")
                 raise typer.Exit(1)
         try:
             save_dir = resolve_save_dir(name, paths.save_dir, from_path)
+            if opts.dry_run:
+                ui.print_ok(f"dry-run: would restore '{name}' -> {dest}")
+                if nonempty:
+                    ui.print_hint(f"  would replace {dest}")
+                return
+            if nonempty:
+                shutil.rmtree(dest)
             with ui.progress_task("Restoring environment...", quiet=opts.quiet):
                 restore_env(save_dir, dest)
-        except LabError as exc:
+        except (LabError, OSError) as exc:
             ui.print_error(str(exc))
             raise typer.Exit(1) from exc
         ui.print_ok(f"Restored in {dest}")

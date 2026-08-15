@@ -108,6 +108,22 @@ def test_wipe_empty_home_is_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert wipe_agent_state(home=home) == []
 
 
+def test_wipe_leaves_canfar_lab_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """CANFAR config (~/.config/canfar/lab) holds ray-manager.env — wipe must not touch it."""
+    _fake_session_paths(monkeypatch, tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+    canfar = home / ".config" / "canfar" / "lab"
+    canfar.mkdir(parents=True)
+    envfile = canfar / "ray-manager.env"
+    envfile.write_text("RAY_ADDRESS=http://example\n", encoding="utf-8")
+    _make_installed_hermes(tmp_path / "bin", home)
+
+    wipe_agent_state(home=home)
+    assert envfile.is_file()
+    assert envfile.read_text(encoding="utf-8") == "RAY_ADDRESS=http://example\n"
+
+
 def test_wipe_keeps_saved_environments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Env saves (~/.astroai/lab/saves/) and prefs (config.yaml) survive a wipe."""
     _fake_session_paths(monkeypatch, tmp_path)

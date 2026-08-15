@@ -58,6 +58,16 @@ def test_save_dir_override(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert settings.resolve_save_dir() == custom
 
 
+def test_yaml_save_dir_affects_resolve_paths(lab_home: Path) -> None:
+    custom = lab_home / "yaml-saves"
+    cfg = lab_home / ".astroai" / "lab"
+    cfg.mkdir(parents=True)
+    (cfg / "config.yaml").write_text(f'save_dir: "{custom}"\n')
+    get_settings.cache_clear()
+    paths = resolve_paths()
+    assert paths.save_dir == custom
+
+
 def test_resolve_paths(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     work = lab_home / "srcdir"
     work.mkdir()

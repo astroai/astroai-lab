@@ -30,6 +30,7 @@ cd "${WORK}/mylab"
 pixi install                     # or uv sync
 pixi run python analysis.py
 astroai-lab save                  # snapshot env before session ends
+astroai-lab save mylab --to /arc/projects/<team>/env-saves/mylab
 ```
 
 Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subcommand:
@@ -42,7 +43,7 @@ Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subco
 | `${WORK}` | Code + project `.pixi`/`.venv` — **ephemeral** |
 | `${SCRATCH}` | Data, download caches, runtime installs (`ASTROAI_LAB_BIN_DIR`, uv/pixi roots) |
 | `/opt/astroai/venv/cadc` | Platform CLIs: `canfar`, `cadcget`, `astroai-lab` — **writable this session** |
-| `/arc/projects/<team>/.local` | Shared team tools + env saves (persistent) |
+| `/arc/projects/<team>/.local` | Shared team tools (persistent) |
 | `/arc` (`$HOME`) | **Small only** — agent MCP config, gh auth, lockfile saves (`~/.astroai/lab`) |
 
 **Project deps:** use pixi/uv lockfiles under `${WORK}` — that is where versions belong.
