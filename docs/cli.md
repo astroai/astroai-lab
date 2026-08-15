@@ -76,12 +76,19 @@ astroai-lab saves --json
 
 Quotas, home breakdown, team project membership, CANFAR auth/sessions, and top processes.
 
+Home quota uses Ceph directory xattrs (`ceph.quota.max_bytes` + `ceph.dir.rbytes`) when present. `df` on `/arc/home` is the shared filesystem, not the user quota, so it is not used for the home percentage. Home breakdown never recursively walks `~/.cache` (that hangs on Ceph); it uses `rbytes` or a timed `du`.
+
+Remote probes (GMS, VOSpace, `getfacl`, `canfar`) have short timeouts so a stalled CADC call cannot freeze the command.
+
 ```bash
 astroai-lab status
 astroai-lab status --json
+astroai-lab status -v          # probe timings on stderr
 ```
 
 **`--json` keys:** `quotas`, `home`, `processes`, `canfar_auth`, `canfar_sessions`, `arc_project`, `arc_projects`, `gms_groups`, `vault`.
+
+Each quota row includes `source` (`ceph-xattr`, `statvfs`, or `vospace`).
 
 Each **`arc_projects[]`** entry includes `access` (`rw`/`ro`), `acl_groups` (from `getfacl`), `gms_member`, optional nested **`vault`** (VOSpace quota/groups), and `quota` (POSIX `df` on `/arc/projects/<name>`).
 

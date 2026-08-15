@@ -77,9 +77,25 @@ def test_status_command(lab_env: Path) -> None:
         patch("astroai_lab.cli.status.home_breakdown", return_value=[]),
         patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]),
     ):
-        for argv in (["status"], ["status", "--json"], ["--json", "status"]):
+        for argv in (["status"], ["status", "--json"], ["--json", "status"], ["status", "-v"]):
             result = runner.invoke(app, argv)
             assert result.exit_code == 0, result.output
+
+
+def test_status_verbose_timings_on_stderr(lab_env: Path) -> None:
+    with (
+        patch("astroai_lab.cli.status.collect_status_quotas", return_value=[]),
+        patch("astroai_lab.cli.status.arc_project_statuses", return_value=(None, [], None, None)),
+        patch("astroai_lab.cli.status.home_breakdown", return_value=[]),
+        patch("astroai_lab.cli.status.top_cpu_processes", return_value=[]),
+    ):
+        result = runner.invoke(app, ["status", "-v", "--json"])
+    assert result.exit_code == 0, result.output
+    err = result.stderr or ""
+    assert "status:" in err
+    assert "home" in err
+    data = json.loads(result.stdout)
+    assert "quotas" in data
 
 
 def test_status_canfar_timeout_graceful(lab_env: Path) -> None:
@@ -105,7 +121,8 @@ def test_status_canfar_timeout_graceful(lab_env: Path) -> None:
     data = json.loads(result.stdout)
     assert data["canfar_auth"] == "Not authenticated"
     assert data["canfar_sessions"] is None
-    assert [cmd for cmd, _ in calls] == [["canfar", "auth", "show"], ["canfar", "ps"]]
+    called = {tuple(cmd) for cmd, _ in calls}
+    assert called == {("canfar", "auth", "show"), ("canfar", "ps")}
     assert all(kwargs.get("timeout") == CANFAR_CMD_TIMEOUT_SEC for _, kwargs in calls)
 
 

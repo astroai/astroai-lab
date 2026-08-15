@@ -5,7 +5,7 @@ from pathlib import Path
 from astroai_lab.core.git import git_status
 from astroai_lab.core.paths import quota_used_pct, resolve_paths
 from astroai_lab.core.project import detect_project, list_saves
-from astroai_lab.core.storage import arc_project_statuses
+from astroai_lab.core.storage import cwd_arc_project
 from astroai_lab.version import display_version, version_info
 
 
@@ -18,7 +18,7 @@ def show_banner(*, json_output: bool = False) -> None:
     cwd = Path.cwd()
     project_kind = detect_project(cwd)
     home_pct = quota_used_pct(paths.home)
-    active_arc, _, _, _ = arc_project_statuses(cwd, vault=False)
+    active_arc = cwd_arc_project(cwd)
 
     if json_output:
         ui.print_json(

@@ -9,6 +9,9 @@ from astroai_lab.core.cadc_auth import cadc_cli_auth_args
 from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run_capture
 
+GETFACL_TIMEOUT_SEC = 3.0
+GMS_TIMEOUT_SEC = 5.0
+
 
 @dataclass(frozen=True)
 class AclGroupEntry:
@@ -59,7 +62,7 @@ def read_acl_groups(path: Path) -> list[AclGroupEntry]:
     if not path.is_dir() or shutil.which("getfacl") is None:
         return []
     try:
-        out = run_capture(["getfacl", "-p", str(path)])
+        out = run_capture(["getfacl", "-p", str(path)], timeout=GETFACL_TIMEOUT_SEC)
     except LabError:
         return []
     _, groups = parse_getfacl_output(out)
@@ -86,7 +89,7 @@ def list_gms_groups() -> GmsGroups | None:
         return None
     cmd = ["cadc-groups", "list", "-q", *auth]
     try:
-        out = run_capture(cmd)
+        out = run_capture(cmd, timeout=GMS_TIMEOUT_SEC)
     except LabError:
         return None
     groups = [line.strip() for line in out.splitlines() if line.strip()]

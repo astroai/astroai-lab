@@ -4,9 +4,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from astroai_lab.core.storage import (
+    ArcProjectInfo,
     QuotaLine,
     arc_project_statuses,
     collect_status_quotas,
+    cwd_arc_project,
     df_line,
     dir_size,
     home_breakdown,
@@ -19,6 +21,7 @@ def test_df_line(tmp_path: Path) -> None:
     line = df_line(tmp_path, "test")
     assert isinstance(line, QuotaLine)
     assert line.label == "test"
+    assert line.source == "statvfs"
 
 
 def test_df_line_missing() -> None:
@@ -30,6 +33,34 @@ def test_dir_size_file(tmp_path: Path) -> None:
     f.write_text("12345")
     assert dir_size(f) == 5
     assert dir_size(tmp_path / "missing") == 0
+
+
+def test_dir_size_does_not_walk(tmp_path: Path, monkeypatch) -> None:
+    d = tmp_path / "d"
+    d.mkdir()
+    (d / "a").write_text("hello")
+
+    def _boom(self, *args, **kwargs):
+        raise AssertionError("rglob must not be used on Ceph home trees")
+
+    monkeypatch.setattr(Path, "rglob", _boom)
+    assert dir_size(d) >= 5
+
+
+def test_dir_size_prefers_ceph_rbytes(tmp_path: Path, monkeypatch) -> None:
+    d = tmp_path / "d"
+    d.mkdir()
+
+    def fake_getxattr(path: str | bytes, name: str | bytes) -> bytes:
+        key = name.decode() if isinstance(name, bytes) else name
+        if key == "ceph.dir.rbytes":
+            return b"999"
+        raise OSError("missing")
+
+    monkeypatch.setattr("os.getxattr", fake_getxattr, raising=False)
+    with patch("astroai_lab.core.storage._du_bytes") as du:
+        assert dir_size(d) == 999
+        du.assert_not_called()
 
 
 def test_home_breakdown(tmp_path: Path) -> None:
@@ -87,3 +118,38 @@ def test_collect_status_quotas_includes_home_and_scratch(tmp_path: Path) -> None
     ):
         rows = collect_status_quotas(home=home, scratch=scratch)
     assert len(rows) == 2
+
+
+def test_collect_status_quotas_reuses_projects(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    scratch = tmp_path / "scratch"
+    home.mkdir()
+    scratch.mkdir()
+    proj_q = QuotaLine(
+        label="team", path="p", used="1", total="2", free="1", pct=50, source="statvfs"
+    )
+    proj = ArcProjectInfo(name="team", path=tmp_path / "team", quota=proj_q, is_cwd=False)
+    with (
+        patch("astroai_lab.core.storage.df_line", return_value=proj_q),
+        patch("astroai_lab.core.storage.arc_project_statuses") as mock_arc,
+    ):
+        rows = collect_status_quotas(home=home, scratch=scratch, projects=[proj])
+    mock_arc.assert_not_called()
+    assert any(r.label == "team" for r in rows)
+
+
+def test_cwd_arc_project_skips_listing() -> None:
+    foo = Path("/arc/projects/foo")
+    q = QuotaLine(label="foo", path=str(foo), used="1G", total="10G", free="9G", pct=10)
+    with (
+        patch("astroai_lab.core.storage.find_arc_project_root", return_value=foo),
+        patch("astroai_lab.core.storage.list_arc_projects") as mock_list,
+        patch("astroai_lab.core.storage.df_line", return_value=q),
+        patch("astroai_lab.core.storage.read_acl_groups", return_value=[]),
+        patch("astroai_lab.core.storage.project_access", return_value="rw"),
+    ):
+        info = cwd_arc_project()
+    mock_list.assert_not_called()
+    assert info is not None
+    assert info.name == "foo"
+    assert info.is_cwd is True

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from astroai_lab.core.disk_usage import DiskUsage, disk_usage, quota_used_pct
+from astroai_lab.core.disk_usage import DiskUsage, disk_usage, quota_used_pct, used_pct
 from astroai_lab.core.session_resources import collect_resources
 
 
@@ -60,3 +60,21 @@ def test_collect_resources_shape(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 def test_disk_usage_to_dict() -> None:
     d = DiskUsage("/x", 1, 2, 1, 50, "statvfs").to_dict()
     assert d["pct"] == 50
+
+
+def test_used_pct_rounds_half_up() -> None:
+    assert used_pct(0, 1000) == 0
+    assert used_pct(250, 1000) == 25
+    assert used_pct(931, 1000) == 93
+    assert used_pct(937, 1000) == 94
+    assert used_pct(1000, 1000) == 100
+    assert used_pct(1, 0) == 0
+
+
+def test_disk_usage_skips_statvfs_on_arc_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr("astroai_lab.core.disk_usage._arc_home_tree", lambda _p: True)
+    assert disk_usage(home) is None

@@ -257,13 +257,14 @@ def status_human(
         qt.add_column("Free")
         qt.add_column("Total")
         qt.add_column("%")
+        qt.add_column("Source")
         for q in quotas:
             style = "red" if q.pct >= 95 else "yellow" if q.pct >= 80 else ""
             pct_cell = f"[{style}]{q.pct}%[/{style}]" if style else f"{q.pct}%"
             label = q.label
             if getattr(q, "current", False):
                 label = f"{label} [cyan](cwd)[/cyan]"
-            qt.add_row(label, q.used, q.free, q.total, pct_cell)
+            qt.add_row(label, q.used, q.free, q.total, pct_cell, getattr(q, "source", "") or "—")
         console.print(qt)
     if home_rows:
         ht = Table(title="Home breakdown")

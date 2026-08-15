@@ -46,6 +46,11 @@ def _xattr_int(path: Path, name: str) -> int | None:
         return None
 
 
+def ceph_dir_rbytes(path: Path) -> int | None:
+    """MDS-maintained recursive size for this directory, if Ceph publishes it."""
+    return _xattr_int(path, "ceph.dir.rbytes")
+
+
 def _ceph_dir_usage(path: Path) -> DiskUsage | None:
     """Walk up from path looking for ceph.quota.max_bytes + ceph.dir.rbytes."""
     cur = path.resolve()
@@ -60,13 +65,12 @@ def _ceph_dir_usage(path: Path) -> DiskUsage | None:
                 break
             used = max(0, used)
             free = max(max_bytes - used, 0)
-            pct = int((used / max_bytes) * 100) if max_bytes else 0
             return DiskUsage(
                 path=str(cur),
                 used_bytes=used,
                 total_bytes=max_bytes,
                 free_bytes=free,
-                pct=min(pct, 100),
+                pct=used_pct(used, max_bytes),
                 source="ceph-xattr",
             )
         if cur.parent == cur:
@@ -89,25 +93,48 @@ def _statvfs_usage(path: Path) -> DiskUsage | None:
     # f_bavail = space available to the calling user (matches `df` Use%).
     free = st.f_bavail * fr
     used = max(total - free, 0)
-    pct = int((used / total) * 100)
     return DiskUsage(
         path=str(path),
         used_bytes=used,
         total_bytes=total,
         free_bytes=free,
-        pct=min(pct, 100),
+        pct=used_pct(used, total),
         source="statvfs",
     )
 
 
+def _arc_home_tree(path: Path) -> bool:
+    """True under CANFAR ``/arc/home``, where ``df`` is the shared pool not the quota."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    root = Path("/arc/home")
+    return resolved == root or resolved.is_relative_to(root)
+
+
 def disk_usage(path: Path) -> DiskUsage | None:
-    """Best-effort usage for path: Ceph directory quota xattrs, else statvfs."""
+    """Best-effort usage for path: Ceph directory quota xattrs, else statvfs.
+
+    ``statvfs`` / ``df`` on ``/arc/home`` report the shared pool, not the user's
+    ``ceph.quota.max_bytes``. Do not fall back to that number as a home quota.
+    """
     if not path.is_dir():
         return None
     ceph = _ceph_dir_usage(path)
     if ceph is not None:
         return ceph
+    if _arc_home_tree(path):
+        return None
     return _statvfs_usage(path)
+
+
+def used_pct(used: int, total: int) -> int:
+    """Percent used (0–100), rounded half-up. Truncating ``int(used/total*100)``
+    under-reports (931/1000 became 93)."""
+    if total <= 0:
+        return 0
+    return min(100, (used * 100 + total // 2) // total)
 
 
 def quota_used_pct(path: Path) -> int | None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -15,12 +16,19 @@ from astroai_lab.core.arc_permissions import (
     project_gms_member,
     read_acl_groups,
 )
-from astroai_lab.core.disk_usage import disk_usage
+from astroai_lab.core.disk_usage import ceph_dir_rbytes, disk_usage
 from astroai_lab.core.session_common import find_arc_project_root
 from astroai_lab.errors import LabError
+from astroai_lab.utils.timing import PhaseTimer, call_with_timeout
 
 if TYPE_CHECKING:
     from astroai_lab.core.vospace_status import VaultNodeStatus, VaultStatus
+
+# Ceph home trees are huge; never walk them in-process. du still can stall.
+HOME_DIR_TIMEOUT_SEC = 2.0
+DIR_SIZE_TIMEOUT_SEC = 8.0
+VAULT_TIMEOUT_SEC = 8.0
+PROJECT_PROBE_WORKERS = 8
 
 
 @dataclass
@@ -32,6 +40,7 @@ class QuotaLine:
     free: str
     pct: int
     current: bool = False
+    source: str = ""
 
 
 def df_line(path: Path, label: str, *, current: bool = False) -> QuotaLine | None:
@@ -48,15 +57,48 @@ def df_line(path: Path, label: str, *, current: bool = False) -> QuotaLine | Non
         free=humanize.naturalsize(info.free_bytes, binary=True),
         pct=info.pct,
         current=current,
+        source=info.source,
     )
 
 
-def dir_size(path: Path) -> int:
+def _du_bytes(path: Path, timeout_sec: float) -> int | None:
+    from astroai_lab.utils.subprocess import run_capture
+
+    try:
+        out = run_capture(["du", "-sb", str(path)], timeout=timeout_sec)
+        return int(out.split()[0])
+    except (LabError, ValueError, IndexError):
+        pass
+    try:
+        out = run_capture(["du", "-sk", str(path)], timeout=timeout_sec)
+        return int(out.split()[0]) * 1024
+    except (LabError, ValueError, IndexError):
+        return None
+
+
+def dir_bytes(path: Path, *, timeout_sec: float = DIR_SIZE_TIMEOUT_SEC) -> int | None:
+    """Bytes under path without an in-process recursive walk.
+
+    Prefers ``ceph.dir.rbytes`` on this directory (O(1) on CephFS). Else ``du``
+    with a timeout. Returns None when the size cannot be determined in time.
+    Missing paths are 0.
+    """
     if not path.exists():
         return 0
     if path.is_file():
-        return path.stat().st_size
-    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+        try:
+            return path.stat().st_size
+        except OSError:
+            return 0
+    used = ceph_dir_rbytes(path)
+    if used is not None:
+        return max(0, used)
+    return _du_bytes(path, timeout_sec)
+
+
+def dir_size(path: Path, *, timeout_sec: float = DIR_SIZE_TIMEOUT_SEC) -> int:
+    n = dir_bytes(path, timeout_sec=timeout_sec)
+    return 0 if n is None else n
 
 
 def home_breakdown(home: Path) -> list[tuple[str, str, str]]:
@@ -68,19 +110,29 @@ def home_breakdown(home: Path) -> list[tuple[str, str, str]]:
         (".local", "user tools and data"),
         (".config", "application config"),
     ]
-    rows: list[tuple[str, str, str]] = []
-    for dirname, label in entries:
-        p = home / dirname
-        if p.exists():
-            rows.append((dirname, humanize.naturalsize(dir_size(p), binary=True), label))
-    return rows
+    present = [
+        (dirname, label, home / dirname) for dirname, label in entries if (home / dirname).exists()
+    ]
+    if not present:
+        return []
+
+    def _one(item: tuple[str, str, Path]) -> tuple[str, str, str]:
+        dirname, label, path = item
+        n = dir_bytes(path, timeout_sec=HOME_DIR_TIMEOUT_SEC)
+        if n is None:
+            return (dirname, "—", f"{label} (timed out)")
+        return (dirname, humanize.naturalsize(n, binary=True), label)
+
+    workers = min(PROJECT_PROBE_WORKERS, len(present))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="lab-home") as pool:
+        return list(pool.map(_one, present))
 
 
 def top_cpu_processes(limit: int = 5) -> list[str]:
     try:
         from astroai_lab.utils.subprocess import run_capture
 
-        out = run_capture(["ps", "aux", "--sort=-%cpu"])
+        out = run_capture(["ps", "aux", "--sort=-%cpu"], timeout=2.0)
         lines = out.splitlines()
         return lines[1 : limit + 1] if len(lines) > 1 else []
     except LabError:
@@ -129,11 +181,47 @@ def arc_project_dict(info: ArcProjectInfo) -> dict:
     }
 
 
+def _project_info(proj: Path, cwd_root: Path | None) -> ArcProjectInfo:
+    acl_groups = read_acl_groups(proj)
+    return ArcProjectInfo(
+        name=proj.name,
+        path=proj,
+        quota=df_line(proj, proj.name, current=(cwd_root == proj)),
+        is_cwd=cwd_root == proj,
+        access=project_access(proj),
+        acl_groups=acl_groups,
+    )
+
+
+def apply_remote_project_info(
+    rows: list[ArcProjectInfo],
+    gms: GmsGroups | None,
+    vault: VaultStatus | None,
+) -> None:
+    from astroai_lab.core.vospace_status import vault_by_name
+
+    by_name = vault_by_name(vault)
+    for row in rows:
+        row.gms_member = project_gms_member(row.name, row.acl_groups or [], gms)
+        row.vault = by_name.get(row.name.casefold())
+
+
+def cwd_arc_project(start: Path | None = None) -> ArcProjectInfo | None:
+    """The /arc/projects tree that contains cwd, without listing every team dir."""
+    cwd_root = find_arc_project_root(start)
+    if cwd_root is None:
+        return None
+    info = _project_info(cwd_root, cwd_root)
+    info.gms_member = None
+    return info
+
+
 def arc_project_statuses(
     start: Path | None = None,
     *,
     gms: GmsGroups | None | bool = True,
     vault: bool = True,
+    timer: PhaseTimer | None = None,
 ) -> tuple[
     ArcProjectInfo | None,
     list[ArcProjectInfo],
@@ -141,44 +229,42 @@ def arc_project_statuses(
     VaultStatus | None,
 ]:
     """Team projects under /arc/projects with access, ACL groups, GMS, and vault."""
+    clock = timer or PhaseTimer()
     cwd_root = find_arc_project_root(start)
+    projects = list_arc_projects()
+    with clock.phase("team projects"):
+        if projects:
+            workers = min(PROJECT_PROBE_WORKERS, len(projects))
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="lab-arc") as pool:
+                rows = list(pool.map(lambda p: _project_info(p, cwd_root), projects))
+        else:
+            rows = []
+        rows.sort(key=lambda row: (not row.is_cwd, row.name.lower()))
+        active = next((row for row in rows if row.is_cwd), None)
+
     gms_info: GmsGroups | None
     if gms is True:
-        gms_info = list_gms_groups()
+        with clock.phase("gms"):
+            gms_info = list_gms_groups()
     elif gms is False:
         gms_info = None
     else:
         gms_info = gms
-    active: ArcProjectInfo | None = None
-    rows: list[ArcProjectInfo] = []
-    for proj in list_arc_projects():
-        acl_groups = read_acl_groups(proj)
-        info = ArcProjectInfo(
-            name=proj.name,
-            path=proj,
-            quota=df_line(proj, proj.name, current=(cwd_root == proj)),
-            is_cwd=cwd_root == proj,
-            access=project_access(proj),
-            acl_groups=acl_groups,
-            gms_member=project_gms_member(proj.name, acl_groups, gms_info),
-        )
-        rows.append(info)
-        if info.is_cwd:
-            active = info
-    rows.sort(key=lambda row: (not row.is_cwd, row.name.lower()))
 
     vault_info = None
     if vault:
-        from astroai_lab.core.vospace_status import vault_by_name, vault_statuses
+        from astroai_lab.core.vospace_status import vault_statuses
 
-        vault_info = vault_statuses(
-            arc_names=[row.name for row in rows],
-            gms=gms_info,
-        )
-        by_name = vault_by_name(vault_info)
-        for row in rows:
-            row.vault = by_name.get(row.name.casefold())
-
+        with clock.phase("vault"):
+            vault_info = call_with_timeout(
+                lambda: vault_statuses(
+                    arc_names=[row.name for row in rows],
+                    gms=gms_info,
+                ),
+                VAULT_TIMEOUT_SEC,
+                None,
+            )
+    apply_remote_project_info(rows, gms_info, vault_info)
     return active, rows, gms_info, vault_info
 
 
@@ -186,11 +272,13 @@ def collect_status_quotas(
     *,
     home: Path,
     scratch: Path | None,
+    projects: list[ArcProjectInfo] | None = None,
 ) -> list[QuotaLine]:
     quotas: list[QuotaLine] = []
     if q := df_line(home, "home"):
         quotas.append(q)
-    _, projects, _, _ = arc_project_statuses(gms=False, vault=False)
+    if projects is None:
+        _, projects, _, _ = arc_project_statuses(gms=False, vault=False)
     for proj in projects:
         if proj.quota is not None:
             quotas.append(proj.quota)
@@ -204,6 +292,7 @@ def collect_status_quotas(
                     free="?",
                     pct=0,
                     current=True,
+                    source="unknown",
                 )
             )
     if scratch is not None and (q := df_line(scratch, "scratch")):

@@ -92,6 +92,7 @@ def test_help_json_single_command() -> None:
     assert "help" in data
     assert "options" in data
     assert any("--json" in o["opts"] for o in data["options"])
+    assert any("--verbose" in o["opts"] for o in data["options"])
 
 
 def test_help_json_unknown_command() -> None:
@@ -106,8 +107,8 @@ def test_default_banner(lab_home: Path) -> None:
     assert "astroai-lab" in result.output.lower() or "work" in result.output.lower()
 
 
-@patch("astroai_lab.cli.banner.arc_project_statuses")
-def test_banner_with_active_team(mock_status, lab_home: Path) -> None:
+@patch("astroai_lab.cli.banner.cwd_arc_project")
+def test_banner_with_active_team(mock_cwd, lab_home: Path) -> None:
     active = MagicMock()
     active.name = "demo"
     active.path = Path("/arc/projects/demo")
@@ -116,7 +117,7 @@ def test_banner_with_active_team(mock_status, lab_home: Path) -> None:
     active.quota.total = "100GB"
     active.quota.pct = 10
 
-    mock_status.return_value = (active, [], [], None)
+    mock_cwd.return_value = active
     result = runner.invoke(app, [])
     assert result.exit_code == 0
     assert "team:    /arc/projects/demo" in result.output

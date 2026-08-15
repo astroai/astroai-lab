@@ -1,5 +1,6 @@
 #!/bin/bash
 # Session reminders and exit hooks for AstroAI lab (interactive shells only).
+# Home quota belongs in `astroai-lab status`, not every prompt.
 
 __astroai_lab_state_dir() {
     echo "${ASTROAI_LAB_CONFIG_DIR:-${HOME}/.astroai/lab}"
@@ -58,77 +59,10 @@ __astroai_lab_scratch_reminder() {
     printf '%s' "${_now}" > "${_reminder_file}"
 }
 
-__astroai_lab_quota_used_pct() {
-    local path="${1:-}"
-    [[ -d "${path}" ]] || return 0
-    # Prefer Ceph directory quota xattrs on /arc (CANFAR); rbytes can lag briefly.
-    if command -v getfattr >/dev/null 2>&1; then
-        local _cur="${path}" _max _used _i
-        for _i in 1 2 3 4 5 6; do
-            _max="$(getfattr --only-values -n ceph.quota.max_bytes "${_cur}" 2>/dev/null || true)"
-            _max="${_max//[!0-9]/}"
-            if [[ -n "${_max}" && "${_max}" -gt 0 ]]; then
-                _used="$(getfattr --only-values -n ceph.dir.rbytes "${_cur}" 2>/dev/null || true)"
-                _used="${_used//[!0-9]/}"
-                if [[ -n "${_used}" ]]; then
-                    awk -v u="${_used}" -v t="${_max}" 'BEGIN { if (t>0) printf "%.0f", (u/t)*100; else print 0 }'
-                    return 0
-                fi
-                break
-            fi
-            [[ "${_cur}" == "/" ]] && break
-            _cur="$(dirname "${_cur}")"
-        done
-    fi
-    df "${path}" 2>/dev/null | awk 'NR>1 {
-        # df Use% column already uses avail-based accounting
-        pct=$5; gsub(/%/, "", pct); print pct
-    }'
-}
-
-__astroai_lab_quota_reminder() {
-    local _state _reminder_file _interval=21600
-
-    [[ -t 1 ]] || return 0
-    [[ -d "${HOME}" ]] || return 0
-
-    _state="$(__astroai_lab_state_dir)"
-    _reminder_file="${_state}/last-quota-reminder"
-
-    local _now _last _since_last
-    printf -v _now '%(%s)T' -1
-    _last=0
-    [[ -f "${_reminder_file}" ]] && _last="$(cat "${_reminder_file}" 2>/dev/null)" || true
-    _since_last=$(( _now - _last ))
-    (( _since_last >= _interval )) || return 0
-
-    local _used_pct
-    _used_pct="$(__astroai_lab_quota_used_pct "${HOME}")"
-    [[ -n "${_used_pct}" ]] || return 0
-
-    mkdir -p "${_state}"
-    printf '%s' "${_now}" > "${_reminder_file}"
-    (( _used_pct >= 80 )) || return 0
-
-    local _level _color
-    if (( _used_pct >= 95 )); then
-        _level="CRITICAL"
-        _color='\033[1;31m'
-    elif (( _used_pct >= 90 )); then
-        _level="high"
-        _color='\033[1;33m'
-    else
-        _level="monitor"
-        _color='\033[1;33m'
-    fi
-    printf '\n  %b⚠  home: %d%% used (%s) — check astroai-lab status for details%b\n\n' \
-        "${_color}" "${_used_pct}" "${_level}" '\033[0m'
-}
-
 if [[ -t 1 ]]; then
     if [[ -z "${PROMPT_COMMAND:-}" ]]; then
-        PROMPT_COMMAND="__astroai_lab_scratch_reminder; __astroai_lab_quota_reminder"
+        PROMPT_COMMAND="__astroai_lab_scratch_reminder"
     else
-        PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_lab_scratch_reminder; __astroai_lab_quota_reminder"
+        PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_lab_scratch_reminder"
     fi
 fi

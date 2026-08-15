@@ -114,6 +114,7 @@ check_flag_in_help "save" "--full" save
 check_flag_in_help "resume" "--from" resume
 check_flag_in_help "saves" "--json" saves
 check_flag_in_help "status" "--json" status
+check_flag_in_help "status" "--verbose" status
 check_flag_in_help "env export" "--no-ensure" env export
 check_flag_in_help "env export" "--json" env export
 check_flag_in_help "agent install" "--list" agent install
@@ -125,6 +126,7 @@ echo "=== Flag placement (global OR subcommand) ==="
 for spec in \
     "saves --json" \
     "status --json" \
+    "status --verbose" \
     "env export --no-ensure" \
     "env export --json"; do
     read -r -a parts <<< "$spec"

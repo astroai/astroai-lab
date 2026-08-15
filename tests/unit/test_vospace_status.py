@@ -174,6 +174,7 @@ def test_vault_quota_line() -> None:
     assert line.label == "home (vault)"
     assert line.current is True
     assert line.pct == 10
+    assert line.source == "vospace"
 
 
 def test_discover_vault_names() -> None:

@@ -4,6 +4,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from astroai_lab.core.arc_permissions import (
+    GETFACL_TIMEOUT_SEC,
+    GMS_TIMEOUT_SEC,
     AclGroupEntry,
     GmsGroups,
     effective_perms,
@@ -59,10 +61,23 @@ def test_read_acl_groups_uses_getfacl(tmp_path: Path) -> None:
         patch(
             "astroai_lab.core.arc_permissions.run_capture",
             return_value="group:team:rwx\nmask::rwx",
-        ),
+        ) as mock_run,
     ):
         groups = read_acl_groups(proj)
     assert groups == [AclGroupEntry(name="team", perms="rwx")]
+    assert mock_run.call_args.kwargs.get("timeout") == GETFACL_TIMEOUT_SEC
+
+
+def test_list_gms_groups_times_out_the_cli() -> None:
+    with (
+        patch("astroai_lab.core.arc_permissions.shutil.which", return_value="cadc-groups"),
+        patch("astroai_lab.core.arc_permissions.cadc_cli_auth_args", return_value=["--cert", "x"]),
+        patch("astroai_lab.core.arc_permissions.run_capture", return_value="team-a\n") as mock_run,
+    ):
+        gms = list_gms_groups()
+    assert gms is not None
+    assert gms.groups == ["team-a"]
+    assert mock_run.call_args.kwargs.get("timeout") == GMS_TIMEOUT_SEC
 
 
 def test_project_access(tmp_path: Path) -> None:

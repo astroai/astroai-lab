@@ -1,5 +1,7 @@
 import contextlib
 import shutil
+import sys
+from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated
 
 import typer
@@ -18,11 +20,46 @@ from astroai_lab.core.storage import (
 from astroai_lab.core.vospace_status import vault_status_dict
 from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run_capture
+from astroai_lab.utils.timing import PhaseTimer
 from astroai_lab.version import version_info
 
 # Keep `status` responsive at session start even if the canfar CLI is slow
 # or its auth server stalls; a timeout degrades to "Not authenticated".
 CANFAR_CMD_TIMEOUT_SEC = 5.0
+
+
+def _status_timer(verbose: bool) -> PhaseTimer:
+    if not verbose:
+        return PhaseTimer()
+
+    def _emit(name: str, dt: float, total: float) -> None:
+        print(f"status: {name} {dt:.2f}s (total {total:.2f}s)", file=sys.stderr, flush=True)
+
+    return PhaseTimer(_emit)
+
+
+def _canfar_snapshot() -> tuple[str | None, list[str] | None]:
+    if shutil.which("canfar") is None:
+        return None, None
+    auth: str | None = "Not authenticated"
+    sessions: list[str] | None = None
+
+    def _auth() -> str:
+        return run_capture(["canfar", "auth", "show"], timeout=CANFAR_CMD_TIMEOUT_SEC)
+
+    def _ps() -> list[str]:
+        return run_capture(["canfar", "ps"], timeout=CANFAR_CMD_TIMEOUT_SEC).splitlines()
+
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="lab-canfar") as pool:
+        f_auth = pool.submit(_auth)
+        f_ps = pool.submit(_ps)
+        try:
+            auth = f_auth.result(timeout=CANFAR_CMD_TIMEOUT_SEC + 0.5)
+        except (LabError, TimeoutError):
+            auth = "Not authenticated"
+        with contextlib.suppress(LabError, TimeoutError):
+            sessions = f_ps.result(timeout=CANFAR_CMD_TIMEOUT_SEC + 0.5)
+    return auth, sessions
 
 
 def register(app: typer.Typer) -> None:
@@ -32,18 +69,33 @@ def register(app: typer.Typer) -> None:
         json_output: Annotated[
             bool, typer.Option("--json", help="Machine-readable output.")
         ] = False,
+        verbose: Annotated[
+            bool,
+            typer.Option(
+                "--verbose",
+                "-v",
+                help="Print timing of each probe to stderr.",
+            ),
+        ] = False,
     ) -> None:
         """Show quotas, home space, team project membership, and top processes.
 
         Examples:
             astroai-lab status
             astroai-lab status --json
+            astroai-lab status -v
             astroai-lab --json status
         """
         opts = merge_opts(ctx, json_output=json_output)
+        timer = _status_timer(verbose and not opts.quiet)
         paths = resolve_paths()
-        active_project, arc_projects, gms, vault = arc_project_statuses()
-        quotas = collect_status_quotas(home=paths.home, scratch=paths.scratch_dir)
+        active_project, arc_projects, gms, vault = arc_project_statuses(timer=timer)
+        with timer.phase("quotas"):
+            quotas = collect_status_quotas(
+                home=paths.home,
+                scratch=paths.scratch_dir,
+                projects=arc_projects,
+            )
         seen_quota_labels = {q.label for q in quotas}
         arc_names = {p.name.casefold() for p in arc_projects}
         for proj in arc_projects:
@@ -63,23 +115,15 @@ def register(app: typer.Typer) -> None:
                 if (q := node.quota_line()) and q.label not in seen_quota_labels:
                     quotas.append(q)
                     seen_quota_labels.add(q.label)
-        home_rows = home_breakdown(paths.home)
-        procs = top_cpu_processes()
-        resources = collect_resources()
+        with timer.phase("home"):
+            home_rows = home_breakdown(paths.home)
+        with timer.phase("processes"):
+            procs = top_cpu_processes()
+        with timer.phase("resources"):
+            resources = collect_resources()
 
-        canfar_auth = None
-        canfar_sessions = None
-        if shutil.which("canfar") is not None:
-            try:
-                canfar_auth = run_capture(
-                    ["canfar", "auth", "show"], timeout=CANFAR_CMD_TIMEOUT_SEC
-                )
-            except LabError:
-                canfar_auth = "Not authenticated"
-            with contextlib.suppress(LabError):
-                canfar_sessions = run_capture(
-                    ["canfar", "ps"], timeout=CANFAR_CMD_TIMEOUT_SEC
-                ).splitlines()
+        with timer.phase("canfar"):
+            canfar_auth, canfar_sessions = _canfar_snapshot()
 
         if opts.json:
             ui.print_json(
