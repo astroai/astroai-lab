@@ -88,7 +88,6 @@ check_help_ok "init" init
 check_help_ok "clone" clone
 check_help_ok "save" save
 check_help_ok "resume" resume
-check_help_ok "saves" saves
 check_help_ok "status" status
 
 echo "=== Nested typers ==="
@@ -111,8 +110,11 @@ echo "=== Documented subcommand flags ==="
 check_flag_in_help "init" "--uv" init
 check_flag_in_help "clone" "--from-env" clone
 check_flag_in_help "save" "--full" save
+check_flag_in_help "save" "--list" save
+check_flag_in_help "save" "--to" save
+check_flag_in_help "save" "--from" save
 check_flag_in_help "resume" "--from" resume
-check_flag_in_help "saves" "--json" saves
+check_flag_in_help "resume" "--to" resume
 check_flag_in_help "status" "--json" status
 check_flag_in_help "status" "--verbose" status
 check_flag_in_help "env export" "--no-ensure" env export
@@ -124,7 +126,7 @@ echo "=== Flag placement (global OR subcommand) ==="
 # Bash 3.2 (macOS /bin/bash) has no negative array indices — peel the flag off
 # the end explicitly so local CI matches Ubuntu runners.
 for spec in \
-    "saves --json" \
+    "save --list" \
     "status --json" \
     "status --verbose" \
     "env export --no-ensure" \
@@ -152,8 +154,8 @@ check_invocation "help -c json" help -c status --json
 check_invocation "status" status
 check_invocation "status json sub" status --json
 check_invocation "status json global" --json status
-check_invocation "saves list" saves
-check_invocation "saves json sub" saves --json
+check_invocation "save list" save --list
+check_invocation "save list json" save --list --json
 check_invocation "config show" config show
 check_invocation "config path" config path
 check_invocation "env export" env export

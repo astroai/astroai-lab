@@ -176,8 +176,8 @@ vcp ./local.fits vos:…
 | New project | `astroai-lab init NAME` |
 | Clone + install | `astroai-lab clone REPO` |
 | Snapshot env | `astroai-lab save [NAME]` |
+| List snapshots | `astroai-lab save --list` |
 | Restore env | `astroai-lab resume NAME` |
-| List saves | `astroai-lab saves` |
 | Quotas / sessions | `astroai-lab status` |
 | Jupyter kernel | `astroai-lab kernel ensure` |
 | Agents | `astroai-lab agent setup\|install\|…` |

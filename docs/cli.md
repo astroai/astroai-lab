@@ -44,32 +44,26 @@ astroai-lab clone --from-env ml-base owner/repo
 
 ### `astroai-lab save [NAME]`
 
-Save lockfile manifest to `~/.astroai/lab/saves/`.
+Save lockfiles + manifest to `~/.astroai/lab/saves/`, or list snapshots.
 
 ```bash
 astroai-lab save
 astroai-lab save mylab --full
 astroai-lab save mylab --to /arc/projects/team/env-saves/mylab
+astroai-lab save --list
+astroai-lab save --list --json
+astroai-lab save --list --from /arc/projects/team/env-saves
 ```
 
 ### `astroai-lab resume NAME`
 
-Restore a saved environment and run install.
+Restore a saved environment into `$WORK/NAME` (or `--to`) and run install.
 
 ```bash
 astroai-lab resume mylab
 astroai-lab resume mylab --yes
 astroai-lab resume mylab --from /arc/projects/team/env-saves
-astroai-lab resume mylab --from /arc/projects/team/env-saves/mylab
-```
-
-### `astroai-lab saves`
-
-List saved environments.
-
-```bash
-astroai-lab saves
-astroai-lab saves --json
+astroai-lab resume mylab --to /srcdir/mylab --from /arc/projects/team/env-saves/mylab
 ```
 
 ### `astroai-lab status`
@@ -233,8 +227,8 @@ only** (e.g. `$ASTROAI_RAY_JOBS_ADDRESS`).
 ## Not this CLI
 
 Session lifecycle and archive I/O belong to **`canfar`**. Disk and auth
-snapshots are `astroai-lab status`. Env snapshots are `save` / `resume` /
-`saves`. Notebook starters ship in the image at `/opt/astroai/notebooks/`.
+snapshots are `astroai-lab status`. Env snapshots are `save` / `resume`.
+Notebook starters ship in the image at `/opt/astroai/notebooks/`.
 
 ## Environment variables
 

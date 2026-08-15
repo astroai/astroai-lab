@@ -34,7 +34,7 @@ astroai-lab save mylab --to /arc/projects/<team>/env-saves/mylab
 ```
 
 Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subcommand:
-`astroai-lab status --json`, `astroai-lab saves --json`.
+`astroai-lab status --json`, `astroai-lab save --list --json`.
 
 ## Storage (memorize this)
 
@@ -77,7 +77,7 @@ When showing the user a generated markdown, log, or archive in webterm (or any A
 ```bash
 astroai-lab help
 astroai-lab status --json          # quotas, team projects (access/ACL/GMS/vault), canfar auth/ps
-astroai-lab saves --json           # saved environments
+astroai-lab save --list --json     # saved environments
 astroai-lab agent list             # agent CLIs, config bundles, skills
 astroai-lab agent verify           # configs present + parseable
 less /opt/astroai/USAGE.md

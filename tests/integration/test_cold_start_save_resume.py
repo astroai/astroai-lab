@@ -110,7 +110,7 @@ def test_env_list_after_save(cold_env: Path) -> None:
         m.chdir(project)
         save = runner.invoke(app, ["save", "listed"])
     assert save.exit_code == 0, save.output
-    out = runner.invoke(app, ["--json", "saves"])
+    out = runner.invoke(app, ["save", "--list", "--json"])
     assert out.exit_code == 0
     rows = json.loads(out.stdout)
     assert any(r["name"] == "listed" for r in rows)
@@ -127,7 +127,7 @@ def test_resume_from_explicit_path(cold_env: Path, tmp_path: Path) -> None:
     with patch("astroai_lab.core.project.install_project"):
         result = runner.invoke(
             app,
-            ["resume", "ext", str(target), "--from", str(external)],
+            ["resume", "ext", "--to", str(target), "--from", str(external)],
         )
     assert result.exit_code == 0, result.output
     assert (target / "pixi.toml").is_file()

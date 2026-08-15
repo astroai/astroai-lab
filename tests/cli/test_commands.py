@@ -81,6 +81,9 @@ def test_help_json_inventory() -> None:
     paths = {c["path"] for c in data["commands"]}
     assert "status" in paths
     assert "agent list" in paths
+    assert "save" in paths
+    assert "resume" in paths
+    assert "saves" not in paths
     assert "guide" not in paths
 
 
@@ -159,10 +162,16 @@ def test_config_root_json(lab_home: Path) -> None:
     assert "show" in data["try"]
 
 
-def test_saves_empty_json(lab_home: Path) -> None:
-    result = runner.invoke(app, ["--json", "saves"])
+def test_save_list_empty_json(lab_home: Path) -> None:
+    result = runner.invoke(app, ["save", "--list", "--json"])
     assert result.exit_code == 0
     assert json.loads(result.stdout) == []
+
+
+def test_saves_command_removed() -> None:
+    result = runner.invoke(app, ["saves"])
+    assert result.exit_code != 0
+    assert "No such command" in (result.stdout + result.stderr)
 
 
 def test_save_requires_project(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:

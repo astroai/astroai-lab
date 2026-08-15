@@ -157,8 +157,11 @@ def test_command_inventory_covers_all_visible_paths() -> None:
     assert "status" in paths
     assert "agent list" in paths
     assert "env export" in paths
+    assert "save" in paths
+    assert "resume" in paths
     # Hidden aliases are excluded from the machine inventory.
     assert "guide" not in paths
+    assert "saves" not in paths
     assert len(inventory) == len(help_cmd._visible_command_paths(app))
 
 

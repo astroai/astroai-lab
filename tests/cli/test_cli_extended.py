@@ -142,9 +142,46 @@ def test_save_and_list_flat(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.chdir(project)
     result = runner.invoke(app, ["save", "demo"])
     assert result.exit_code == 0
-    result = runner.invoke(app, ["--json", "saves"])
+    result = runner.invoke(app, ["save", "--list", "--json"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)
+
+
+def test_save_list_rejects_write_flags(lab_env: Path) -> None:
+    result = runner.invoke(app, ["save", "--list", "--full"])
+    assert result.exit_code == 1
+    result = runner.invoke(app, ["save", "demo", "--list"])
+    assert result.exit_code == 1
+    result = runner.invoke(app, ["save", "--from", "/tmp"])
+    assert result.exit_code == 1
+
+
+def test_resume_rejects_positional_target(lab_env: Path) -> None:
+    result = runner.invoke(app, ["resume", "mylab", str(lab_env / "elsewhere")])
+    assert result.exit_code != 0
+
+
+def test_save_list_from_directory(lab_env: Path, tmp_path: Path) -> None:
+    root = tmp_path / "team-saves"
+    named = root / "stack"
+    named.mkdir(parents=True)
+    (named / "pixi.toml").write_text('[project]\nname="p"\n')
+    (named / "manifest.json").write_text(
+        json.dumps(
+            {
+                "name": "stack",
+                "kind": "pixi",
+                "saved_at": "t",
+                "saved_from": "/x",
+                "user": "u",
+                "full": False,
+            }
+        )
+    )
+    result = runner.invoke(app, ["save", "--list", "--json", "--from", str(root)])
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.stdout)
+    assert rows[0]["name"] == "stack"
 
 
 def test_resume_flat(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:

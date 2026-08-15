@@ -1,9 +1,8 @@
 """env group: shell environment export (infra).
 
-The flat save/resume/saves commands are the primary interface; the old
-env save/resume/list aliases were removed in the 0.3 simplification.
-Image builds copy the packaged profile.sh / hooks.sh at build time —
-astroai-lab stays an in-session tool only.
+The flat save/resume commands are the primary interface; listing is
+`astroai-lab save --list`. Image builds copy the packaged profile.sh /
+hooks.sh at build time — astroai-lab stays an in-session tool only.
 """
 
 from __future__ import annotations

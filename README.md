@@ -82,13 +82,13 @@ astroai-lab init mylab
 astroai-lab clone owner/repo
 astroai-lab save mylab
 astroai-lab resume mylab
-astroai-lab saves
+astroai-lab save --list
 astroai-lab status           # quotas, team projects, canfar auth/ps
 astroai-lab kernel ensure    # notebook kernels
 ```
 
 Machine-readable output: add **`--json`** where supported
-(`status`, `saves`, `config show`, `agent …`).
+(`status`, `save --list`, `config show`, `agent …`).
 
 ## AI coding agents
 

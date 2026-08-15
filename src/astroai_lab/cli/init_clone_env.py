@@ -11,8 +11,16 @@ from astroai_lab.cli.context import get_opts, merge_opts
 from astroai_lab.config.settings import get_settings
 from astroai_lab.core.git import git_init_and_commit
 from astroai_lab.core.paths import resolve_paths
-from astroai_lab.core.project import format_dir_size, require_project, save_env
+from astroai_lab.core.project import format_dir_size, require_project, save_env, save_rows
 from astroai_lab.errors import LabError
+
+
+def _print_save_list(*, json_output: bool, root: Path) -> None:
+    rows = save_rows(root)
+    if json_output:
+        ui.print_json(rows)
+    else:
+        ui.env_list_table(rows)
 
 
 def _init_impl(
@@ -129,40 +137,97 @@ def register(app: typer.Typer) -> None:
     def save(
         ctx: typer.Context,
         name: Annotated[str | None, typer.Argument()] = None,
-        to: Annotated[Path | None, typer.Option("--to")] = None,
-        full: Annotated[bool, typer.Option("--full")] = False,
+        to: Annotated[
+            Path | None,
+            typer.Option("--to", help="Directory to write this snapshot."),
+        ] = None,
+        from_path: Annotated[
+            Path | None,
+            typer.Option("--from", help="With --list, directory to scan for snapshots."),
+        ] = None,
+        full: Annotated[
+            bool, typer.Option("--full", help="Pack .pixi / .venv into the snapshot.")
+        ] = False,
+        list_flag: Annotated[
+            bool,
+            typer.Option("--list", "-l", help="List saved environments."),
+        ] = False,
+        json_output: Annotated[
+            bool, typer.Option("--json", help="Machine-readable output.")
+        ] = False,
     ) -> None:
-        """Save lockfiles and manifest for the current project.
+        """Save the current project, or list snapshots.
 
         Examples:
             astroai-lab save
             astroai-lab save mylab --full
             astroai-lab save mylab --to /arc/projects/group/env-saves/mylab
+            astroai-lab save --list
+            astroai-lab save --list --json
+            astroai-lab save --list --from /arc/projects/group/env-saves
         """
-        opts = get_opts(ctx)
+        opts = merge_opts(ctx, json_output=json_output)
         paths = resolve_paths()
+        if list_flag:
+            if name or to or full:
+                ui.print_error("--list cannot be combined with NAME, --to, or --full")
+                raise typer.Exit(1)
+            _print_save_list(json_output=opts.json, root=from_path or paths.save_dir)
+            return
+        if from_path is not None:
+            ui.print_error("--from is only valid with --list (use --to to choose where to write)")
+            raise typer.Exit(1)
         cwd = Path.cwd()
         save_name = name or cwd.name
         save_dir = to or paths.save_dir / save_name
         try:
             kind = require_project(cwd)
             if opts.dry_run:
-                ui.print_ok(f"dry-run: would save '{save_name}' -> {save_dir} ({kind.value})")
+                if opts.json:
+                    ui.print_json(
+                        {
+                            "dry_run": True,
+                            "name": save_name,
+                            "path": str(save_dir),
+                            "kind": kind.value,
+                            "full": full,
+                        }
+                    )
+                else:
+                    ui.print_ok(f"dry-run: would save '{save_name}' -> {save_dir} ({kind.value})")
                 return
             save_env(save_name, save_dir, cwd, full=full)
+            payload = {
+                "name": save_name,
+                "path": str(save_dir),
+                "kind": kind.value,
+                "full": full,
+            }
         except (LabError, OSError) as exc:
             ui.print_error(str(exc))
             raise typer.Exit(1) from exc
-        ui.print_ok(f"Saved '{save_name}' -> {save_dir} ({format_dir_size(save_dir)})")
+        if opts.json:
+            ui.print_json(payload)
+        else:
+            ui.print_ok(f"Saved '{save_name}' -> {save_dir} ({format_dir_size(save_dir)})")
 
     @app.command()
     def resume(
         ctx: typer.Context,
-        name: Annotated[str, typer.Argument()],
-        target: Annotated[Path | None, typer.Argument()] = None,
-        from_path: Annotated[Path | None, typer.Option("--from")] = None,
+        name: Annotated[str, typer.Argument(help="Snapshot name.")],
+        to: Annotated[
+            Path | None,
+            typer.Option("--to", help="Directory to restore into (default: $WORK/NAME)."),
+        ] = None,
+        from_path: Annotated[
+            Path | None,
+            typer.Option("--from", help="Snapshot directory, or a parent of named snapshots."),
+        ] = None,
         yes: Annotated[
             bool, typer.Option("--yes", "-y", help="Replace a non-empty target.")
+        ] = False,
+        json_output: Annotated[
+            bool, typer.Option("--json", help="Machine-readable output.")
         ] = False,
     ) -> None:
         """Restore a saved environment.
@@ -171,12 +236,13 @@ def register(app: typer.Typer) -> None:
             astroai-lab resume mylab
             astroai-lab resume mylab --yes
             astroai-lab resume mylab --from /arc/projects/group/env-saves
+            astroai-lab resume mylab --to /srcdir/mylab --from /arc/projects/group/env-saves/mylab
         """
         from astroai_lab.core.project import resolve_save_dir, restore_env
 
-        opts = merge_opts(ctx, yes=yes)
+        opts = merge_opts(ctx, yes=yes, json_output=json_output)
         paths = resolve_paths()
-        dest = target or paths.work_dir / name
+        dest = to or paths.work_dir / name
         nonempty = dest.is_dir() and any(dest.iterdir())
         if dest.exists() and dest.is_file():
             ui.print_error(f"Target exists and is a file: {dest}")
@@ -184,14 +250,25 @@ def register(app: typer.Typer) -> None:
         if nonempty:
             ui.print_warn(f"Target exists and is not empty: {dest}")
             if not opts.yes and not opts.dry_run:
-                ui.print_hint("  Use --yes to overwrite, or choose a different target.")
+                ui.print_hint("  Use --yes to overwrite, or pass a different --to.")
                 raise typer.Exit(1)
         try:
             save_dir = resolve_save_dir(name, paths.save_dir, from_path)
             if opts.dry_run:
-                ui.print_ok(f"dry-run: would restore '{name}' -> {dest}")
-                if nonempty:
-                    ui.print_hint(f"  would replace {dest}")
+                if opts.json:
+                    ui.print_json(
+                        {
+                            "dry_run": True,
+                            "name": name,
+                            "from": str(save_dir),
+                            "path": str(dest),
+                            "replace": nonempty,
+                        }
+                    )
+                else:
+                    ui.print_ok(f"dry-run: would restore '{name}' -> {dest}")
+                    if nonempty:
+                        ui.print_hint(f"  would replace {dest}")
                 return
             if nonempty:
                 shutil.rmtree(dest)
@@ -200,29 +277,8 @@ def register(app: typer.Typer) -> None:
         except (LabError, OSError) as exc:
             ui.print_error(str(exc))
             raise typer.Exit(1) from exc
-        ui.print_ok(f"Restored in {dest}")
-        ui.print_hint(f"  `cd {dest}`")
-
-    @app.command()
-    def saves(
-        ctx: typer.Context,
-        json_output: Annotated[
-            bool, typer.Option("--json", help="Machine-readable output.")
-        ] = False,
-    ) -> None:
-        """List saved environments.
-
-        Examples:
-            astroai-lab saves
-            astroai-lab saves --json
-            astroai-lab --json saves
-        """
-        from astroai_lab.core.project import save_rows
-
-        opts = merge_opts(ctx, json_output=json_output)
-        paths = resolve_paths()
-        rows = save_rows(paths.save_dir)
         if opts.json:
-            ui.print_json(rows)
+            ui.print_json({"name": name, "from": str(save_dir), "path": str(dest)})
         else:
-            ui.env_list_table(rows)
+            ui.print_ok(f"Restored in {dest}")
+            ui.print_hint(f"  `cd {dest}`")

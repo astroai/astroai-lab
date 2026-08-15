@@ -239,7 +239,7 @@ def resolve_save_dir(name: str, save_root: Path, from_path: Path | None) -> Path
     shown = candidates[0]
     raise LabError(
         f"Save not found: {shown}",
-        hint=f"astroai-lab saves\n  astroai-lab save {name}",
+        hint=f"astroai-lab save --list\n  astroai-lab save {name}",
     )
 
 

@@ -61,8 +61,8 @@ astroai-lab                       # brief status + next step
 astroai-lab init mylab
 astroai-lab clone owner/repo
 astroai-lab save [name]
+astroai-lab save --list
 astroai-lab resume NAME
-astroai-lab saves
 astroai-lab status --json
 astroai-lab kernel ensure
 astroai-lab agent setup
