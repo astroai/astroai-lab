@@ -63,7 +63,7 @@ Restore a saved environment into `$WORK/NAME` (or `--to`) and run install.
 astroai-lab resume mylab
 astroai-lab resume mylab --yes
 astroai-lab resume mylab --from /arc/projects/team/env-saves
-astroai-lab resume mylab --to /srcdir/mylab --from /arc/projects/team/env-saves/mylab
+astroai-lab resume mylab --to $WORK/mylab --from /arc/projects/team/env-saves/mylab
 ```
 
 ### `astroai-lab status`
@@ -100,9 +100,11 @@ Requires optional tools on PATH: `getfacl`, `cadc-groups` (CADC venv), `vos` —
 
 ### `astroai-lab clean`
 
-Delete package caches on home (pip, uv, pixi, …) that fill `/arc/home`.
+Delete whatever is in ``~/.cache`` on home (and a few known extra cache
+dirs). That directory is listed at run time, so new tools are included
+without a code change. Scratch-backed ``XDG_CACHE_HOME`` is left alone.
 
-`--yes` deletes caches only. They come back the next time you install a
+`--yes` deletes those caches only. They come back the next time you install a
 package. Saved environments and lab preferences need `--saves` / `--config`,
 or a yes at the prompt. Agent logins are `astroai-lab agent wipe`.
 
@@ -263,7 +265,7 @@ or set explicitly.
 
 | Variable | Purpose |
 |----------|---------|
-| `WORK` | Session work dir; code and project envs. On CANFAR: `$SCRATCH/src` (survives container OOM; still dies with the session). Elsewhere often `/srcdir` |
+| `WORK` | Session work dir; code and project envs. On CANFAR: `$SCRATCH/src` (survives container OOM; still dies with the session) |
 | `SCRATCH` | Session scratch; data, caches, runtime installs (Skaha: `/scratch`) |
 | `PROJECT` | Team project dir (e.g. `/arc/projects/<group>`); used for team tools |
 
@@ -272,7 +274,7 @@ or set explicitly.
 | Variable | Purpose |
 |----------|---------|
 | `WORK` / `SCRATCH` / `PROJECT` | Set explicitly to override detected session paths |
-| `ASTROAI_LAB_WORK_ON_SCRATCH` | Set `0` to keep `WORK=/srcdir` even when `/scratch` is a separate volume |
+| `ASTROAI_LAB_WORK_ON_SCRATCH` | Set `0` to keep `WORK` on the container overlay instead of `$SCRATCH/src` |
 | `ASTROAI_LAB_SAVE_DIR` | Env saves dir (default: `~/.astroai/lab/saves`) |
 | `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`; last resort: work `.runtime-$USER/bin` — never `~/.local`) |
 | `ASTROAI_LAB_RUNTIME_ROOT` | Runtime uv/pixi/mamba roots (default: scratch `.runtime-$USER`) |

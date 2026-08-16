@@ -134,7 +134,7 @@ Inspect quotas and home usage:
 astroai-lab status
 astroai-lab status --all
 astroai-lab status --json
-astroai-lab clean --yes          # delete package caches on home
+astroai-lab clean --yes          # delete ~/.cache (and a few extra cache dirs) on home
 ```
 
 Move data with the platform client:

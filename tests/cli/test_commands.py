@@ -203,12 +203,16 @@ def test_clean_dry_run_keeps_caches(lab_home: Path) -> None:
     pip = lab_home / ".cache" / "pip"
     pip.mkdir(parents=True)
     (pip / "wheel").write_text("x", encoding="utf-8")
+    mystery = lab_home / ".cache" / "some-new-tool"
+    mystery.mkdir()
+    (mystery / "blob").write_text("x", encoding="utf-8")
     result = runner.invoke(app, ["--json", "clean", "--dry-run"])
     assert result.exit_code == 0
     assert pip.is_dir()
     data = json.loads(result.stdout)
     removed = [a for a in data["actions"] if a["status"] == "would_remove"]
     assert any(a["path"].endswith(".cache/pip") for a in removed)
+    assert any(a["path"].endswith(".cache/some-new-tool") for a in removed)
 
 
 def test_clean_yes_deletes_caches_keeps_saves(lab_home: Path) -> None:

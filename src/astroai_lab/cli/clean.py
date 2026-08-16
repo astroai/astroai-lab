@@ -36,9 +36,10 @@ def register(app: typer.Typer) -> None:
             typer.Option("--config", help="Also delete lab preferences."),
         ] = False,
     ) -> None:
-        """Free space on home: package caches, then optional saved environments.
+        """Free space on home: whatever is in ~/.cache, then optional saves.
 
-        Caches come back the next time you install a package. Saved
+        Lists ``~/.cache`` as it exists now (not a fixed tool list). Those
+        files come back the next time you install a package. Saved
         environments and lab preferences are removed only with `--saves` /
         `--config`, or if you confirm. Agent logins: `astroai-lab agent wipe`.
 
@@ -124,11 +125,11 @@ def register(app: typer.Typer) -> None:
 def _print_plan(plan: dict) -> None:
     caches = plan["caches"]
     if caches:
-        ui.print_info(f"Package caches (safe to delete): {naturalsize(plan['cache_bytes'])}")
+        ui.print_info(f"Home caches (safe to delete): {naturalsize(plan['cache_bytes'])}")
         for row in caches:
             ui.print_hint(f"  {row['size']:>8}  {row['path']}")
     else:
-        ui.print_hint("No package caches found on home.")
+        ui.print_hint("No caches found on home.")
     saves = plan["saves"]
     if saves:
         ui.print_info(f"Saved environments: {naturalsize(plan['save_bytes'])}")

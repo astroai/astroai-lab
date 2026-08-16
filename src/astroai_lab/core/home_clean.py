@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -10,27 +11,67 @@ from astroai_lab.core.disk_usage import naturalsize
 from astroai_lab.core.project import save_rows
 from astroai_lab.core.storage import dir_bytes
 
-# Regenerable tool caches that leak onto /arc/home even when profile.sh
-# points pip/uv/pixi at $SCRATCH.
-CACHE_REL = (
-    ".cache/pip",
-    ".cache/uv",
-    ".cache/huggingface",
-    ".cache/torch",
-    ".cache/pre-commit",
-    ".cache/matplotlib",
-    ".cache/npm",
-    ".cache/yarn",
-    ".cache/pixi",
-    ".cache/conda",
-    ".cache/pypoetry",
-    ".cache/astroai-lab",
+# Caches that leak onto home outside ~/.cache.
+EXTRA_REL = (
     ".local/share/uv",
     ".local/share/pip",
     ".local/share/Trash",
     ".npm/_cacache",
     ".pixi/cache",
 )
+
+
+def _under_home(path: Path, home: Path) -> bool:
+    try:
+        path.resolve().relative_to(home.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def cache_targets(home: Path) -> list[Path]:
+    """Home-side caches as they exist now. Does not walk into each tree.
+
+    Lists top-level entries of ``~/.cache`` (and ``XDG_CACHE_HOME`` when that
+    path is still on home). Scratch-backed XDG caches are skipped.
+    """
+    found: list[Path] = []
+    seen: set[Path] = set()
+
+    def add(path: Path) -> None:
+        if not path.exists():
+            return
+        if not _under_home(path, home):
+            return
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(path)
+
+    cache_home = home / ".cache"
+    if cache_home.is_dir():
+        try:
+            children = sorted(cache_home.iterdir(), key=lambda p: p.name.lower())
+        except OSError:
+            children = []
+        for child in children:
+            add(child)
+    xdg = os.environ.get("XDG_CACHE_HOME", "").strip()
+    if xdg:
+        xdg_path = Path(xdg)
+        try:
+            same = cache_home.exists() and xdg_path.resolve() == cache_home.resolve()
+        except OSError:
+            same = False
+        if not same:
+            add(xdg_path)
+    for rel in EXTRA_REL:
+        add(home / rel)
+    return found
 
 
 def _row(path: Path, kind: str) -> dict[str, Any]:
@@ -46,7 +87,7 @@ def _row(path: Path, kind: str) -> dict[str, Any]:
 
 def plan_clean(home: Path, save_dir: Path) -> dict[str, Any]:
     """What `astroai-lab clean` can remove. Does not delete anything."""
-    caches = [_row(home / rel, "cache") for rel in CACHE_REL if (home / rel).exists()]
+    caches = [_row(path, "cache") for path in cache_targets(home)]
     saves = []
     for row in save_rows(save_dir):
         path = Path(row["path"])
