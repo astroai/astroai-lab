@@ -12,6 +12,11 @@ install:
   source: https://cursor.com/install
   post_binary_paths:
     - "~/.local/bin/agent"
+config:
+  path: "~/.cursor/mcp.json"
+  format: json
+  markers:
+    - "~/.cursor"
 verify:
   - "agent --version"
 plugins: [skill, mcp, config, addon, rule]

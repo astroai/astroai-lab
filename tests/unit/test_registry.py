@@ -165,6 +165,55 @@ def test_registry_agent_status_binary_only(monkeypatch: pytest.MonkeyPatch) -> N
     assert status["installed"] is False  # config not present
 
 
+def test_agy_cfg_present_without_settings_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """agy login state lives under ~/.gemini/antigravity-cli, not a required settings.json."""
+    agy = get_registry_agent("agy")
+    assert agy is not None
+    home = tmp_path / "home"
+    marker = home / ".gemini" / "antigravity-cli"
+    marker.mkdir(parents=True)
+    (marker / "keybindings.json").write_text("{}", encoding="utf-8")
+
+    def _fake_classify(binary: str, *, home=None):
+        return {
+            "binary": binary,
+            "path": "/tmp/agy",
+            "source": "managed",
+            "managed": True,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _fake_classify)
+    status = registry_agent_status(agy, home=home)
+    assert status["config_declared"] is True
+    assert status["config_present"] is True
+    assert status["config_ok"] is True
+    assert not (home / ".gemini" / "antigravity-cli" / "settings.json").is_file()
+
+
+def test_agy_cfg_absent_without_gemini_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    agy = get_registry_agent("agy")
+    assert agy is not None
+
+    def _fake_classify(binary: str, *, home=None):
+        return {
+            "binary": binary,
+            "path": "/tmp/agy",
+            "source": "managed",
+            "managed": True,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _fake_classify)
+    status = registry_agent_status(agy, home=tmp_path / "empty-home")
+    assert status["config_present"] is False
+    assert status["config_ok"] is False
+
+
 def test_registry_agent_status_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     openclaw = get_registry_agent("openclaw")
     assert openclaw is not None
@@ -185,6 +234,7 @@ def test_registry_agent_status_full(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _fake_classify)
     status = registry_agent_status(openclaw, home=home)
     assert status["config_ok"] is True
+    assert status["config_present"] is True
     assert status["installed"] is True
     assert status["managed"] is True
 

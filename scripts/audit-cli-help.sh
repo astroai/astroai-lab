@@ -89,6 +89,7 @@ check_help_ok "clone" clone
 check_help_ok "save" save
 check_help_ok "resume" resume
 check_help_ok "status" status
+check_help_ok "clean" clean
 
 echo "=== Nested typers ==="
 for grp in env config kernel agent; do
@@ -117,10 +118,13 @@ check_flag_in_help "resume" "--from" resume
 check_flag_in_help "resume" "--to" resume
 check_flag_in_help "status" "--json" status
 check_flag_in_help "status" "--verbose" status
+check_flag_in_help "status" "--all" status
+check_flag_in_help "clean" "--yes" clean
+check_flag_in_help "clean" "--saves" clean
 check_flag_in_help "env export" "--no-ensure" env export
 check_flag_in_help "env export" "--json" env export
-check_flag_in_help "agent install" "--list" agent install
-check_flag_in_help "agent setup" "--list" agent setup
+check_flag_in_help "agent list" "--description" agent list
+check_flag_in_help "agent setup" "--all" agent setup
 
 echo "=== Flag placement (global OR subcommand) ==="
 # Bash 3.2 (macOS /bin/bash) has no negative array indices — peel the flag off
@@ -129,6 +133,7 @@ for spec in \
     "save --list" \
     "status --json" \
     "status --verbose" \
+    "status --all" \
     "env export --no-ensure" \
     "env export --json"; do
     read -r -a parts <<< "$spec"
@@ -154,6 +159,7 @@ check_invocation "help -c json" help -c status --json
 check_invocation "status" status
 check_invocation "status json sub" status --json
 check_invocation "status json global" --json status
+check_invocation "clean dry-run" clean --dry-run
 check_invocation "save list" save --list
 check_invocation "save list json" save --list --json
 check_invocation "config show" config show

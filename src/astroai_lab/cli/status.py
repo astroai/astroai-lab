@@ -14,6 +14,7 @@ from astroai_lab.core.storage import (
     arc_project_dict,
     arc_project_statuses,
     collect_status_quotas,
+    cwd_arc_project,
     home_breakdown,
     top_cpu_processes,
 )
@@ -74,14 +75,25 @@ def register(app: typer.Typer) -> None:
             typer.Option(
                 "--verbose",
                 "-v",
-                help="Print timing of each probe to stderr.",
+                help="Print how long each check took.",
+            ),
+        ] = False,
+        show_all: Annotated[
+            bool,
+            typer.Option(
+                "--all",
+                help="Also show groups, every team project, and all disk quotas.",
             ),
         ] = False,
     ) -> None:
-        """Show quotas, home space, team project membership, and top processes.
+        """Show CPU, memory, home space, and your sessions.
+
+        Default view is this session and your home disk. `--all` adds groups
+        and every team project. `--json` is always complete.
 
         Examples:
             astroai-lab status
+            astroai-lab status --all
             astroai-lab status --json
             astroai-lab status -v
             astroai-lab --json status
@@ -89,7 +101,14 @@ def register(app: typer.Typer) -> None:
         opts = merge_opts(ctx, json_output=json_output)
         timer = _status_timer(verbose and not opts.quiet)
         paths = resolve_paths()
-        active_project, arc_projects, gms, vault = arc_project_statuses(timer=timer)
+        full = show_all or opts.json
+        if full:
+            active_project, arc_projects, gms, vault = arc_project_statuses(timer=timer)
+        else:
+            with timer.phase("team project"):
+                active_project = cwd_arc_project()
+            arc_projects = [active_project] if active_project is not None else []
+            gms, vault = None, None
         with timer.phase("quotas"):
             quotas = collect_status_quotas(
                 home=paths.home,
@@ -153,4 +172,5 @@ def register(app: typer.Typer) -> None:
                 gms_groups=gms,
                 vault=vault,
                 resources=resources.to_dict(),
+                full=show_all,
             )

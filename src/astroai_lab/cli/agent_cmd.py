@@ -153,10 +153,13 @@ def _print_status_table(
     for row in report["agents"]:
         binary_ok = bool(row.get("binary_ok", row.get("binary")))
         b = "✓" if binary_ok else "-"
-        # Config: ✓ present, - missing or not applicable (no third glyph).
-        config_installed = bool(row.get("config_declared", True)) and bool(
-            row.get("config_ok", row.get("config"))
-        )
+        # Cfg: logged in or settings dir on home.
+        if "config_present" in row:
+            config_installed = bool(row["config_present"])
+        else:
+            config_installed = bool(row.get("config_declared")) and bool(
+                row.get("config_ok", row.get("config"))
+            )
         c = "✓" if config_installed else "-"
         ver = (row.get("version") or "-")[:12]
         name = row.get("id") or row.get("agent") or "?"
@@ -194,7 +197,10 @@ def _print_status_table(
     ui.print_hint("")
     ui.print_hint("  Try:  agent install kilo && agent setup kilo && agent verify")
     ui.print_hint("  More:  agent list --description   ·   agent plugins list")
-    ui.print_hint("  Cfg: settings file on $HOME   Where: scratch=$SCRATCH  home=$HOME  image=PATH")
+    ui.print_hint(
+        "  Cfg: logged in or has settings on home   "
+        "Where: scratch=$SCRATCH  home=$HOME  image=already in the image"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +223,7 @@ def agent_list_cmd(
         typer.Option("--ui", help="Show active container UI endpoints."),
     ] = False,
 ) -> None:
-    """Every installable agent: binary / settings / where / version."""
+    """Installed, logged in, where it lives, and version."""
     if ui_endpoints:
         _print_interact(get_opts(ctx))
         return
@@ -254,9 +260,7 @@ def _print_plugins(
     ui.print_hint(
         f"  {'Plugin':<{id_w}}{gap}{'Kind':<{kind_w}}{gap}{'On':<3}{gap}{'Def':<3}{gap}Agents"
     )
-    ui.print_hint(
-        f"  {'─' * id_w}{gap}{'─' * kind_w}{gap}{'─' * 3}{gap}{'─' * 3}{gap}{'─' * 14}"
-    )
+    ui.print_hint(f"  {'─' * id_w}{gap}{'─' * kind_w}{gap}{'─' * 3}{gap}{'─' * 3}{gap}{'─' * 14}")
     for row in rows:
         installed = bool(row["any_installed"])
         is_default = bool(row.get("default"))

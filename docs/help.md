@@ -63,7 +63,10 @@ astroai-lab clone owner/repo
 astroai-lab save [name]
 astroai-lab save --list
 astroai-lab resume NAME
+astroai-lab status
+astroai-lab status --all          # groups and every team project
 astroai-lab status --json
+astroai-lab clean                 # list home caches; --yes to delete them
 astroai-lab kernel ensure
 astroai-lab agent setup
 astroai-lab agent install kilo     # or goose, opencode, qoder, …

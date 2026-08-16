@@ -96,6 +96,8 @@ def status_human(
     gms_groups=None,
     vault=None,
     resources: dict | None = None,
+    *,
+    full: bool = False,
 ) -> None:
     console.print(f"[bold]astroai-lab {display_version()}[/bold]  status\n")
     if resources:
@@ -125,11 +127,11 @@ def status_human(
             console.print("")
     if canfar_auth:
         console.print(f"[bold]CANFAR Authentication:[/bold] {canfar_auth}\n")
-    if gms_groups is not None and gms_groups.groups:
+    if full and gms_groups is not None and gms_groups.groups:
         names = ", ".join(gms_groups.groups[:8])
         extra = f" (+{len(gms_groups.groups) - 8} more)" if len(gms_groups.groups) > 8 else ""
-        console.print(f"[bold]CADC groups (GMS):[/bold] {names}{extra}\n")
-    elif Path("/arc/projects").is_dir() and gms_groups is None:
+        console.print(f"[bold]CADC groups:[/bold] {names}{extra}\n")
+    elif full and Path("/arc/projects").is_dir() and gms_groups is None:
         console.print(
             "[dim]CADC groups: unavailable (install cadc-groups / run cadc-get-cert)[/dim]\n"
         )
@@ -138,21 +140,21 @@ def status_human(
         access = getattr(active_project, "access", "?")
         if q is not None:
             console.print(
-                f"[bold]Team project (cwd):[/bold] {active_project.path} "
+                f"[bold]Team project:[/bold] {active_project.path} "
                 f"[{access}] — {q.free} free of {q.total} ({q.pct}% used)"
             )
         else:
-            console.print(f"[bold]Team project (cwd):[/bold] {active_project.path} [{access}]")
+            console.print(f"[bold]Team project:[/bold] {active_project.path} [{access}]")
         console.print("")
-    elif arc_projects:
+    elif full and arc_projects:
         names = ", ".join(f"{p.name}({getattr(p, 'access', '?')})" for p in arc_projects[:6])
         extra = f" (+{len(arc_projects) - 6} more)" if len(arc_projects) > 6 else ""
         console.print(
             f"[dim]cwd not under /arc/projects — accessible team projects: {names}{extra}[/dim]\n"
         )
-    elif Path("/arc/projects").is_dir():
+    elif full and Path("/arc/projects").is_dir():
         console.print("[dim]No readable team projects under /arc/projects[/dim]\n")
-    if arc_projects:
+    if full and arc_projects:
         pt = Table(title="Team projects (/arc/projects)")
         pt.add_column("Project")
         pt.add_column("Access")
@@ -194,7 +196,7 @@ def status_human(
                 vault_groups or "—",
             )
         console.print(pt)
-    if vault is not None and vault.nodes:
+    if full and vault is not None and vault.nodes:
         extra = [
             node
             for node in vault.nodes
@@ -221,7 +223,12 @@ def status_human(
                     gms_cell,
                 )
             console.print(vt)
-    if quotas:
+    shown_quotas = quotas
+    if not full:
+        shown_quotas = [
+            q for q in quotas if q.label in {"home", "scratch"} or getattr(q, "current", False)
+        ]
+    if shown_quotas:
         qt = Table(title="Storage quotas")
         qt.add_column("Location")
         qt.add_column("Used")
@@ -229,7 +236,7 @@ def status_human(
         qt.add_column("Total")
         qt.add_column("%")
         qt.add_column("Source")
-        for q in quotas:
+        for q in shown_quotas:
             style = "red" if q.pct >= 95 else "yellow" if q.pct >= 80 else ""
             pct_cell = f"[{style}]{q.pct}%[/{style}]" if style else f"{q.pct}%"
             label = q.label
@@ -253,3 +260,6 @@ def status_human(
         console.print("\n[bold]CANFAR Active Sessions (canfar ps)[/bold]")
         for line in canfar_sessions:
             console.print(f"  {line}")
+    if not full:
+        console.print("")
+        print_hint("  More: `astroai-lab status --all`  ·  free home space: `astroai-lab clean`")

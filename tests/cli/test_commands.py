@@ -80,6 +80,7 @@ def test_help_json_inventory() -> None:
     assert "commands" in data
     paths = {c["path"] for c in data["commands"]}
     assert "status" in paths
+    assert "clean" in paths
     assert "agent list" in paths
     assert "save" in paths
     assert "resume" in paths
@@ -96,6 +97,7 @@ def test_help_json_single_command() -> None:
     assert "options" in data
     assert any("--json" in o["opts"] for o in data["options"])
     assert any("--verbose" in o["opts"] for o in data["options"])
+    assert any("--all" in o["opts"] for o in data["options"])
 
 
 def test_help_json_unknown_command() -> None:
@@ -195,3 +197,45 @@ def test_init_creates_pixi_project(lab_home: Path, monkeypatch: pytest.MonkeyPat
     target = work / "demo"
     assert target.is_dir()
     assert (target / "pixi.toml").is_file() or (target / "pyproject.toml").is_file()
+
+
+def test_clean_dry_run_keeps_caches(lab_home: Path) -> None:
+    pip = lab_home / ".cache" / "pip"
+    pip.mkdir(parents=True)
+    (pip / "wheel").write_text("x", encoding="utf-8")
+    result = runner.invoke(app, ["--json", "clean", "--dry-run"])
+    assert result.exit_code == 0
+    assert pip.is_dir()
+    data = json.loads(result.stdout)
+    removed = [a for a in data["actions"] if a["status"] == "would_remove"]
+    assert any(a["path"].endswith(".cache/pip") for a in removed)
+
+
+def test_clean_yes_deletes_caches_keeps_saves(lab_home: Path) -> None:
+    from tests.helpers import write_manifest
+
+    pip = lab_home / ".cache" / "pip"
+    pip.mkdir(parents=True)
+    (pip / "wheel").write_text("x", encoding="utf-8")
+    save = lab_home / ".astroai" / "lab" / "saves" / "mylab"
+    write_manifest(save, "mylab")
+    cfg = lab_home / ".astroai" / "lab" / "config.yaml"
+    cfg.write_text("default_pm: pixi\n", encoding="utf-8")
+    result = runner.invoke(app, ["clean", "--yes"])
+    assert result.exit_code == 0
+    assert not pip.exists()
+    assert save.is_dir()
+    assert cfg.is_file()
+
+
+def test_clean_yes_saves_and_config(lab_home: Path) -> None:
+    from tests.helpers import write_manifest
+
+    save = lab_home / ".astroai" / "lab" / "saves" / "mylab"
+    write_manifest(save, "mylab")
+    cfg = lab_home / ".astroai" / "lab" / "config.yaml"
+    cfg.write_text("default_pm: pixi\n", encoding="utf-8")
+    result = runner.invoke(app, ["clean", "--yes", "--saves", "--config"])
+    assert result.exit_code == 0
+    assert not save.exists()
+    assert not cfg.exists()

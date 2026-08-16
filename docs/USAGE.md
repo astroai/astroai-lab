@@ -132,7 +132,9 @@ Inspect quotas and home usage:
 
 ```bash
 astroai-lab status
+astroai-lab status --all
 astroai-lab status --json
+astroai-lab clean --yes          # delete package caches on home
 ```
 
 Move data with the platform client:
@@ -178,7 +180,8 @@ vcp ./local.fits vos:…
 | Snapshot env | `astroai-lab save [NAME]` |
 | List snapshots | `astroai-lab save --list` |
 | Restore env | `astroai-lab resume NAME` |
-| Quotas / sessions | `astroai-lab status` |
+| Quotas / sessions | `astroai-lab status` (`--all` for groups/projects) |
+| Free home space | `astroai-lab clean` |
 | Jupyter kernel | `astroai-lab kernel ensure` |
 | Agents | `astroai-lab agent setup\|install\|…` |
 

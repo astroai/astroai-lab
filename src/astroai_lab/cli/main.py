@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from astroai_lab.cli import clean as clean_mod
 from astroai_lab.cli import init_clone_env
 from astroai_lab.cli import status as status_mod
 from astroai_lab.cli.agent_cmd import agent_app
@@ -28,6 +29,7 @@ app = typer.Typer(
 
 init_clone_env.register(app)
 status_mod.register(app)
+clean_mod.register(app)
 app.add_typer(env_app, name="env")
 app.add_typer(config_app, name="config")
 app.add_typer(kernel_app, name="kernel")

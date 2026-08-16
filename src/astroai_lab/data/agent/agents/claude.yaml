@@ -12,6 +12,11 @@ install:
   source: https://claude.ai/install.sh
   post_binary_paths:
   - ~/.local/bin/claude
+config:
+  path: ~/.claude.json
+  format: json
+  markers:
+  - ~/.claude
 verify:
 - claude --version
 plugins:

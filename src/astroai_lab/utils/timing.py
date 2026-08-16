@@ -42,20 +42,20 @@ def call_with_timeout(
     shutdown. A hung CADC/VOSpace call would then freeze ``astroai-lab status``
     after the timeout had already fired. Daemon threads do not block exit.
     """
-    box: list[tuple[str, object]] = []
+    box: list[T] = []
+    err: list[BaseException] = []
 
     def _run() -> None:
         try:
-            box.append(("ok", fn()))
-        except Exception as exc:
-            box.append(("err", exc))
+            box.append(fn())
+        except Exception as exc:  # noqa: BLE001 - re-raise on the caller thread
+            err.append(exc)
 
     thread = threading.Thread(target=_run, name="lab-timeout", daemon=True)
     thread.start()
     thread.join(timeout=timeout_sec)
-    if thread.is_alive() or not box:
+    if thread.is_alive() or not (box or err):
         return default
-    kind, payload = box[0]
-    if kind == "err":
-        raise payload  # type: ignore[misc]
-    return payload  # type: ignore[return-value]
+    if err:
+        raise err[0]
+    return box[0]

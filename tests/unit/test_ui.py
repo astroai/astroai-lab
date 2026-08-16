@@ -31,7 +31,15 @@ def test_status_human(capsys) -> None:
             total="10G",
             free="9G",
             pct=90,
-        )
+        ),
+        QuotaLine(
+            label="othergroup",
+            path="/arc/projects/othergroup",
+            used="1G",
+            total="100G",
+            free="99G",
+            pct=1,
+        ),
     ]
     active = ArcProjectInfo(
         name="mygroup",
@@ -47,11 +55,27 @@ def test_status_human(capsys) -> None:
         ),
         is_cwd=True,
     )
-    ui.status_human(quotas, [(".cache", "1M", "caches")], active, [active], ["proc1"])
+    other = ArcProjectInfo(
+        name="othergroup",
+        path=Path("/arc/projects/othergroup"),
+        quota=quotas[1],
+        is_cwd=False,
+    )
+    ui.status_human(quotas, [(".cache", "1M", "caches")], active, [active, other], ["proc1"])
     combined = _combined(capsys)
     assert "status" in combined.lower()
     assert "mygroup" in combined
     assert "free" in combined.lower()
+    assert "Team projects" not in combined
+    assert "othergroup" not in combined
+    assert "astroai-lab clean" in combined
+
+    ui.status_human(
+        quotas, [(".cache", "1M", "caches")], active, [active, other], ["proc1"], full=True
+    )
+    full = _combined(capsys)
+    assert "Team projects" in full
+    assert "othergroup" in full
 
 
 def test_print_helpers(capsys) -> None:

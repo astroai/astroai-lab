@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-from astroai_lab.agent.agent_targets import expand_home
+from astroai_lab.agent.agent_targets import AGENT_SKILL_DIRS, expand_home, mcp_target
 from astroai_lab.agent.bundle_path import bundle_root
 from astroai_lab.errors import LabError
 
@@ -211,6 +211,60 @@ def probe_launch(binary: str, *, timeout: float | None = None) -> str | None:
     return None
 
 
+def _path_has_state(path: Path) -> bool:
+    """True when path is a file or a non-empty directory."""
+    try:
+        if path.is_file() or path.is_symlink():
+            return path.exists()
+        if path.is_dir():
+            return any(path.iterdir())
+    except OSError:
+        return False
+    return False
+
+
+def config_state_paths(agent: dict[str, Any], home: Path) -> list[Path]:
+    """On-disk locations that mean this agent has been configured or logged in.
+
+    Declared ``config.path`` is the settings file ``agent config`` edits.
+    Login state often lives next to it (parent dir) or under ``~/.<id>``,
+    ``~/.config/<id>``, an MCP target, or a skills tree — agy stores settings
+    under ``~/.gemini/antigravity-cli`` and auth in the OS keyring.
+    """
+    home_resolved = home.resolve()
+    seen: set[Path] = set()
+    out: list[Path] = []
+
+    def add(path: Path) -> None:
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen or key == home_resolved:
+            return
+        seen.add(key)
+        out.append(path)
+
+    config = agent.get("config") or {}
+    if config.get("path"):
+        cfg = expand_home(str(config["path"]), home)
+        add(cfg)
+        add(cfg.parent)
+    for marker in config.get("markers") or []:
+        add(expand_home(str(marker), home))
+    aid = str(agent["id"])
+    target = mcp_target(aid)
+    if target is not None:
+        add(home / target.relpath)
+    skill_rel = AGENT_SKILL_DIRS.get(aid)
+    if skill_rel:
+        skill = Path(skill_rel)
+        add(home / (skill.parent if skill.parts[0] == ".config" else skill.parts[0]))
+    add(home / f".{aid}")
+    add(home / ".config" / aid)
+    return out
+
+
 def registry_agent_status(
     agent: dict[str, Any],
     home: Path | None = None,
@@ -234,11 +288,12 @@ def registry_agent_status(
     config = agent.get("config") or {}
     cfg_path: Path | None = None
     config_declared = bool(config.get("path"))
-    # No config declared → N/A (ok for health; table shows "-" like missing).
-    config_ok = True
     if config_declared:
         cfg_path = expand_home(str(config["path"]), home)
-        config_ok = cfg_path.is_file()
+    config_present = any(_path_has_state(p) for p in config_state_paths(agent, home))
+    # Declared settings file missing is still ok when login/state dirs exist
+    # (agy writes settings sparsely; auth lives in the keyring).
+    config_ok = config_present if config_declared else True
     version = probe_version(probe_name) if (probe_ver and binary_ok) else None
     return {
         "id": agent["id"],
@@ -252,6 +307,7 @@ def registry_agent_status(
         "config": str(cfg_path) if cfg_path else "",
         "config_ok": config_ok,
         "config_declared": config_declared,
+        "config_present": config_present,
         "installed": binary_ok and (config_ok if config_declared else binary_ok),
         "version": version,
         "summary": agent.get("summary", ""),
@@ -296,12 +352,12 @@ def registry_verify_issues(
             issues.append(f"{agent['name']} config missing ({status['config']})")
         elif status.get("config") and agent.get("config", {}).get("path"):
             fmt = str((agent.get("config") or {}).get("format", "json"))
-            if fmt != "markdown":
+            cfg = Path(status["config"])
+            if fmt != "markdown" and cfg.is_file():
                 # Present config: catch broken syntax so repair has something to fix.
                 from astroai_lab.agent import agent_config as agent_config_mod
                 from astroai_lab.errors import LabError as _LabError
 
-                cfg = Path(status["config"])
                 try:
                     text = cfg.read_text(encoding="utf-8", errors="replace")
                     agent_config_mod.validate_config_text(agent["id"], text, home=home)

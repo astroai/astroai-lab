@@ -68,14 +68,20 @@ astroai-lab resume mylab --to /srcdir/mylab --from /arc/projects/team/env-saves/
 
 ### `astroai-lab status`
 
-Quotas, home breakdown, team project membership, CANFAR auth/sessions, and top processes.
+Session CPU, memory, home disk, the team project you are in, and your
+CANFAR sessions.
+
+Default view hides groups, other team projects, and disk quotas you are
+not using. Home folder sizes stay. `--all` shows everything. `--json` is
+always complete.
 
 Home quota uses Ceph directory xattrs (`ceph.quota.max_bytes` + `ceph.dir.rbytes`) when present. `df` on `/arc/home` is the shared filesystem, not the user quota, so it is not used for the home percentage. Home breakdown never recursively walks `~/.cache` (that hangs on Ceph); it uses `rbytes` or a timed `du`.
 
-Remote probes (GMS, VOSpace, `getfacl`, `canfar`) have short timeouts so a stalled CADC call cannot freeze the command.
+Remote probes (GMS, VOSpace, `getfacl`, `canfar`) have short timeouts so a stalled CADC call cannot freeze the command. Default `status` skips GMS/vault/listing every `/arc/projects` dir.
 
 ```bash
 astroai-lab status
+astroai-lab status --all
 astroai-lab status --json
 astroai-lab status -v          # probe timings on stderr
 ```
@@ -91,6 +97,21 @@ Each **`arc_projects[]`** entry includes `access` (`rw`/`ro`), `acl_groups` (fro
 **`vault`:** `{service, source, auth, nodes[]}` from the vos API (`vault:/<name>`). Vault quotas may also appear in `quotas` as `"<name> (vault)"`.
 
 Requires optional tools on PATH: `getfacl`, `cadc-groups` (CADC venv), `vos` — all ship in AstroAI session images.
+
+### `astroai-lab clean`
+
+Delete package caches on home (pip, uv, pixi, …) that fill `/arc/home`.
+
+`--yes` deletes caches only. They come back the next time you install a
+package. Saved environments and lab preferences need `--saves` / `--config`,
+or a yes at the prompt. Agent logins are `astroai-lab agent wipe`.
+
+```bash
+astroai-lab clean
+astroai-lab clean --yes
+astroai-lab clean --yes --saves
+astroai-lab clean --dry-run
+```
 
 ### `astroai-lab help`
 
@@ -165,7 +186,7 @@ configs stay on `$HOME` (/arc/home). Some ids still install via battle-tested
 
 | Command | What it does |
 |---------|----------------|
-| `agent list` | Installable agents: binary / settings file / where (scratch, home, image) / version. `--description` for summaries; `--ui` for container endpoints |
+| `agent list` | Installable agents: installed / logged in / where (scratch, home, image) / version. `--description` for summaries; `--ui` for container endpoints |
 | `agent install NAME` | Download a CLI binary onto scratch |
 | `agent remove NAME` | Uninstall managed CLI on scratch (`--clean-home` for `$HOME` CLIs; `--purge` for config dirs) |
 | `agent wipe` | Factory reset: remove every agent settings file, binary, and state; confirmation or `--yes` |

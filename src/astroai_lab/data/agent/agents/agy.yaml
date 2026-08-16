@@ -12,6 +12,11 @@ install:
   source: https://antigravity.google/cli/install.sh
   post_binary_paths:
   - ~/.local/bin/agy
+config:
+  path: ~/.gemini/antigravity-cli/settings.json
+  format: json
+  markers:
+  - ~/.gemini/antigravity-cli
 verify:
 - agy --version
 plugins:
@@ -19,3 +24,4 @@ plugins:
 - mcp
 - config
 - addon
+notes: Settings at ~/.gemini/antigravity-cli/; login tokens live in the OS keyring.
