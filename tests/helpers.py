@@ -28,7 +28,7 @@ def write_manifest(
         name=name,
         kind=kind,
         saved_at="20250101T000000Z",
-        saved_from="/srcdir/" + name,
+        saved_from="/scratch/src/" + name,
         user="testuser",
         full=full,
     )

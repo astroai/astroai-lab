@@ -5,7 +5,7 @@ alwaysApply: true
 
 # CANFAR lab session layout
 
-- **Code + env:** `${WORK:-/srcdir}` — ephemeral; `git push` or `astroai-lab save` before the session ends.
+- **Code + env:** `$WORK` (`$SCRATCH/src` on CANFAR) — ephemeral; `git push` or `astroai-lab save` before the session ends.
 - **Data + download caches:** `${SCRATCH:-/scratch}` when mounted — session-private.
 - **Platform Python CLIs:** `/opt/astroai/venv/cadc` (`canfar`, `cadcget`, `astroai-lab`) — user-writable this session via `upgrade-cadc-tools.sh`.
 - **Persistent home:** `/arc` — agent MCP under `~/.cursor`, saves under `~/.astroai/lab`, gh auth.

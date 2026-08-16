@@ -236,7 +236,7 @@ def register(app: typer.Typer) -> None:
             astroai-lab resume mylab
             astroai-lab resume mylab --yes
             astroai-lab resume mylab --from /arc/projects/group/env-saves
-            astroai-lab resume mylab --to /srcdir/mylab --from /arc/projects/group/env-saves/mylab
+            astroai-lab resume mylab --to $WORK/mylab --from /arc/projects/group/env-saves/mylab
         """
         from astroai_lab.core.project import resolve_save_dir, restore_env
 
