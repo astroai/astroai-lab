@@ -69,9 +69,7 @@ def test_scratch_overrides_image_build_env(tmp_path: Path, monkeypatch: pytest.M
     assert env.pixi_home == env.astroai_lab_runtime_root / "pixi"
 
 
-def test_package_caches_never_land_on_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_package_caches_never_land_on_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """XDG/uv/pixi/rattler caches stay off $HOME even when the platform sets them there."""
     work, scratch = _scratch_session(tmp_path, monkeypatch)
     home = tmp_path / "home"

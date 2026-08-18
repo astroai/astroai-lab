@@ -242,8 +242,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "cluster_check",
         "description": (
-            "See if the Ray cluster is up, whether workers have joined, and "
-            "the Dashboard path."
+            "See if the Ray cluster is up, whether workers have joined, and the Dashboard path."
         ),
         "inputSchema": {
             "type": "object",

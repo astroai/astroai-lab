@@ -996,9 +996,7 @@ def dashboard_cmd_proxy(
 
     url = resolve_dashboard_url(address)
     if not url:
-        raise typer.BadParameter(
-            "No dashboard URL resolvable (see `astroai cluster dashboard`)."
-        )
+        raise typer.BadParameter("No dashboard URL resolvable (see `astroai cluster dashboard`).")
     if url.endswith("/dashboard"):
         url = url[: -len("/dashboard")] + "/"
     elif not url.endswith("/"):
@@ -1042,9 +1040,7 @@ def dashboard_cmd_iframe(
 
     url = resolve_dashboard_url(address)
     if not url:
-        raise typer.BadParameter(
-            "No dashboard URL resolvable (see `astroai cluster dashboard`)."
-        )
+        raise typer.BadParameter("No dashboard URL resolvable (see `astroai cluster dashboard`).")
     print(dashboard_iframe_html(url, height=height))
 
 

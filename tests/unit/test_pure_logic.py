@@ -515,9 +515,7 @@ class TestSessionCachePath:
         )
         assert result == default  # redirected from system path even with scratch
 
-    def test_home_path_redirected(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_home_path_redirected(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         work = tmp_path / "work"
         work.mkdir()
         home = tmp_path / "home"
