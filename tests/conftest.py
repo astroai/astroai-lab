@@ -30,6 +30,9 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Version probes can hang on some installed CLIs; keep unit tests offline.
     monkeypatch.setenv("ASTROAI_LAB_PROBE_VERSION", "0")
+    # CI=1 makes Rich split `--flag` across ANSI codes; help substring tests miss.
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
 
     # get_settings() caches a pydantic model that snapshots env vars at first
     # call; clear it so a previous test's monkeypatched WORK/SCRATCH cannot
