@@ -60,6 +60,48 @@ def test_agent_verify_fresh_home_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert issues == []
 
 
+def test_agent_verify_goose_scaffold_without_provider_ok(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Installed goose + lab scaffold must not fail verify for missing provider.
+
+    ``goose configure`` writes GOOSE_PROVIDER/GOOSE_MODEL; ``verify --fix``
+    cannot. Blocking on those keys made post-install ``verify --fix --all``
+    fail on every image that actually installed goose.
+    """
+    home = tmp_path / "home"
+    cfg = home / ".config" / "goose"
+    cfg.mkdir(parents=True)
+    (cfg / "config.yaml").write_text(
+        "# AstroAI lab — run: goose configure\nextensions: {}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HOME", str(home))
+
+    def _classify(binary: str, *, home=None):
+        if binary == "goose":
+            return {
+                "binary": binary,
+                "path": "/tmp/goose",
+                "source": "managed",
+                "managed": True,
+                "home_install": False,
+                "home_path": None,
+            }
+        return {
+            "binary": binary,
+            "path": None,
+            "source": "missing",
+            "managed": False,
+            "home_install": False,
+            "home_path": None,
+        }
+
+    monkeypatch.setattr("astroai_lab.agent.install.classify_binary", _classify)
+    issues = verify_setup(home)
+    assert not any("Goose provider" in i for i in issues)
+
+
 def test_agent_verify_cursor_required_when_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

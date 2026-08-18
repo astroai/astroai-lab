@@ -95,8 +95,8 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
     fast; ``agent verify`` turns it on to exercise installed CLIs.
 
     Fresh homes with no agents installed pass (no Cursor MCP nag). Presence
-    checks for Cursor / Claude / OpenCode / Goose only run when that agent's
-    binary is on PATH.
+    checks for Cursor / Claude / OpenCode only run when that agent's binary
+    is on PATH. Goose provider/model is left to ``goose configure``.
     """
     from astroai_lab.agent.install import classify_binary, tool_binary
     from astroai_lab.agent.registry import (
@@ -156,18 +156,6 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
                 issues.extend(opencode_config_issues(data))
         except (OSError, ValueError, json.JSONDecodeError):
             pass
-
-    if _agent_installed("goose"):
-        goose_cfg = home / ".config" / "goose" / "config.yaml"
-        if goose_cfg.is_file():
-            try:
-                text = goose_cfg.read_text(encoding="utf-8")
-                if "GOOSE_PROVIDER:" not in text or "GOOSE_MODEL:" not in text:
-                    issues.append(
-                        "Goose provider not fully configured (~/.config/goose/config.yaml)"
-                    )
-            except OSError:
-                pass
 
     marimo = home / ".marimo.toml"
     if marimo.is_file():
