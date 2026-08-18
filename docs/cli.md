@@ -1,12 +1,12 @@
 # CLI reference
 
-Power-user reference for **`astroai`** (in-session workbench). Platform
-session lifecycle uses the separate **`canfar`** CLI —
-[opencadc.github.io/canfar](https://opencadc.github.io/canfar/).
+Power-user reference for **`astroai`**. Session create/delete and archive I/O
+use **`canfar`** — [opencadc.github.io/canfar](https://opencadc.github.io/canfar/).
 
-`astroai` is intentionally small: **environment save/resume** plus **AI
-agent management**, with a few supporting commands (session status, notebook
-kernel, shell env export).
+`astroai` is the in-session CLI: project env (`init` / `save` / `resume`),
+Ray cluster and jobs (`cluster` / `run` / `jobs`), agents, kernels, and
+session status. `astroai status` is this session’s quota. `astroai cluster check`
+is whether the Ray cluster is up.
 
 Global flags (most commands accept these **before** the subcommand, e.g. `astroai --json status`. Several commands also accept the same flags **after** the subcommand name — see examples below):
 
@@ -49,38 +49,51 @@ astroai clone owner/repo --to $WORK/custom
 
 ### `astroai run SCRIPT`
 
-Submit a Ray job (`--cpus`, `--gpus`, `--wait`, `--logs`). Needs
-`ASTROAI_RAY_JOBS_ADDRESS` (set by `cluster start` or the image).
+Run a Python script on the Ray cluster and wait until it finishes. Needs
+`ASTROAI_RAY_JOBS_ADDRESS` (printed by `cluster start`; already set inside
+the manager). Do not use `ray job submit`.
 
 ```bash
-astroai run train.py --cpus 2 --wait
+astroai run train.py --cpus 2
+astroai run train.py --cpus 2 --gpus 1 --memory 8GiB
 ```
+
+`--cpus` is what makes an autoscaling cluster add a worker.
 
 ### `astroai cluster`
 
-`start` / `check` / `stop` / `scale` / `dashboard`. `start --autoscaling`
-starts the CANFAR autoscaler. `astroai status` is session quota, not the
-cluster.
+| Command | What it does |
+|---------|----------------|
+| `cluster start --autoscaling` | Usual path. Writes the manager env file, creates the manager if needed, Ray adds `ray-as-*` workers when a job needs CPUs |
+| `cluster start --workers N` | Fixed pool. Do not mix with `--autoscaling` on the same manager |
+| `cluster check` | Up or not, joined workers, Dashboard URL |
+| `cluster scale N` | Grow/shrink a **fixed** pool. `scale 0` stops workers, keeps the manager |
+| `cluster stop` | Destroy every worker. Keeps the manager |
+| `cluster dashboard` | Print the Ray Dashboard URL. `proxy` / `iframe` for notebooks |
 
 ```bash
 astroai cluster start --autoscaling
+astroai cluster start --autoscaling --max-workers 8 --cores 2 --ram 8
+astroai cluster start --workers 2 --gpus 1
 astroai cluster check
+astroai cluster scale 0
+astroai cluster dashboard
 ```
+
+`start` is safe to run again (no second manager). `--json` returns
+`manager_url`, `jobs_address`, `dashboard_url`. Hidden aliases:
+`cluster ensure` → `start`, `cluster status` → `check`, top-level
+`astroai dashboard` → `cluster dashboard`.
 
 ### `astroai jobs`
 
-`list` / `status` / `logs` / `wait` / `cancel` / `submit`. Same Ray Jobs
-API as `run`.
+`list` / `status` / `logs` / `wait` / `cancel` / `submit`. Same Jobs API as `run`.
 
 ```bash
 astroai jobs list
+astroai jobs submit --cmd 'python -m mosaic.stack' --wait
 astroai jobs logs <id> --follow
 ```
-
-### `astroai cluster dashboard`
-
-Ray Dashboard URL (jobs, nodes, logs). `proxy` / `iframe` for notebooks.
-Hidden aliases: `astroai dashboard …`.
 
 ### `astroai save [NAME]`
 
@@ -288,9 +301,8 @@ jobs) with `$ASTROAI_RAY_JOBS_ADDRESS` resolved at runtime.
 
 ## Not this CLI
 
-Session lifecycle and archive I/O belong to **`canfar`**. Disk and auth
-snapshots are `astroai status`. Env snapshots are `save` / `resume`.
-Notebook starters ship in the image at `/opt/astroai/notebooks/`.
+Session create/delete and archive I/O belong to **`canfar`**. Notebook
+starters ship in the image at `/opt/astroai/notebooks/`.
 
 ## Environment variables
 
@@ -382,7 +394,7 @@ build-time defaults.
 
 | Variable | Purpose |
 |----------|---------|
-| `ASTROAI_LAB_SHELL_DIR` | Dir holding `profile.sh`/`hooks.sh` (default: `/etc/astroai`) |
+| `ASTROAI_LAB_SHELL_DIR` | Dir holding `profile.sh`/`hooks.sh` (default: `/etc/astroai-lab`) |
 | `ASTROAI_LAB_PROFILE_LOADED` | Set by `profile.sh` to avoid double-sourcing |
 | `JUPYTER_CONFIG_DIR` | Jupyter config dir (default: `~/.jupyter`) |
 | `USER` / `HOSTNAME` | Identity labels used by `status` and `agent list --ui` |

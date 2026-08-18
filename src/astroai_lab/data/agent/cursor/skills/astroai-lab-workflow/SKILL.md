@@ -1,13 +1,13 @@
 ---
 name: astroai-lab-workflow
 description: >-
-  AstroAI lab quick reference — setup, pixi/uv, storage, astroai commands.
-  Use for new users or session workflow questions on AstroAI lab.
+  AstroAI session workflow: pixi/uv under $WORK, astroai save/resume,
+  Ray cluster start/run, agents. Use for new users or "how do I work here".
 ---
-# AstroAI lab in 3 commands
+# AstroAI session in a few commands
 
-**Names:** `canfar` = platform sessions/auth; `astroai` = in-session workbench;
-AstroAI = product images/tools; CANFAR = Science Platform host.
+**Names:** `canfar` = platform sessions/auth; `astroai` = in-session CLI
+(env, Ray jobs, agents). AstroAI = product; CANFAR = host platform.
 
 ```bash
 astroai agent setup              # once per user — MCP + skills (persists on /arc)
@@ -29,8 +29,11 @@ astroai clone --from-env ml-base owner/repo   # warm caches from saved stack
 cd "${WORK}/mylab"
 pixi install                     # or uv sync
 pixi run python analysis.py
-astroai save                  # snapshot env before session ends
-astroai save mylab --to /arc/projects/<team>/env-saves/mylab
+astroai save
+
+astroai cluster start --autoscaling
+astroai run train.py --cpus 2
+astroai cluster check
 ```
 
 Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subcommand:
@@ -51,7 +54,7 @@ Global flags (`--json`, `--yes`, `--dry-run`) work **before or after** the subco
 
 ```bash
 upgrade-cadc-tools.sh list
-upgrade-cadc-tools.sh 'astroai @ git+https://github.com/astroai/lab.git@main'
+upgrade-cadc-tools.sh --upgrade astroai-lab
 astroai status --json
 ```
 
@@ -76,9 +79,9 @@ When showing the user a generated markdown, log, or archive in webterm (or any A
 
 ```bash
 astroai help
-astroai status --json          # quotas, team projects (access/ACL/GMS/vault), canfar auth/ps
-astroai save --list --json     # saved environments
-astroai agent list             # agent CLIs, config bundles, skills
-astroai agent verify           # configs present + parseable
+astroai cluster check
+astroai status --json          # quotas, team projects, canfar auth/ps
+astroai save --list --json
+astroai agent list
 less /opt/astroai/USAGE.md
 ```

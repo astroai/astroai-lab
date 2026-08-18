@@ -1,28 +1,27 @@
 # astroai usage
 
-**astroai-lab** is the in-session workbench for AstroAI sessions on the
-[CANFAR Science Platform](https://www.opencadc.org/canfar/). One binary,
-`astroai`: environment save/resume, AI agents, and the Ray cluster
-(`cluster start` / `run`).
+**`astroai`** is the in-session CLI on AstroAI images
+([CANFAR Science Platform](https://www.opencadc.org/canfar/)).
 
-It works alongside:
+It does project environments (`init` / `save` / `resume`), the Ray cluster
+(`cluster start` / `run`), agents, kernels, and session status.
 
 | Tool | Role |
 |------|------|
-| [`canfar`](https://github.com/opencadc/canfar) | Platform auth, session lifecycle, `canfar data` archive I/O |
-| CADC clients (`cadcget`, `cadc-tap`, `vcp`, …) | Archive and VOSpace I/O in session images |
+| [`canfar`](https://github.com/opencadc/canfar) | Auth, session lifecycle, `canfar data` |
+| CADC clients (`cadcget`, `vcp`, …) | Archive and VOSpace I/O |
 | [Session images](https://github.com/astroai/astroai-containers) | `webterm`, `notebook`, `vscode`, `marimo`, Ray |
 
 | Doc | Scope |
 |-----|--------|
-| **USAGE.md** (this file) | Narrative: where to work, storage, workflows |
-| [help.md](help.md) | Short session loop |
-| [cli.md](cli.md) | Full CLI reference |
+| **USAGE.md** (this file) | Where to work, storage, Ray, agents |
+| [help.md](help.md) | Cheat sheet |
+| [cli.md](cli.md) | Flags and every command |
 | [config.md](config.md) | Optional `~/.astroai/lab/config.yaml` |
 
 In a session: `astroai help` · `less /opt/astroai/USAGE.md` (image user guide).
 
-Platform docs: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)
+Platform: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)
 
 ---
 
@@ -35,55 +34,42 @@ flowchart TB
     CF["canfar login / create / ps"]
   end
   subgraph session [AstroAI session]
-    AL[astroai-lab]
+    AL[astroai]
     PM[pixi / uv]
     NB[Jupyter / marimo]
     CADC[vcp / cadcget / …]
+    Ray[Ray jobs]
   end
   SP --> session
   CF --> session
   AL --> PM
   AL --> NB
   AL --> CADC
+  AL --> Ray
 ```
 
 | Where | What you do | Tools |
 |-------|-------------|--------|
-| **Laptop / browser** | Log in, start and stop sessions | Science Portal, or `canfar login` / `canfar create` / `canfar ps` |
+| **Laptop / browser** | Log in, start and stop sessions | Science Portal, or `canfar login` / `create` / `ps` |
 | **Inside a session** | Code, notebooks, training, agents | `astroai`, Jupyter, pixi/uv, CADC clients |
 
-`astroai` commands run **inside** the session (terminal, notebook cell, or VS Code).
+### Notebook-first
 
-### Student path (notebook-first)
-
-1. Open the [Science Portal](https://www.canfar.net/science-portal) → launch **notebook** or **marimo** (pick a GPU node only if you need a GPU).
-2. **Jupyter:** open `/opt/astroai/notebooks/starter.ipynb` and select the AstroAI kernel (`astroai kernel ensure` if needed).
-3. **Marimo:** the session opens `$WORK/notebooks/starter.py` (seeded once).
-4. Run `astroai status` to check paths and quotas.
-5. Keep long-lived results with `canfar data` or `vcp` to VOSpace.
-6. Later: `astroai init` / `clone` plus pixi or uv for project environments.
-
-VOSpace: use **`vls` / `vcp`** from the image (or the interim Vault widget in the
-marimo starter). There is no separate `astroai` VOSpace wrapper.
+1. [Science Portal](https://www.canfar.net/science-portal) → **notebook** or **marimo**.
+2. Jupyter: `/opt/astroai/notebooks/starter.ipynb` (kernel: `astroai kernel ensure`).
+3. Marimo: `$WORK/notebooks/starter.py`.
+4. `astroai status` for paths and quotas.
+5. Keep results with `canfar data` or `vcp`. There is no `astroai` VOSpace wrapper.
 
 ---
 
 ## Install
 
-Session images ship `astroai` on PATH under `/opt/astroai/venv/cadc`.
-
-Elsewhere (GitHub; not required for portal users):
+Images ship `astroai` on PATH (`/opt/astroai/venv/cadc`).
 
 ```bash
 uv tool install git+https://github.com/astroai/lab.git
-pip install "git+https://github.com/astroai/lab.git"
-```
-
-Development checkout:
-
-```bash
-uv sync --all-extras
-uv run astroai --help
+uv sync --all-extras && uv run astroai --help
 ./scripts/ci.sh
 ```
 
@@ -99,24 +85,16 @@ pixi run python -c "import numpy; print(numpy.__version__)"
 astroai save mylab
 ```
 
-Clone an existing GitHub repo (needs `gh auth login` once):
+Clone (needs `gh auth login` once):
 
 ```bash
 astroai clone owner/repo
 astroai clone owner/a owner/b
-astroai clone --from-env mylab owner/repo   # optional: warm from a named save
+astroai clone --from-env mylab owner/repo
 ```
 
-The env snapshot (`save`) writes lockfiles + manifest to `~/.astroai/lab/saves/`
-on `/arc/home`, so a future session can `resume` it:
-
-```mermaid
-flowchart TD
-  I[init or clone] --> W[Edit and run under $WORK]
-  W --> S[save]
-  S --> W
-  S --> R[resume in the next session]
-```
+`save` writes lockfiles to `~/.astroai/lab/saves/` on `/arc/home`. The next
+session `resume`s that snapshot.
 
 ---
 
@@ -124,32 +102,51 @@ flowchart TD
 
 | Tier | Env / path | Lifetime | Use for |
 |------|------------|----------|---------|
-| Work | `WORK` (`$SCRATCH/src` on CANFAR) | Session (survives container OOM) | Source trees, pixi/uv projects |
-| Scratch | `SCRATCH` (`/scratch`) | Session | Datasets, build caches, temp |
-| Home | `/arc/home/<you>` | Persistent | Config, `~/.astroai/lab/saves/`, certs |
-| Projects | `/arc/projects/<group>` | Persistent | Shared data and team env-saves |
-
-Inspect quotas and home usage:
+| Work | `WORK` (`$SCRATCH/src` on CANFAR) | Session (survives container OOM) | Source, pixi/uv projects |
+| Scratch | `SCRATCH` (`/scratch`) | Session | Datasets, caches |
+| Home | `/arc/home/<you>` | Persistent | Config, saves, certs |
+| Projects | `/arc/projects/<group>` | Persistent | Shared data and team saves |
 
 ```bash
 astroai status
 astroai status --all
-astroai status --json
-astroai clean --yes          # delete ~/.cache (and a few extra cache dirs) on home
-```
-
-Move data with the platform client:
-
-```bash
-canfar data …        # archive I/O
+astroai clean --yes          # ~/.cache on home (not scratch caches)
+canfar data …
 vcp ./local.fits vos:…
 ```
 
 ---
 
-## Working with `canfar` and CADC
+## Ray cluster and jobs
 
-From a laptop or any AstroAI session:
+Usual path: one autoscaling manager, then a job with `--cpus`. Same as
+AstroAI hub **Start batch compute**.
+
+```bash
+astroai cluster start --autoscaling
+export ASTROAI_RAY_JOBS_ADDRESS=…    # printed by start; skip inside the manager
+astroai run train.py --cpus 2
+astroai cluster check
+```
+
+`--workers N` is a fixed pool. Do not mix it with `--autoscaling` on the
+same manager. `astroai status` is this session’s quota, not the cluster.
+
+```bash
+astroai cluster start --workers 2
+astroai cluster scale 0              # stop workers, keep the manager
+astroai cluster stop
+astroai cluster dashboard            # Ray Dashboard URL
+astroai jobs list
+```
+
+Do not use `ray job submit`. The job command is `astroai run`.
+Manager memory **≥8 GiB**. Shared data on `/arc`; `/scratch` is per-pod.
+More: [containers RAY.md](https://github.com/astroai/astroai-containers/blob/main/docs/RAY.md).
+
+---
+
+## Working with `canfar`
 
 ```bash
 canfar login
@@ -157,17 +154,11 @@ canfar create --name demo webterm
 canfar ps
 canfar open <session-id>
 canfar delete <session-id>
-```
-
-CADC / VOSpace examples (image PATH):
-
-```bash
 cadcget …
 vls vos:…
-vcp ./local.fits vos:…
 ```
 
-`astroai status` includes `canfar auth show` and `canfar ps` when the CLI is available.
+`astroai status` includes `canfar auth show` and `canfar ps` when `canfar` is on PATH.
 
 ---
 
@@ -175,100 +166,53 @@ vcp ./local.fits vos:…
 
 | Goal | Command |
 |------|---------|
-| Status banner | `astroai` |
+| Banner | `astroai` |
 | New project | `astroai init NAME` |
 | Clone + install | `astroai clone REPO` |
 | Snapshot env | `astroai save [NAME]` |
-| List snapshots | `astroai save --list` |
 | Restore env | `astroai resume NAME` |
-| Quotas / sessions | `astroai status` (`--all` for groups/projects) |
+| This session’s quota | `astroai status` |
 | Free home space | `astroai clean` |
+| Start Ray cluster | `astroai cluster start --autoscaling` |
+| Is the cluster up? | `astroai cluster check` |
+| Run a job | `astroai run SCRIPT --cpus N` |
 | Jupyter kernel | `astroai kernel ensure` |
-| Agents | `astroai agent setup\|install\|…` |
+| Agents | `astroai agent setup` / `install` / `verify` |
 
-Full flags: [cli.md](cli.md).
+Flags: [cli.md](cli.md).
 
 ---
 
 ## Shell completion
 
-Enable tab-completion once per shell (bash, zsh, or fish):
-
 ```bash
 astroai --install-completion bash   # or zsh, fish
+astroai help -c "agent l"<TAB>
+astroai agent install <TAB>
 ```
-
-Completions cover **command paths** and **option values** where they are
-enumerable, so you rarely need to guess or re-read `help`:
-
-- **Command paths** for `help -c` — type a prefix and press Tab:
-
-  ```bash
-  astroai help -c "agent l"<TAB>    # → agent list
-  astroai help -c env<TAB>          # → env export
-  ```
-
-
-- **Registered kernel names** for `kernel unregister` / `kernel ensure --name`:
-
-  ```bash
-  astroai kernel unregister <TAB>   # → kernels you have registered
-  ```
-
-- **Installable CLIs** for `agent install`, **bundles + registered agent ids**
-  for `agent setup`, **registered agent ids** for `agent config`/`agent update`,
-  and **plugin ids** for `agent plugins install`:
-
-  ```bash
-  astroai agent install <TAB>       # → kilo, goose, opencode, …
-  astroai agent setup <TAB>         # → cursor, claude, hermes, …
-  astroai agent config <TAB>        # → kilo, goose, hermes, openclaw, …
-  astroai agent plugins install <TAB>  # → ponytail, polars, …
-  ```
-
-- **`--kind` filters** for `agent plugins list`:
-
-  ```bash
-  astroai agent plugins list --kind <TAB>  # → skill, mcp, …
-  ```
 
 ---
 
 ## AI coding agents
 
-Configs/skills persist under `/arc` home; CLI binaries install to `$SCRATCH` (`$ASTROAI_LAB_BIN_DIR`).
-
-**`agent list` is the installable set.** Each agent is one YAML file
-(`data/agent/agents/<id>.yaml`): how it installs, where config lives, how it
-verifies. `agent list` / `install` / `remove` share that set. Configs stay on
-`$HOME`; CLIs go to scratch.
+Configs stay on `/arc` home. CLI binaries go to `$SCRATCH` (`$ASTROAI_LAB_BIN_DIR`).
 
 ```bash
-astroai agent list             # installable agents (Bin / Cfg / Where / Ver)
-astroai agent install kilo     # CLI → $SCRATCH (also: cursor, claude, goose, …)
-astroai agent remove kilo      # managed scratch CLI; --clean-home for $HOME copies
-astroai agent remove kilo --purge  # also drop config dirs (~/.config/kilo, …)
-astroai agent wipe             # factory reset (confirm or --yes; --dry-run to preview)
-astroai agent setup hermes     # settings scaffold + skills + plugins
-astroai agent setup --all      # same for every managed install
-astroai agent setup --project  # per-repo AGENTS.md + .cursor scaffold
-astroai agent config hermes    # show/edit $HOME settings (key=value / --unset)
-astroai agent plugins list     # Kind / On / Def / Agents; --description for summaries
+astroai agent list
+astroai agent install kilo
+astroai agent setup hermes
+astroai agent setup --all
 astroai agent plugins install ponytail
-astroai agent update           # after upgrading lab in-session
-astroai agent update hermes    # refresh ONE agent
-astroai agent verify           # config syntax + presence checks
-astroai agent verify --fix     # auto-repair, then re-check
-astroai agent verify --clean    # clear stale locks / markers
+astroai agent update
+astroai agent verify --fix
 ```
 
-Upgrade lab in a running session (no image rebuild): see “Writable CADC venv”
-in astroai-containers CONTRIBUTING, or:
+Upgrade lab in a running session (no image rebuild):
 
 ```bash
 uv pip install --python /opt/astroai/venv/cadc \
   "git+https://github.com/astroai/lab.git@main"
-# then open a new shell / `hash -r` so PATH picks up the new entrypoint
+hash -r
 ```
 
 ---
@@ -277,15 +221,16 @@ uv pip install --python /opt/astroai/venv/cadc \
 
 | Symptom | What to run |
 |---------|-------------|
-| Paths look wrong / caches under `$HOME` | `astroai env export` in a login shell (`bash -l`) |
+| Paths / caches under `$HOME` | `astroai env export` in a login shell (`bash -l`) |
 | Env save failed | `astroai status` (quota) |
-| Kernel missing in Jupyter | `astroai kernel ensure` |
-| `canfar` unknown | Confirm you are on an AstroAI image |
-| All command help | `astroai help` |
+| Cluster not up | `astroai cluster check`, then `cluster start --autoscaling` |
+| Kernel missing | `astroai kernel ensure` |
+| `canfar` unknown | You are not on an AstroAI image |
+| All help | `astroai help` |
 
 ---
 
 ## See also
 
-- [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md) — images, portal session types
+- [astroai-containers USAGE](https://github.com/astroai/astroai-containers/blob/main/docs/USAGE.md)
 - [CANFAR client docs](https://opencadc.github.io/canfar/)
