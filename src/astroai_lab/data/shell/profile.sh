@@ -9,6 +9,21 @@ if [[ -n "${ASTROAI_LAB_PROFILE_LOADED:-}" ]]; then
 fi
 ASTROAI_LAB_PROFILE_LOADED=1
 
+# Stderr → canfar logs. Also ~/.astroai/lab/boot.log on shared home.
+astroai_boot_log() {
+    local ts sid kind line dir
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '?')"
+    sid="${skaha_sessionid:-${SKAHA_SESSIONID:-?}}"
+    kind="${ASTROAI_SESSION_KIND:-?}"
+    line="${ts} sid=${sid} pid=$$ kind=${kind} $*"
+    echo "[astroai-boot] ${line}" >&2 || true
+    dir="${ASTROAI_LAB_CONFIG_DIR:-${HOME}/.astroai/lab}"
+    mkdir -p "${dir}" 2>/dev/null || return 0
+    echo "${line}" >> "${dir}/boot.log" 2>/dev/null || true
+}
+
+astroai_boot_log "profile:start"
+
 if command -v astroai >/dev/null 2>&1; then
     _astroai_lab_cli="astroai"
 elif [[ -x /opt/astroai/venv/cadc/bin/astroai ]]; then
@@ -16,10 +31,12 @@ elif [[ -x /opt/astroai/venv/cadc/bin/astroai ]]; then
 fi
 
 if [[ -n "${_astroai_lab_cli:-}" ]]; then
+    astroai_boot_log "profile:env export"
     # shellcheck disable=SC1090
     eval "$("${_astroai_lab_cli}" env export)" || {
         echo "astroai env export failed — session paths may be incomplete" >&2
     }
+    astroai_boot_log "profile:env export done"
 else
     echo "astroai: command not found — session paths may be incomplete" >&2
 fi
@@ -36,9 +53,11 @@ alias ll="ls -alF"
 alias la="ls -A"
 
 if [[ -n "${BASH_VERSION:-}" ]]; then
+    astroai_boot_log "profile:completions"
     command -v uv >/dev/null 2>&1 && eval "$(uv generate-shell-completion bash)"
     command -v pixi >/dev/null 2>&1 && eval "$(pixi completion --shell bash)"
     command -v gh >/dev/null 2>&1 && eval "$(gh completion -s bash)"
     command -v rg >/dev/null 2>&1 && eval "$(rg --generate complete-bash)"
     command -v fzf >/dev/null 2>&1 && eval "$(fzf --bash)"
 fi
+astroai_boot_log "profile:done"
