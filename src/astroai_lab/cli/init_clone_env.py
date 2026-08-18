@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Annotated
 
@@ -13,6 +14,47 @@ from astroai_lab.core.git import git_init_and_commit
 from astroai_lab.core.paths import resolve_paths
 from astroai_lab.core.project import format_dir_size, require_project, save_env, save_rows
 from astroai_lab.errors import LabError
+from astroai_lab.utils.subprocess import run_capture
+
+_DEFAULT_CLONE_ORG = "astroai"
+
+
+def _gh_login() -> str | None:
+    try:
+        login = run_capture(["gh", "api", "user", "-q", ".login"])
+    except LabError:
+        return None
+    return login or None
+
+
+def _gh_repo_exists(spec: str) -> bool:
+    result = subprocess.run(
+        ["gh", "repo", "view", spec, "--json", "name"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def resolve_clone_spec(spec: str) -> str:
+    """Pass through owner/name. A bare name tries $gh-user then astroai."""
+    if "/" in spec:
+        return spec
+    owners: list[str] = []
+    login = _gh_login()
+    if login:
+        owners.append(login)
+    if _DEFAULT_CLONE_ORG not in owners:
+        owners.append(_DEFAULT_CLONE_ORG)
+    tried = [f"{owner}/{spec}" for owner in owners]
+    for candidate in tried:
+        if _gh_repo_exists(candidate):
+            return candidate
+    raise LabError(
+        f"No GitHub repo {spec!r} under {' or '.join(tried)}",
+        hint="Pass owner/name, or `gh auth login` so your user is tried first.",
+    )
 
 
 def _print_save_list(*, json_output: bool, root: Path) -> None:
@@ -68,24 +110,33 @@ def register(app: typer.Typer) -> None:
         """Create a new pixi or uv project under the work directory.
 
         Examples:
-            astroai-lab init mylab
-            astroai-lab init mylab --uv
+            astroai init mylab
+            astroai init mylab --uv
         """
         _init_impl(ctx, name, uv_project, no_git, no_gh)
 
     @app.command()
     def clone(
         ctx: typer.Context,
-        repo: Annotated[str, typer.Argument(help="GitHub repo as owner/name.")],
-        target: Annotated[Path | None, typer.Argument()] = None,
+        repos: Annotated[
+            list[str] | None,
+            typer.Argument(help="GitHub repo(s): owner/name, or a name (your user, then astroai)."),
+        ] = None,
+        to: Annotated[
+            Path | None,
+            typer.Option("--to", help="Destination directory (one repo only)."),
+        ] = None,
         from_env: Annotated[str | None, typer.Option("--from-env")] = None,
         from_path: Annotated[Path | None, typer.Option("--from")] = None,
     ) -> None:
-        """Clone a GitHub repo and install dependencies.
+        """Clone GitHub repo(s) and install dependencies.
 
         Examples:
-            astroai-lab clone myorg/myproject
-            astroai-lab clone --from-env ml-base myorg/myproject
+            astroai clone myproject
+            astroai clone myorg/myproject
+            astroai clone owner/a owner/b
+            astroai clone --from-env ml-base myorg/myproject
+            astroai clone owner/repo --to $WORK/custom
         """
         from astroai_lab.core.project import (
             bootstrap_lock,
@@ -99,6 +150,17 @@ def register(app: typer.Typer) -> None:
         opts = get_opts(ctx)
         settings = get_settings()
         from_env = from_env or settings.clone_from_env
+        names = list(repos or [])
+        if to is None and len(names) >= 2 and "/" not in names[-1]:
+            to = Path(names.pop())
+        if not names:
+            ui.print_error("clone needs a repo name")
+            ui.print_hint("  astroai clone myproject")
+            ui.print_hint("  astroai clone owner/repo")
+            raise typer.Exit(1)
+        if to is not None and len(names) != 1:
+            ui.print_error("--to (or a target directory) only works with one repo")
+            raise typer.Exit(1)
         if from_path and not from_env:
             ui.print_error("--from requires --from-env <name>")
             raise typer.Exit(1)
@@ -106,32 +168,52 @@ def register(app: typer.Typer) -> None:
             ui.print_error("gh required.\n  `gh auth login`")
             raise typer.Exit(1)
         paths = resolve_paths()
-        dest = target or paths.work_dir / repo.rsplit("/", 1)[-1]
-        if dest.exists():
-            ui.print_error(f"Target already exists: {dest}")
-            raise typer.Exit(1)
-        if opts.dry_run:
-            ui.print_ok(f"dry-run: would clone {repo} -> {dest}")
-            if from_env:
-                ui.print_hint(f"  would warm caches from '{from_env}'")
-            return
-        try:
-            save_dir: Path | None = None
-            if from_env:
+        jobs: list[tuple[str, Path]] = []
+        for raw in names:
+            try:
+                repo = resolve_clone_spec(raw)
+            except LabError as exc:
+                ui.print_error(str(exc))
+                raise typer.Exit(1) from exc
+            dest = to if to is not None else paths.work_dir / repo.rsplit("/", 1)[-1]
+            jobs.append((repo, dest))
+
+        failed = 0
+        save_dir: Path | None = None
+        if opts.dry_run and from_env:
+            ui.print_hint(f"  would warm caches from '{from_env}'")
+        if from_env and not opts.dry_run:
+            try:
                 save_dir = resolve_save_dir(from_env, paths.save_dir, from_path)
                 with ui.progress_task(f"Warming caches from '{from_env}'...", quiet=opts.quiet):
                     warm_cache(save_dir)
-            with ui.progress_task(f"Cloning {repo}...", quiet=opts.quiet):
-                run(["gh", "repo", "clone", repo, str(dest)])
-            kind = detect_project(dest)
-            bootstrap = bool(save_dir and kind and bootstrap_lock(save_dir, dest))
-            if kind:
-                with ui.progress_task(f"Installing {kind.value}...", quiet=opts.quiet):
-                    install_project(dest, bootstrap_lock=bootstrap, quiet=opts.quiet)
-        except LabError as exc:
-            ui.print_error(str(exc))
-            raise typer.Exit(1) from exc
-        ui.print_ok(f"Ready: `cd {dest}`")
+            except LabError as exc:
+                ui.print_error(str(exc))
+                raise typer.Exit(1) from exc
+
+        for repo, dest in jobs:
+            if dest.exists():
+                ui.print_error(f"Target already exists: {dest}")
+                failed += 1
+                continue
+            if opts.dry_run:
+                ui.print_ok(f"dry-run: would clone {repo} -> {dest}")
+                continue
+            try:
+                with ui.progress_task(f"Cloning {repo}...", quiet=opts.quiet):
+                    run(["gh", "repo", "clone", repo, str(dest)])
+                kind = detect_project(dest)
+                bootstrap = bool(save_dir and kind and bootstrap_lock(save_dir, dest))
+                if kind:
+                    with ui.progress_task(f"Installing {kind.value}...", quiet=opts.quiet):
+                        install_project(dest, bootstrap_lock=bootstrap, quiet=opts.quiet)
+            except LabError as exc:
+                ui.print_error(str(exc))
+                failed += 1
+                continue
+            ui.print_ok(f"Ready: `cd {dest}`")
+        if failed:
+            raise typer.Exit(1)
 
     @app.command()
     def save(
@@ -159,12 +241,12 @@ def register(app: typer.Typer) -> None:
         """Save the current project, or list snapshots.
 
         Examples:
-            astroai-lab save
-            astroai-lab save mylab --full
-            astroai-lab save mylab --to /arc/projects/group/env-saves/mylab
-            astroai-lab save --list
-            astroai-lab save --list --json
-            astroai-lab save --list --from /arc/projects/group/env-saves
+            astroai save
+            astroai save mylab --full
+            astroai save mylab --to /arc/projects/group/env-saves/mylab
+            astroai save --list
+            astroai save --list --json
+            astroai save --list --from /arc/projects/group/env-saves
         """
         opts = merge_opts(ctx, json_output=json_output)
         paths = resolve_paths()
@@ -233,10 +315,10 @@ def register(app: typer.Typer) -> None:
         """Restore a saved environment.
 
         Examples:
-            astroai-lab resume mylab
-            astroai-lab resume mylab --yes
-            astroai-lab resume mylab --from /arc/projects/group/env-saves
-            astroai-lab resume mylab --to $WORK/mylab --from /arc/projects/group/env-saves/mylab
+            astroai resume mylab
+            astroai resume mylab --yes
+            astroai resume mylab --from /arc/projects/group/env-saves
+            astroai resume mylab --to $WORK/mylab --from /arc/projects/group/env-saves/mylab
         """
         from astroai_lab.core.project import resolve_save_dir, restore_env
 

@@ -73,7 +73,7 @@ def progress_task(description: str, *, quiet: bool = False) -> Iterator[None]:
 def env_list_table(rows: list[dict[str, str]]) -> None:
     if not rows:
         print_hint("No saved environments.")
-        print_hint("  astroai-lab save mylab")
+        print_hint("  astroai save mylab")
         return
     table = Table(title="Saved environments")
     table.add_column("Name")
@@ -99,7 +99,7 @@ def status_human(
     *,
     full: bool = False,
 ) -> None:
-    console.print(f"[bold]astroai-lab {display_version()}[/bold]  status\n")
+    console.print(f"[bold]astroai {display_version()}[/bold]  status\n")
     if resources:
         mem = resources.get("mem_pct")
         cpu = resources.get("cpu_pct")
@@ -262,4 +262,4 @@ def status_human(
             console.print(f"  {line}")
     if not full:
         console.print("")
-        print_hint("  More: `astroai-lab status --all`  ·  free home space: `astroai-lab clean`")
+        print_hint("  More: `astroai status --all`  ·  free home space: `astroai clean`")

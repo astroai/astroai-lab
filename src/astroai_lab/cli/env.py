@@ -1,8 +1,8 @@
 """env group: shell environment export (infra).
 
 The flat save/resume commands are the primary interface; listing is
-`astroai-lab save --list`. Image builds copy the packaged profile.sh /
-hooks.sh at build time — astroai-lab stays an in-session tool only.
+`astroai save --list`. Image builds copy the packaged profile.sh /
+hooks.sh at build time — astroai stays an in-session tool only.
 """
 
 from __future__ import annotations
@@ -33,9 +33,9 @@ def env_export(
     instead (same keys and values, no shell syntax).
 
     Examples:
-        eval "$(astroai-lab env export)"
-        astroai-lab env export --json
-        astroai-lab --json env export
+        eval "$(astroai env export)"
+        astroai env export --json
+        astroai --json env export
     """
     opts = merge_opts(ctx, json_output=json_output)
     if opts.json:

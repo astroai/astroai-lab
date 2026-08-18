@@ -37,7 +37,7 @@ def _agent_and_config(
 
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai agent list")
     config = agent.get("config") or {}
     path = config.get("path")
     if not path:
@@ -117,7 +117,7 @@ def read_agent_config(agent_id: str, *, home: Path | None = None) -> tuple[Path,
     if not path.is_file():
         raise LabError(
             f"{agent_id} config not found: {path}",
-            hint=f"astroai-lab agent setup {agent_id}",
+            hint=f"astroai agent setup {agent_id}",
         )
     data = _parse_config(path.read_text(encoding="utf-8"), fmt, agent_id, path)
     return path, data
@@ -178,7 +178,7 @@ def edit_agent_config(
     if not path.is_file():
         raise LabError(
             f"{agent_id} config not found: {path}",
-            hint=f"astroai-lab agent setup {agent_id}",
+            hint=f"astroai agent setup {agent_id}",
         )
     text = path.read_text(encoding="utf-8")
     # Validate first — never write through a broken file.

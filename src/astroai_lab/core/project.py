@@ -39,7 +39,7 @@ def require_project(directory: Path) -> ProjectKind:
     if kind is None:
         raise LabError(
             "No pixi or uv project here (need pixi.toml or pyproject.toml).",
-            hint="astroai-lab init mylab",
+            hint="astroai init mylab",
         )
     return kind
 
@@ -238,7 +238,7 @@ def resolve_save_dir(name: str, save_root: Path, from_path: Path | None) -> Path
     shown = candidates[0]
     raise LabError(
         f"Save not found: {shown}",
-        hint=f"astroai-lab save --list\n  astroai-lab save {name}",
+        hint=f"astroai save --list\n  astroai save {name}",
     )
 
 

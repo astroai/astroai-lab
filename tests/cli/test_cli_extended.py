@@ -63,6 +63,25 @@ def test_clone_success(lab_env: Path) -> None:
     mock_run.assert_called_once()
 
 
+def test_clone_multiple_dry_run(lab_env: Path) -> None:
+    with (
+        patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"),
+        patch("astroai_lab.utils.subprocess.run") as mock_run,
+    ):
+        result = runner.invoke(app, ["--dry-run", "clone", "org/alpha", "org/beta"])
+    assert result.exit_code == 0, result.output
+    mock_run.assert_not_called()
+    assert "alpha" in result.output
+    assert "beta" in result.output
+
+
+def test_clone_to_rejects_multiple_repos(lab_env: Path) -> None:
+    with patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"):
+        result = runner.invoke(app, ["clone", "org/a", "org/b", "--to", "/tmp/x"])
+    assert result.exit_code == 1
+    assert "--to" in result.output
+
+
 def test_clone_with_from_env(
     lab_env: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -392,6 +411,78 @@ def test_clone_dry_run_writes_nothing(lab_env: Path) -> None:
     assert result.exit_code == 0, result.output
     mock_run.assert_not_called()
     assert not (lab_env / "repo").exists()
+
+
+def test_resolve_clone_spec_passthrough() -> None:
+    from astroai_lab.cli.init_clone_env import resolve_clone_spec
+
+    assert resolve_clone_spec("owner/repo") == "owner/repo"
+
+
+def test_resolve_clone_spec_user_first() -> None:
+    from astroai_lab.cli.init_clone_env import resolve_clone_spec
+
+    with (
+        patch("astroai_lab.cli.init_clone_env._gh_login", return_value="sfabbro"),
+        patch(
+            "astroai_lab.cli.init_clone_env._gh_repo_exists",
+            side_effect=lambda spec: spec == "sfabbro/foo",
+        ),
+    ):
+        assert resolve_clone_spec("foo") == "sfabbro/foo"
+
+
+def test_resolve_clone_spec_astroai_fallback() -> None:
+    from astroai_lab.cli.init_clone_env import resolve_clone_spec
+
+    with (
+        patch("astroai_lab.cli.init_clone_env._gh_login", return_value="sfabbro"),
+        patch(
+            "astroai_lab.cli.init_clone_env._gh_repo_exists",
+            side_effect=lambda spec: spec == "astroai/foo",
+        ),
+    ):
+        assert resolve_clone_spec("foo") == "astroai/foo"
+
+
+def test_resolve_clone_spec_no_login_uses_astroai() -> None:
+    from astroai_lab.cli.init_clone_env import resolve_clone_spec
+
+    with (
+        patch("astroai_lab.cli.init_clone_env._gh_login", return_value=None),
+        patch(
+            "astroai_lab.cli.init_clone_env._gh_repo_exists",
+            side_effect=lambda spec: spec == "astroai/foo",
+        ),
+    ):
+        assert resolve_clone_spec("foo") == "astroai/foo"
+
+
+def test_resolve_clone_spec_missing() -> None:
+    from astroai_lab.cli.init_clone_env import resolve_clone_spec
+    from astroai_lab.errors import LabError
+
+    with (
+        patch("astroai_lab.cli.init_clone_env._gh_login", return_value="sfabbro"),
+        patch("astroai_lab.cli.init_clone_env._gh_repo_exists", return_value=False),
+        pytest.raises(LabError, match="sfabbro/foo"),
+    ):
+        resolve_clone_spec("foo")
+
+
+def test_clone_short_name_dry_run(lab_env: Path) -> None:
+    with (
+        patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"),
+        patch(
+            "astroai_lab.cli.init_clone_env.resolve_clone_spec",
+            return_value="sfabbro/foo",
+        ),
+        patch("astroai_lab.utils.subprocess.run") as mock_run,
+    ):
+        result = runner.invoke(app, ["--dry-run", "clone", "foo"])
+    assert result.exit_code == 0, result.output
+    mock_run.assert_not_called()
+    assert "sfabbro/foo" in result.output
 
 
 def test_banner_with_project(lab_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:

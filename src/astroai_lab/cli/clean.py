@@ -1,4 +1,4 @@
-"""`astroai-lab clean` — free home space; package caches, then optional saves."""
+"""`astroai clean` — free home space; package caches, then optional saves."""
 
 from __future__ import annotations
 
@@ -41,13 +41,13 @@ def register(app: typer.Typer) -> None:
         Lists ``~/.cache`` as it exists now (not a fixed tool list). Those
         files come back the next time you install a package. Saved
         environments and lab preferences are removed only with `--saves` /
-        `--config`, or if you confirm. Agent logins: `astroai-lab agent wipe`.
+        `--config`, or if you confirm. Agent logins: `astroai agent wipe`.
 
         Examples:
-            astroai-lab clean
-            astroai-lab clean --yes
-            astroai-lab clean --yes --saves
-            astroai-lab clean --dry-run
+            astroai clean
+            astroai clean --yes
+            astroai clean --yes --saves
+            astroai clean --dry-run
         """
         opts = merge_opts(ctx, json_output=json_output, yes=yes, dry_run=dry_run)
         paths = resolve_paths()
@@ -74,10 +74,10 @@ def register(app: typer.Typer) -> None:
             if not opts.json:
                 ui.print_hint("  Nothing deleted. Re-run with `--yes` to delete caches.")
                 if plan["saves"]:
-                    ui.print_hint("  Saved environments: `astroai-lab clean --yes --saves`")
+                    ui.print_hint("  Saved environments: `astroai clean --yes --saves`")
                 if plan["config"] is not None:
-                    ui.print_hint("  Lab preferences: `astroai-lab clean --yes --config`")
-                ui.print_hint("  Agent logins: `astroai-lab agent wipe`")
+                    ui.print_hint("  Lab preferences: `astroai clean --yes --config`")
+                ui.print_hint("  Agent logins: `astroai agent wipe`")
             else:
                 ui.print_json({**plan, "actions": [], "ok": True, "dry_run": True})
             return
@@ -119,7 +119,7 @@ def register(app: typer.Typer) -> None:
             ui.print_hint("  Saved environments kept. Pass `--saves` to delete them.")
         if not do_config and plan["config"] is not None and not opts.dry_run:
             ui.print_hint("  Lab preferences kept. Pass `--config` to reset them.")
-        ui.print_hint("  Agent logins: `astroai-lab agent wipe`")
+        ui.print_hint("  Agent logins: `astroai agent wipe`")
 
 
 def _print_plan(plan: dict) -> None:

@@ -100,7 +100,7 @@ def test_tool_completer_filters_by_prefix() -> None:
 
 
 def test_agent_install_tool_argument_wired() -> None:
-    param = _param("agent install", "tool")
+    param = _param("agent install", "tools")
     assert getattr(param, "_custom_shell_complete", None) is not None
 
 
@@ -134,7 +134,7 @@ def test_plugin_completer_offers_plugin_ids() -> None:
 
 
 def test_agent_plugins_install_argument_wired() -> None:
-    param = _param("agent plugins install", "plugin")
+    param = _param("agent plugins install", "plugins")
     assert getattr(param, "_custom_shell_complete", None) is not None
 
 

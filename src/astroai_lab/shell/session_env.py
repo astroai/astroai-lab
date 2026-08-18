@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from astroai_lab import config_dir
-from astroai_lab.config.settings import _env_path, get_settings
+from astroai_lab.config.settings import get_settings
 from astroai_lab.core.session_common import find_arc_project_root, scratch_cache_root, user_tag
 
 
@@ -24,21 +24,40 @@ def _path_under_roots(path: Path, *roots: Path) -> bool:
     return False
 
 
+def _under_home(path: Path) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+        home = Path.home().resolve()
+        return resolved == home or resolved.is_relative_to(home)
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def _session_cache_root(work: Path, scratch: Path | None) -> Path:
+    """Package caches live on scratch, else work — never under $HOME."""
+    root = scratch_cache_root(work, scratch)
+    if not _under_home(root):
+        return root
+    return Path("/tmp") / f".cache-{user_tag()}"
+
+
 def _session_cache_path(var: str, default: Path, work: Path, scratch: Path | None) -> Path:
     """Scratch-backed caches win over image build-time ENV when scratch is mounted.
 
     When scratch is absent, a pre-existing env value is kept only if it already
     lives under the work dir; otherwise the build-time system-prefix default
     (e.g. /usr/local/share/pixi/cache) is redirected to the session default.
+    Paths under $HOME are never kept (CANFAR home quota).
     """
     raw = os.environ.get(var, "").strip()
     if raw:
         path = Path(raw)
-        roots: list[Path] = [work]
-        if scratch is not None:
-            roots.append(scratch)
-        if _path_under_roots(path, *roots):
-            return path
+        if not _under_home(path):
+            roots: list[Path] = [work]
+            if scratch is not None:
+                roots.append(scratch)
+            if _path_under_roots(path, *roots):
+                return path
     return default
 
 
@@ -151,6 +170,7 @@ class SessionEnv:
     pip_cache_dir: Path
     npm_config_cache: Path
     pixi_cache_dir: Path
+    rattler_cache_dir: Path
     mamba_pkgs_dirs: Path
     uv_python_install_dir: Path
     uv_tool_dir: Path
@@ -179,6 +199,7 @@ class SessionEnv:
             "NPM_CONFIG_CACHE": str(self.npm_config_cache),
             "npm_config_cache": str(self.npm_config_cache),
             "PIXI_CACHE_DIR": str(self.pixi_cache_dir),
+            "RATTLER_CACHE_DIR": str(self.rattler_cache_dir),
             "MAMBA_PKGS_DIRS": str(self.mamba_pkgs_dirs),
             "CONDA_PKGS_DIRS": str(self.mamba_pkgs_dirs),
             "UV_PYTHON_INSTALL_DIR": str(self.uv_python_install_dir),
@@ -222,6 +243,7 @@ class SessionEnv:
             self.pip_cache_dir,
             self.npm_config_cache,
             self.pixi_cache_dir,
+            self.rattler_cache_dir,
             self.mamba_pkgs_dirs,
             self.uv_python_install_dir,
             self.uv_tool_dir,
@@ -258,7 +280,7 @@ def _pythonpath_extra(work: Path) -> str:
 def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
     work = resolve_work_dir()
     scratch = resolve_scratch_dir()
-    cache_root = scratch_cache_root(work, scratch)
+    cache_root = _session_cache_root(work, scratch)
     bin_dir = user_bin_dir(work, scratch)
     runtime = runtime_root(work, scratch)
     home = Path.home()
@@ -266,9 +288,9 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
     # Keep XDG_DATA_HOME on $HOME for small durable agent/jupyter specs;
     # package download caches use XDG_CACHE_HOME / explicit *_CACHE_* vars.
     xdg_data = Path(os.environ.get("XDG_DATA_HOME", str(home / ".local" / "share")))
+    xdg_cache = _session_cache_path("XDG_CACHE_HOME", cache_root, work, scratch)
 
     if scratch is not None:
-        xdg_cache = _session_cache_path("XDG_CACHE_HOME", cache_root, work, scratch)
         hf_default = cache_root / "huggingface"
         torch_default = cache_root / "torch"
         tmp_default = scratch / f".tmp-{user_tag()}"
@@ -277,9 +299,6 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
         tmp = _session_cache_path("TMPDIR", tmp_default, work, scratch)
         pixi_home = _session_runtime_path("PIXI_HOME", runtime / "pixi", scratch)
     else:
-        xdg_cache = _env_path("XDG_CACHE_HOME")
-        if xdg_cache is None or xdg_cache == home:
-            xdg_cache = home / ".cache"
         hf = Path(os.environ.get("HF_HOME", str(xdg_cache / "huggingface")))
         torch = Path(os.environ.get("TORCH_HOME", str(xdg_cache / "torch")))
         tmp = Path(os.environ.get("TMPDIR", str(work / f".tmp-{user_tag()}")))
@@ -299,6 +318,9 @@ def resolve_session_env(*, ensure: bool = True) -> SessionEnv:
         pip_cache_dir=_session_cache_path("PIP_CACHE_DIR", cache_root / "pip", work, scratch),
         npm_config_cache=_session_cache_path("NPM_CONFIG_CACHE", cache_root / "npm", work, scratch),
         pixi_cache_dir=_session_cache_path("PIXI_CACHE_DIR", cache_root / "pixi", work, scratch),
+        rattler_cache_dir=_session_cache_path(
+            "RATTLER_CACHE_DIR", cache_root / "rattler", work, scratch
+        ),
         mamba_pkgs_dirs=_session_cache_path(
             "MAMBA_PKGS_DIRS", cache_root / "conda" / "pkgs", work, scratch
         ),

@@ -92,11 +92,11 @@ def register(app: typer.Typer) -> None:
         and every team project. `--json` is always complete.
 
         Examples:
-            astroai-lab status
-            astroai-lab status --all
-            astroai-lab status --json
-            astroai-lab status -v
-            astroai-lab --json status
+            astroai status
+            astroai status --all
+            astroai status --json
+            astroai status -v
+            astroai --json status
         """
         opts = merge_opts(ctx, json_output=json_output)
         timer = _status_timer(verbose and not opts.quiet)

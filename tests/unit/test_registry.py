@@ -520,7 +520,7 @@ def test_cli_agent_install_needs_name(tmp_path: Path, monkeypatch: pytest.Monkey
     result = runner.invoke(app, ["--json", "agent", "install"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["help"] == "astroai-lab agent install NAME"
+    assert data["help"] == "astroai agent install NAME [NAME…]"
     assert "list" in data["try"]
 
 
@@ -548,6 +548,21 @@ def test_cli_agent_install_unknown() -> None:
     data = json.loads(result.stdout)
     assert data["ok"] is False
     assert "Unknown tool" in data["errors"][0]
+
+
+def test_cli_agent_install_multiple_json_dry_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("astroai_lab.agent.install.refuse_if_home_owned", lambda *a, **k: None)
+    result = runner.invoke(app, ["--json", "--dry-run", "agent", "install", "kilo", "not-an-agent"])
+    assert result.exit_code == 1
+    data = json.loads(result.stdout)
+    assert data["ok"] is False
+    assert data["tools"] == ["kilo", "not-an-agent"]
+    by_tool = {r["tool"]: r for r in data["results"]}
+    assert by_tool["kilo"]["ok"] is True
+    assert by_tool["not-an-agent"]["ok"] is False
 
 
 def test_verify_setup_includes_registry_for_installed(

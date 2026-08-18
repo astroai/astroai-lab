@@ -1,4 +1,4 @@
-"""Shared test helpers for astroai-lab tests.
+"""Shared test helpers for astroai tests.
 
 Add fixtures and utility functions here that need to be reused across
 multiple test modules.  Prefer this module over conftest.py for plain

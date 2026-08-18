@@ -1,8 +1,8 @@
 #!/usr/bin/bash
-# Audit astroai-lab help text vs accepted flags. Exit 1 on mismatches.
+# Audit astroai help text vs accepted flags. Exit 1 on mismatches.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-CLI=(uv run astroai-lab)
+CLI=(uv run astroai)
 FAIL=0
 
 # Under GITHUB_ACTIONS=true, typer/rich colorizes --help output and splits
@@ -84,6 +84,7 @@ else
         FAIL=$((FAIL + 1))
     fi
 fi
+check_help_ok "run" run
 check_help_ok "init" init
 check_help_ok "clone" clone
 check_help_ok "save" save
@@ -92,9 +93,15 @@ check_help_ok "status" status
 check_help_ok "clean" clean
 
 echo "=== Nested typers ==="
-for grp in env config kernel agent; do
+for grp in env config kernel agent cluster jobs; do
     check_help_ok "$grp" "$grp"
 done
+check_help_ok "cluster dashboard" cluster dashboard
+check_help_ok "cluster start" cluster start
+check_help_ok "cluster check" cluster check
+check_help_ok "dashboard (hidden)" dashboard
+check_help_ok "mcp (hidden)" mcp
+check_help_ok "autoscaler (hidden)" autoscaler
 
 echo "=== Global flags in main help ==="
 MAIN=$("${CLI[@]}" --help 2>&1 | strip_ansi)
@@ -124,6 +131,7 @@ check_flag_in_help "clean" "--saves" clean
 check_flag_in_help "env export" "--no-ensure" env export
 check_flag_in_help "env export" "--json" env export
 check_flag_in_help "agent list" "--description" agent list
+check_flag_in_help "cluster start" "--autoscaling" cluster start
 check_flag_in_help "agent setup" "--all" agent setup
 
 echo "=== Flag placement (global OR subcommand) ==="

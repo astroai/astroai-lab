@@ -1,8 +1,8 @@
 """Package version plus the git commit when installed from a git URL.
 
 Images and in-session ``upgrade-cadc-tools.sh`` install
-``astroai-lab @ git+https://github.com/astroai/astroai-lab.git@<sha>``.
-PEP 610 ``direct_url.json`` records that commit, so ``astroai-lab --version``
+``astroai-lab @ git+https://github.com/astroai/lab.git@<sha>``.
+PEP 610 ``direct_url.json`` records that commit, so ``astroai --version``
 can distinguish two builds that still share the same marketing number.
 """
 

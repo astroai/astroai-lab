@@ -4,8 +4,8 @@ In-session workbench CLI for **AstroAI** sessions on the
 [CANFAR Science Platform](https://www.opencadc.org/canfar/).
 
 Use the platform client [`canfar`](https://github.com/opencadc/canfar) to log in and
-start sessions. Use **`astroai-lab`** inside a running session for environment
-save/resume, AI agent setup, session status, and notebook kernels.
+start sessions. Use **`astroai`** inside a running session for environment
+save/resume, AI agents, the Ray cluster, session status, and notebook kernels.
 
 ```mermaid
 flowchart LR
@@ -14,7 +14,7 @@ flowchart LR
     CanfarCLI["canfar login / create / ps"]
   end
   subgraph session [Running AstroAI session]
-    Lab["astroai-lab"]
+    Lab["astroai"]
     Tools["pixi / uv / Jupyter / CADC tools"]
   end
   Portal --> session
@@ -29,7 +29,7 @@ flowchart LR
 | **AstroAI** | Product: GitHub org [`astroai`](https://github.com/astroai), Harbor project `astroai`, session images and tools |
 | **CANFAR** | Science Platform: portal, Skaha, `/arc`, authentication, session scheduling |
 | **`canfar`** | Platform CLI — auth, create/list/delete sessions, images, `canfar data` |
-| **`astroai-lab`** | This package — workbench **inside** a session |
+| **`astroai`** | This package — workbench **inside** a session |
 | **`images.canfar.net/astroai/*`** | AstroAI images hosted on CANFAR Harbor |
 
 Session images and how to launch them:
@@ -38,53 +38,55 @@ Session images and how to launch them:
 ## Session loop
 
 ```bash
-astroai-lab resume mylab          # or: init / clone
+astroai resume mylab          # or: init / clone
 cd "$WORK/mylab" && pixi run python analysis.py
-astroai-lab save                  # anytime — lockfile snapshot to /arc
+astroai save                  # anytime — lockfile snapshot to /arc
 ```
 
-All command help: `astroai-lab help` · one command: `astroai-lab help -c agent` · Cheat sheet: [docs/help.md](docs/help.md)
+All command help: `astroai help` · one command: `astroai help -c agent` · Cheat sheet: [docs/help.md](docs/help.md)
 
 ```mermaid
 flowchart TD
-  A[Start AstroAI session] --> B["astroai-lab resume / init / clone"]
+  A[Start AstroAI session] --> B["astroai resume / init / clone"]
   B --> C[Work under $WORK with pixi or uv]
-  C --> D["astroai-lab save"]
+  C --> D["astroai save"]
   D --> C
   D --> E[End session]
-  E --> F["astroai-lab resume in next session"]
+  E --> F["astroai resume in next session"]
 ```
 
 ## Install
 
-AstroAI session images already include `astroai-lab` on PATH.
+AstroAI session images already include `astroai` on PATH.
 
 On a laptop or for development (package is published from GitHub):
 
 ```bash
-uv tool install git+https://github.com/astroai/astroai-lab.git
+uv tool install git+https://github.com/astroai/lab.git
 # or:
-pip install "git+https://github.com/astroai/astroai-lab.git"
+pip install "git+https://github.com/astroai/lab.git"
 ```
 
 Editable checkout:
 
 ```bash
 uv sync --all-extras
-uv run astroai-lab --help
+uv run astroai --help
 ```
 
 ## Quick start (inside a session)
 
 ```bash
-astroai-lab                  # status banner
-astroai-lab init mylab
-astroai-lab clone owner/repo
-astroai-lab save mylab
-astroai-lab resume mylab
-astroai-lab save --list
-astroai-lab status           # quotas, team projects, canfar auth/ps
-astroai-lab kernel ensure    # notebook kernels
+astroai                  # status banner
+astroai init mylab
+astroai clone owner/repo
+astroai save mylab
+astroai resume mylab
+astroai save --list
+astroai status           # quotas, team projects, canfar auth/ps
+astroai cluster start --autoscaling
+astroai cluster check
+astroai kernel ensure    # notebook kernels
 ```
 
 Machine-readable output: add **`--json`** where supported
@@ -95,23 +97,23 @@ Machine-readable output: add **`--json`** where supported
 Optional — once per user on persistent `/arc` home:
 
 ```bash
-astroai-lab agent setup
-astroai-lab agent install kilo       # or goose, cline, opencode, qoder, …
-astroai-lab agent install cursor
+astroai agent setup
+astroai agent install kilo       # or goose, cline, opencode, qoder, …
+astroai agent install cursor
 gh auth login
 ```
 
-After an image upgrade: `astroai-lab agent update`. Overview: `astroai-lab agent list`.
-Plugins: `astroai-lab agent plugins list` · `astroai-lab agent plugins install ponytail`.
-Broken configs: `astroai-lab agent verify`. Details in [docs/cli.md](docs/cli.md).
+After an image upgrade: `astroai agent update`. Overview: `astroai agent list`.
+Plugins: `astroai agent plugins list` · `astroai agent plugins install ponytail`.
+Broken configs: `astroai agent verify`. Details in [docs/cli.md](docs/cli.md).
 
 ## Scope
 
-`astroai-lab` is intentionally small: environment save/resume + AI agent
-management, plus session status, notebook kernels, and shell env export.
+`astroai` is the in-session CLI: environment save/resume, AI agents,
+Ray cluster start/run, session status, notebook kernels, and shell env export.
 Data movement is the platform's job — use **`canfar data`** for archive I/O and
 `vcp` / `vls` for VOSpace. Team project provisioning is done by operators;
-users read `/arc/projects` via `astroai-lab status`.
+users read `/arc/projects` via `astroai status`.
 
 ## Configuration
 
@@ -133,7 +135,6 @@ Related:
 | Repo | Role |
 |------|------|
 | [astroai-containers](https://github.com/astroai/astroai-containers) | Session images (`webterm`, `notebook`, `ray-manager`, …) |
-| [astroai-workload](https://github.com/astroai/astroai-workload) | Ray cluster workers + `run` jobs |
 | [canfar](https://github.com/opencadc/canfar) | Platform client |
 
 Platform documentation: [opencadc.github.io/canfar](https://opencadc.github.io/canfar/)
@@ -144,7 +145,7 @@ Platform documentation: [opencadc.github.io/canfar](https://opencadc.github.io/c
 ./scripts/ci.sh                 # ruff + pytest with coverage
 uv sync --all-extras
 uv run pytest -q
-astroai-lab --install-completion bash
+astroai --install-completion bash
 ```
 
 ## License

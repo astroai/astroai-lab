@@ -39,7 +39,7 @@ def call_with_timeout(
     """Run ``fn`` in a daemon thread; return ``default`` if it exceeds ``timeout_sec``.
 
     ThreadPoolExecutor workers are non-daemon and are joined at interpreter
-    shutdown. A hung CADC/VOSpace call would then freeze ``astroai-lab status``
+    shutdown. A hung CADC/VOSpace call would then freeze ``astroai status``
     after the timeout had already fired. Daemon threads do not block exit.
     """
     box: list[T] = []

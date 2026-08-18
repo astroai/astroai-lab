@@ -26,6 +26,6 @@ def test_yaml_config_loaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_lab_error_hint() -> None:
-    err = LabError("missing tool", hint="astroai-lab doctor")
+    err = LabError("missing tool", hint="astroai doctor")
     assert "missing tool" in str(err)
-    assert err.hint == "astroai-lab doctor"
+    assert err.hint == "astroai doctor"

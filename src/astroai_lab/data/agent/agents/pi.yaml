@@ -1,4 +1,4 @@
-# Installable via: astroai-lab agent install pi
+# Installable via: astroai agent install pi
 id: pi
 name: Pi Coding Agent
 homepage: https://www.npmjs.com/package/@earendil-works/pi-coding-agent

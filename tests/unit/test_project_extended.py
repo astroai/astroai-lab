@@ -358,6 +358,6 @@ def test_save_allows_statvfs_high_pct_with_free_space(tmp_path: Path) -> None:
 
 
 def test_resolve_save_dir_hint_is_save_not_env_save(tmp_path: Path) -> None:
-    with pytest.raises(LabError, match="astroai-lab save missing") as exc:
+    with pytest.raises(LabError, match="astroai save missing") as exc:
         resolve_save_dir("missing", tmp_path, None)
     assert "env save" not in str(exc.value)

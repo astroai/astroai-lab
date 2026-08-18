@@ -32,7 +32,8 @@ def lab_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "astroai-lab" in result.stdout
+    assert "astroai" in result.stdout
+    assert "astroai-lab" not in result.stdout
     from astroai_lab.version import PACKAGE_VERSION
 
     assert PACKAGE_VERSION in result.stdout
@@ -45,19 +46,46 @@ def test_help_command() -> None:
     assert "save" in result.output
 
 
+def test_help_includes_cluster_jobs_run() -> None:
+    from typer.main import get_command
+
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    for name in ("run", "cluster", "jobs"):
+        assert name in result.output
+    root = get_command(app)
+    for name in ("dashboard", "mcp", "autoscaler"):
+        assert name in root.commands
+        assert root.commands[name].hidden
+
+
+def test_cluster_help_start_and_check() -> None:
+    result = runner.invoke(app, ["cluster", "--help"])
+    assert result.exit_code == 0
+    assert "start" in result.output
+    assert "check" in result.output
+    assert "dashboard" in result.output
+
+
+def test_cluster_ensure_alias_still_works() -> None:
+    result = runner.invoke(app, ["cluster", "ensure", "--help"])
+    assert result.exit_code == 0
+    assert "--autoscaling" in result.output
+
+
 def test_help_single_command() -> None:
     result = runner.invoke(app, ["help", "--command", "agent"])
     assert result.exit_code == 0
-    assert "Usage: astroai-lab agent" in result.output
+    assert "Usage: astroai agent" in result.output
     # Scoped: agent group help shows agent subcommands, not save/resume ones.
     assert "plugins" in result.output
-    assert "Usage: astroai-lab save" not in result.output
+    assert "Usage: astroai save" not in result.output
 
 
 def test_help_single_nested_command() -> None:
     result = runner.invoke(app, ["help", "-c", "agent list"])
     assert result.exit_code == 0
-    assert "Usage: astroai-lab agent list" in result.output
+    assert "Usage: astroai agent list" in result.output
 
 
 def test_help_unknown_command() -> None:
@@ -109,7 +137,7 @@ def test_help_json_unknown_command() -> None:
 def test_default_banner(lab_home: Path) -> None:
     result = runner.invoke(app, [])
     assert result.exit_code == 0
-    assert "astroai-lab" in result.output.lower() or "work" in result.output.lower()
+    assert "astroai" in result.output.lower() or "work" in result.output.lower()
 
 
 @patch("astroai_lab.cli.banner.cwd_arc_project")
@@ -160,7 +188,7 @@ def test_config_root_json(lab_home: Path) -> None:
     result = runner.invoke(app, ["--json", "config"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["help"] == "astroai-lab config --help"
+    assert data["help"] == "astroai config --help"
     assert "show" in data["try"]
 
 

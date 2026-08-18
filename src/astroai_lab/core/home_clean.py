@@ -86,7 +86,7 @@ def _row(path: Path, kind: str) -> dict[str, Any]:
 
 
 def plan_clean(home: Path, save_dir: Path) -> dict[str, Any]:
-    """What `astroai-lab clean` can remove. Does not delete anything."""
+    """What `astroai clean` can remove. Does not delete anything."""
     caches = [_row(path, "cache") for path in cache_targets(home)]
     saves = []
     for row in save_rows(save_dir):

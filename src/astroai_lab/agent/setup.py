@@ -96,7 +96,7 @@ def _merge_marimo_openrouter(cfg: Path, *, force: bool, dry_run: bool) -> None:
             shutil.copy2(template, cfg)
         else:
             cfg.write_text(
-                "# Marimo AI assistant — astroai-lab agent setup\n\n"
+                "# Marimo AI assistant — astroai agent setup\n\n"
                 "[ai.openrouter]\n"
                 'base_url = "https://openrouter.ai/api/v1"\n',
                 encoding="utf-8",
@@ -217,7 +217,7 @@ def run_bundle(
             force=force,
             dry_run=dry_run,
         )
-        # Opt-in GitHub skills stay on `astroai-lab agent plugins install`.
+        # Opt-in GitHub skills stay on `astroai agent plugins install`.
     elif name == "claude":
         merge_claude_json(
             root / "claude" / "mcp.json",
@@ -292,7 +292,7 @@ def run_bundle(
                 encoding="utf-8",
             )
         bashrc = home / ".bashrc"
-        marker = "# astroai-lab agent setup"
+        marker = "# astroai agent setup"
         source_line = (
             '[[ -f "${HOME}/.astroai/lab/agent-env.sh" ]] '
             '&& source "${HOME}/.astroai/lab/agent-env.sh"'
@@ -310,7 +310,7 @@ def run_bundle(
         )
     elif name == "project":
         if project_dir is None:
-            raise LabError("Project directory required.", hint="astroai-lab agent setup --project")
+            raise LabError("Project directory required.", hint="astroai agent setup --project")
         merge_mcp_servers(
             root / "project" / ".cursor" / "mcp.json",
             project_dir / ".cursor" / "mcp.json",
@@ -336,7 +336,7 @@ def run_bundle(
             dry_run=dry_run,
         )
     else:
-        raise LabError(f"Unknown setup name: {name}", hint="astroai-lab agent setup --help")
+        raise LabError(f"Unknown setup name: {name}", hint="astroai agent setup --help")
 
 
 def ensure_agent_dirs(home: Path, *, dry_run: bool) -> None:

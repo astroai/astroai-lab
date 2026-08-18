@@ -46,6 +46,12 @@ def test_top_level_commands_sorted() -> None:
     tops = help_cmd.top_level_commands(app)
     assert "agent" in tops
     assert "env" in tops
+    assert "cluster" in tops
+    assert "jobs" in tops
+    assert "run" in tops
+    assert "dashboard" not in tops
+    assert "mcp" not in tops
+    assert "autoscaler" not in tops
     assert tops == sorted(tops)
 
 
@@ -159,7 +165,17 @@ def test_command_inventory_covers_all_visible_paths() -> None:
     assert "env export" in paths
     assert "save" in paths
     assert "resume" in paths
+    assert "cluster start" in paths
+    assert "cluster check" in paths
+    assert "cluster dashboard" in paths
+    assert "jobs list" in paths
+    assert "run" in paths
     # Hidden aliases are excluded from the machine inventory.
+    assert "cluster ensure" not in paths
+    assert "cluster status" not in paths
+    assert "dashboard" not in paths
+    assert "mcp" not in paths
+    assert "autoscaler" not in paths
     assert "guide" not in paths
     assert "saves" not in paths
     assert len(inventory) == len(help_cmd._visible_command_paths(app))

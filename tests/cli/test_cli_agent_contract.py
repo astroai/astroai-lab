@@ -1,4 +1,4 @@
-"""Golden CLI contract for `astroai-lab agent` (lean surface).
+"""Golden CLI contract for `astroai agent` (lean surface).
 
 Pins the exact registered verb surface so accidental growth fails loudly.
 """
@@ -77,8 +77,8 @@ def test_agent_bare_is_minimal() -> None:
     result = runner.invoke(app, ["agent"])
     assert result.exit_code == 0
     out = result.stdout + result.stderr
-    assert "astroai-lab agent --help" in out
-    assert "astroai-lab agent list" in out
+    assert "astroai agent --help" in out
+    assert "astroai agent list" in out
     assert "agent install kilo" not in out
     assert "list config" not in out
 
@@ -87,7 +87,7 @@ def test_agent_bare_json_points_at_help() -> None:
     result = runner.invoke(app, ["--json", "agent"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["help"] == "astroai-lab agent --help"
+    assert payload["help"] == "astroai agent --help"
     assert "list" in payload["try"]
 
 

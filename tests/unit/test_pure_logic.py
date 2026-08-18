@@ -515,6 +515,24 @@ class TestSessionCachePath:
         )
         assert result == default  # redirected from system path even with scratch
 
+    def test_home_path_redirected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        work = tmp_path / "work"
+        work.mkdir()
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setenv("UV_CACHE_DIR", str(home / ".cache" / "uv"))
+        default = work / ".cache-usr" / "uv"
+        result = _session_cache_path(
+            "UV_CACHE_DIR",
+            default=default,
+            work=work,
+            scratch=None,
+        )
+        assert result == default
+
     def test_var_set_to_empty_string_uses_default(
         self,
         tmp_path: Path,

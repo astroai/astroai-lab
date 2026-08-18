@@ -9,19 +9,19 @@ if [[ -n "${ASTROAI_LAB_PROFILE_LOADED:-}" ]]; then
 fi
 ASTROAI_LAB_PROFILE_LOADED=1
 
-if command -v astroai-lab >/dev/null 2>&1; then
-    _astroai_lab_cli="astroai-lab"
-elif [[ -x /opt/astroai/venv/cadc/bin/astroai-lab ]]; then
-    _astroai_lab_cli="/opt/astroai/venv/cadc/bin/astroai-lab"
+if command -v astroai >/dev/null 2>&1; then
+    _astroai_lab_cli="astroai"
+elif [[ -x /opt/astroai/venv/cadc/bin/astroai ]]; then
+    _astroai_lab_cli="/opt/astroai/venv/cadc/bin/astroai"
 fi
 
 if [[ -n "${_astroai_lab_cli:-}" ]]; then
     # shellcheck disable=SC1090
     eval "$("${_astroai_lab_cli}" env export)" || {
-        echo "astroai-lab env export failed — session paths may be incomplete" >&2
+        echo "astroai env export failed — session paths may be incomplete" >&2
     }
 else
-    echo "astroai-lab: command not found — session paths may be incomplete" >&2
+    echo "astroai: command not found — session paths may be incomplete" >&2
 fi
 unset _astroai_lab_cli
 

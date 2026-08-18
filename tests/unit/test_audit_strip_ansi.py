@@ -83,7 +83,7 @@ def test_strip_ansi_option_row_keeps_flag_and_description() -> None:
 def test_strip_ansi_ci_help_block_contains_all_global_flags() -> None:
     """A block shaped like GITHUB_ACTIONS=true main help yields the flags."""
     block = (
-        f"{_ESC}[1m Usage: astroai-lab [OPTIONS] COMMAND [ARGS]... {_ESC}[0m\n"
+        f"{_ESC}[1m Usage: astroai [OPTIONS] COMMAND [ARGS]... {_ESC}[0m\n"
         f"{_ESC}[2m│{_ESC}[0m {_ESC}[1;36m-{_ESC}[0m{_ESC}[1;36m-json{_ESC}[0m"
         f"    Machine-readable output.\n"
         f"{_ESC}[2m│{_ESC}[0m {_ESC}[1;36m-{_ESC}[0m{_ESC}[1;36m-yes{_ESC}[0m"

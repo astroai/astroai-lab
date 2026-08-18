@@ -104,7 +104,7 @@ def _read_config(path: Path, fmt: McpFormat) -> dict[str, Any]:
     except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
         raise LabError(
             f"Cannot merge MCP into unreadable config: {path}",
-            hint=f"Fix syntax first (`astroai-lab agent verify`): {exc}",
+            hint=f"Fix syntax first (`astroai agent verify`): {exc}",
         ) from exc
     if not isinstance(data, dict):
         raise LabError(f"MCP config must be an object: {path}")

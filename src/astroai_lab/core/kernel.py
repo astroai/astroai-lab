@@ -18,6 +18,7 @@ from astroai_lab.utils.subprocess import run, run_capture
 _KERNEL_ENV_KEYS = (
     "UV_CACHE_DIR",
     "PIXI_CACHE_DIR",
+    "RATTLER_CACHE_DIR",
     "PIP_CACHE_DIR",
     "NPM_CONFIG_CACHE",
     "HF_HOME",

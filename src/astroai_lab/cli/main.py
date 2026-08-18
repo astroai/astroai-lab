@@ -1,4 +1,4 @@
-"""Command-line interface for astroai-lab."""
+"""Command-line interface for astroai."""
 
 from __future__ import annotations
 
@@ -17,9 +17,10 @@ from astroai_lab.cli.env import env_app
 from astroai_lab.cli.help_cmd import command_path_completer, help_cmd_body
 from astroai_lab.cli.kernel import kernel_app
 from astroai_lab.version import display_version
+from astroai_workload.cli import register as register_workload
 
 app = typer.Typer(
-    name="astroai-lab",
+    name="astroai",
     help="AstroAI in-session workbench for the CANFAR Science Platform.",
     no_args_is_help=False,
     rich_markup_mode="rich",
@@ -34,6 +35,7 @@ app.add_typer(env_app, name="env")
 app.add_typer(config_app, name="config")
 app.add_typer(kernel_app, name="kernel")
 app.add_typer(agent_app, name="agent")
+register_workload(app, jobs_as="jobs")
 
 
 @app.callback()
@@ -52,7 +54,7 @@ def main(
     """In-session workbench for environments and AI agents."""
     ctx.obj = GlobalOpts(json=json_output, yes=yes, dry_run=dry_run, quiet=quiet)
     if version:
-        typer.echo(f"astroai-lab {display_version()}")
+        typer.echo(f"astroai {display_version()}")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         show_banner(json_output=json_output)
@@ -75,18 +77,18 @@ def help_cmd(
 ) -> None:
     """Show --help for the app and every subcommand.
 
-    Equivalent to running `astroai-lab --help` on the app and each command
+    Equivalent to running `astroai --help` on the app and each command
     in registration order. Use `--command <path>` (or `-c`) to show a single
     command's help; the full dump pages through `less` on interactive
     terminals. With `--json`, prints a command inventory (no `-c`) or
     structured help for one command.
 
     Examples:
-        astroai-lab help
-        astroai-lab help -c agent
-        astroai-lab help --command "agent list"
-        astroai-lab help --json
-        astroai-lab help -c status --json
+        astroai help
+        astroai help -c agent
+        astroai help --command "agent list"
+        astroai help --json
+        astroai help -c status --json
     """
     opts = merge_opts(ctx, json_output=json_output)
     help_cmd_body(app, command, json_output=opts.json)

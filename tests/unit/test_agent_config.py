@@ -193,7 +193,7 @@ def test_set_jsonc_dict_value(tmp_path: Path) -> None:
     ac.edit_agent_config(
         "openclaw",
         home=home,
-        set_items={"server": {"command": "astroai-workload", "args": ["mcp", "serve"]}},
+        set_items={"server": {"command": "astroai", "args": ["mcp", "serve"]}},
     )
     _, data = ac.read_agent_config("openclaw", home=home)
     assert data["server"]["args"] == ["mcp", "serve"]

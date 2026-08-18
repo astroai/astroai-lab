@@ -46,7 +46,7 @@ def show_banner(*, json_output: bool = False) -> None:
         )
         return
 
-    ui.print_info(f"[bold]astroai-lab {display_version()}[/bold] — AstroAI session workbench")
+    ui.print_info(f"[bold]astroai {display_version()}[/bold] — AstroAI session workbench")
     ui.print_hint(f"  work:    {paths.work_dir}  (code / notebooks — ephemeral)")
     ui.print_hint(
         f"  scratch: {paths.scratch_dir or '(not mounted)'}  (fast I/O + caches — ephemeral)"
@@ -63,15 +63,13 @@ def show_banner(*, json_output: bool = False) -> None:
         else:
             ui.print_hint(f"  team:    {active_arc.path} [{active_arc.access}]")
     if home_pct is not None and home_pct >= 80:
-        ui.print_warn(f"  home quota: {home_pct}% — see `astroai-lab status` for details")
+        ui.print_warn(f"  home quota: {home_pct}% — see `astroai status` for details")
     if git.in_repo and git.uncommitted:
         ui.print_warn("  uncommitted changes — `git add -A && git commit -m 'session work'`")
     if project_kind:
         ui.print_hint(f"  project: {project_kind.value} in {cwd.name}")
-        ui.print_hint("  next: `astroai-lab save` before closing")
+        ui.print_hint("  next: `astroai save` before closing")
     else:
-        ui.print_hint("  notebook path: `astroai-lab kernel ensure` then open starter.ipynb")
-        ui.print_hint(
-            "  project path:  `astroai-lab init mylab`  ·  `astroai-lab clone owner/repo`"
-        )
-    ui.print_hint("  help: `astroai-lab help`  ·  overview: `astroai-lab status`")
+        ui.print_hint("  notebook path: `astroai kernel ensure` then open starter.ipynb")
+        ui.print_hint("  project path:  `astroai init mylab`  ·  `astroai clone owner/repo`")
+    ui.print_hint("  help: `astroai help`  ·  overview: `astroai status`")

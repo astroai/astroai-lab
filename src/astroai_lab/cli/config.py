@@ -21,14 +21,14 @@ def config_root(ctx: typer.Context) -> None:
         if opts.json:
             ui.print_json(
                 {
-                    "help": "astroai-lab config --help",
+                    "help": "astroai config --help",
                     "try": ["show", "path"],
                 }
             )
             return
         ui.print_hint("Lab preferences (~/.astroai/lab/config.yaml).")
-        ui.print_hint("  astroai-lab config show")
-        ui.print_hint("  astroai-lab config --help")
+        ui.print_hint("  astroai config show")
+        ui.print_hint("  astroai config --help")
 
 
 @config_app.command("show")
@@ -39,9 +39,9 @@ def config_show(
     """Display current lab settings.
 
     Examples:
-        astroai-lab config show
-        astroai-lab config show --json
-        astroai-lab --json config show
+        astroai config show
+        astroai config show --json
+        astroai --json config show
     """
     opts = merge_opts(ctx, json_output=json_output)
     settings = get_settings()
@@ -58,6 +58,6 @@ def config_path_cmd() -> None:
     """Print path to optional config file.
 
     Examples:
-        astroai-lab config path
+        astroai config path
     """
     typer.echo(str(config_file_path()))

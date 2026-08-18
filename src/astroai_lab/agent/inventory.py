@@ -174,7 +174,7 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
         try:
             if "openrouter" not in marimo.read_text(encoding="utf-8"):
                 issues.append(
-                    "marimo.toml missing OpenRouter config — run: astroai-lab agent setup marimo"
+                    "marimo.toml missing OpenRouter config — run: astroai agent setup marimo"
                 )
         except OSError:
             pass
@@ -192,8 +192,8 @@ def verify_setup(home: Path, *, probe_binaries: bool = False) -> list[str]:
         issues.append(
             "Agent CLIs under $HOME (should be $SCRATCH): "
             + ", ".join(home_clis)
-            + ". Move with: astroai-lab agent remove NAME --clean-home"
-            + " && astroai-lab agent install NAME"
+            + ". Move with: astroai agent remove NAME --clean-home"
+            + " && astroai agent install NAME"
         )
 
     return issues

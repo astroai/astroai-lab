@@ -45,6 +45,6 @@
     "fetch": "uvx mcp-server-fetch — no Node required",
     "sequential-thinking": "npx -y @modelcontextprotocol/server-sequential-thinking — step-by-step reasoning",
     "puppeteer": "npx -y @modelcontextprotocol/server-puppeteer — browser console automation",
-    "platform_clis": "canfar/cadcget/astroai-lab in /opt/astroai/venv/cadc — upgrade-cadc-tools.sh; project deps use pixi/uv lockfiles under ${WORK}"
+    "platform_clis": "canfar/cadcget/astroai in /opt/astroai/venv/cadc — upgrade-cadc-tools.sh; project deps use pixi/uv lockfiles under ${WORK}"
   }
 }

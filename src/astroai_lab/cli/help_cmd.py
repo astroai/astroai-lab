@@ -1,6 +1,6 @@
 """help command: aggregate of every command's --help output.
 
-`astroai-lab help` is the CLI equivalent of running `--help` on the app and
+`astroai help` is the CLI equivalent of running `--help` on the app and
 every subcommand, in registration order. `--command <path>` (or `-c`) shows a
 single command's help; interactive terminals page the full dump through
 `less` when available.
@@ -69,7 +69,7 @@ def _unknown_path_error(
     available = ", ".join(top_level_commands(app))
     message = (
         f"Unknown command path: `{command_path}`. "
-        f"Top-level commands: {available} (use `astroai-lab help` to list all)."
+        f"Top-level commands: {available} (use `astroai help` to list all)."
     )
     if json_output:
         ui.print_json({"error": message})

@@ -178,7 +178,7 @@ def add_addon(
     if plugin is None:
         raise LabError(
             f"Unknown addon: {addon_id}",
-            hint="astroai-lab agent plugins list",
+            hint="astroai agent plugins list",
         )
     return _apply_addon(plugin_as_addon(plugin), home=home, force=force, dry_run=dry_run)
 
@@ -205,7 +205,7 @@ def _apply_addon(
         return AddonResult(
             addon_id,
             "skipped",
-            install.get("note") or "bundled — run: astroai-lab agent setup",
+            install.get("note") or "bundled — run: astroai agent setup",
         )
 
     if not force and addon_installed(item, home, agent=agent):

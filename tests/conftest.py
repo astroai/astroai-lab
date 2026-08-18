@@ -16,10 +16,12 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
             "UV_CACHE_DIR",
             "PIP_CACHE_DIR",
             "PIXI_CACHE_DIR",
+            "RATTLER_CACHE_DIR",
             "MAMBA_PKGS_DIRS",
             "WORK",
             "SCRATCH",
             "PROJECT",
+            "XDG_CACHE_HOME",
         ):
             keys_to_remove.append(key)
 

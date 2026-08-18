@@ -433,7 +433,7 @@ def install_plugin(
     on the full support matrix."""
     plugin = get_plugin(plugin_id)
     if plugin is None:
-        raise LabError(f"Unknown plugin: {plugin_id}", hint="astroai-lab agent plugins list")
+        raise LabError(f"Unknown plugin: {plugin_id}", hint="astroai agent plugins list")
     home = home or Path.home()
     selected = _selected_agents(plugin, agent)
     if installed_only:
@@ -510,7 +510,7 @@ def remove_plugin(
     """Remove a plugin from the support matrix (or one --agent)."""
     plugin = get_plugin(plugin_id)
     if plugin is None:
-        raise LabError(f"Unknown plugin: {plugin_id}", hint="astroai-lab agent plugins list")
+        raise LabError(f"Unknown plugin: {plugin_id}", hint="astroai agent plugins list")
     home = home or Path.home()
     selected = _selected_agents(plugin, agent)
     results: list[PluginResult] = []
@@ -574,7 +574,7 @@ def configure_plugin(
     """
     plugin = get_plugin(plugin_id)
     if plugin is None:
-        raise LabError(f"Unknown plugin: {plugin_id}", hint="astroai-lab agent plugins list")
+        raise LabError(f"Unknown plugin: {plugin_id}", hint="astroai agent plugins list")
     home = home or Path.home()
     selected = _selected_agents(plugin, agent)
     results: list[PluginResult] = []

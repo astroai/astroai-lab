@@ -68,7 +68,7 @@ def test_status_human(capsys) -> None:
     assert "free" in combined.lower()
     assert "Team projects" not in combined
     assert "othergroup" not in combined
-    assert "astroai-lab clean" in combined
+    assert "astroai clean" in combined
 
     ui.status_human(
         quotas, [(".cache", "1M", "caches")], active, [active, other], ["proc1"], full=True

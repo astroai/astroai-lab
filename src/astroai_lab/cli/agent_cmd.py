@@ -1,4 +1,4 @@
-"""Lean `astroai-lab agent` CLI surface.
+"""Lean `astroai agent` CLI surface.
 
 Canonical verbs: list, install, remove, wipe, setup, config, update,
 verify, plugins.
@@ -46,14 +46,14 @@ def agent_root(ctx: typer.Context) -> None:
         if opts.json:
             ui.print_json(
                 {
-                    "help": "astroai-lab agent --help",
+                    "help": "astroai agent --help",
                     "try": ["list", "install", "setup", "verify"],
                 }
             )
             return
         ui.print_hint("AI agent CLIs go on $SCRATCH; settings stay on $HOME.")
-        ui.print_hint("  astroai-lab agent list")
-        ui.print_hint("  astroai-lab agent --help")
+        ui.print_hint("  astroai agent list")
+        ui.print_hint("  astroai agent --help")
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +147,7 @@ def _print_status_table(
 ) -> None:
     from astroai_lab.version import display_version
 
-    ui.print_hint(f"  astroai-lab {display_version()}")
+    ui.print_hint(f"  astroai {display_version()}")
     ui.print_hint("  Agent         Bin  Cfg  Where    Ver")
     ui.print_hint("  ────────────  ───  ───  ───────  ────────")
     for row in report["agents"]:
@@ -249,14 +249,14 @@ def _print_plugins(
     if not rows:
         if kind or agent:
             ui.print_hint("No plugins match the filter.")
-            ui.print_hint("  astroai-lab agent plugins list")
+            ui.print_hint("  astroai agent plugins list")
         else:
             ui.print_hint("Plugins: none in the registry (data/agent/plugins/*.yaml)")
         return
     id_w = max(len("Plugin"), max(len(str(row["id"])) for row in rows))
     kind_w = max(7, max(len(str(row["kind"])) for row in rows))
     gap = "  "
-    ui.print_hint(f"  astroai-lab {display_version()}")
+    ui.print_hint(f"  astroai {display_version()}")
     ui.print_hint(
         f"  {'Plugin':<{id_w}}{gap}{'Kind':<{kind_w}}{gap}{'On':<3}{gap}{'Def':<3}{gap}Agents"
     )
@@ -518,8 +518,8 @@ def agent_setup_cmd(
         if all_agents and not agent_ids:
             ui.print_hint("  No installed registry agents — install one: agent install <id>")
         if agent_ids:
-            ui.print_hint("  astroai-lab agent verify        # confirm configs are healthy")
-            ui.print_hint("  astroai-lab agent config <id>   # show/edit an agent's config")
+            ui.print_hint("  astroai agent verify        # confirm configs are healthy")
+            ui.print_hint("  astroai agent config <id>   # show/edit an agent's config")
         if exit_code:
             raise typer.Exit(exit_code)
         return
@@ -564,8 +564,8 @@ def agent_setup_cmd(
         ui.print_warn(f"Partial setup — {len(result.actions)} ok, {len(result.errors)} failed")
     else:
         ui.print_error("Agent setup failed")
-    ui.print_hint("  astroai-lab agent install kilo|goose|cline|opencode")
-    ui.print_hint("  astroai-lab agent plugins install ponytail")
+    ui.print_hint("  astroai agent install kilo|goose|cline|opencode")
+    ui.print_hint("  astroai agent plugins install ponytail")
     if result.exit_code:
         raise typer.Exit(result.exit_code)
 
@@ -919,48 +919,60 @@ def agent_verify_cmd(
         return
     if issues:
         ui.print_error("Agent setup incomplete:\n  " + "\n  ".join(issues))
-        ui.print_hint("Tip: Run `astroai-lab agent verify --fix`.")
+        ui.print_hint("Tip: Run `astroai agent verify --fix`.")
         raise typer.Exit(1)
     if state.stamp:
         ui.print_hint(f"  last run: {state.stamp}")
     ui.print_ok("Agent setup OK")
 
 
+def _install_one_agent(tool: str, *, dry_run: bool) -> None:
+    from astroai_lab.agent.registry import get_registry_agent, install_registry_agent
+
+    if tool in agent_install.TOOLS:
+        agent_install.install_tool(tool, dry_run=dry_run)
+    elif get_registry_agent(tool) is not None:
+        install_registry_agent(tool, dry_run=dry_run)
+    else:
+        raise LabError(f"Unknown tool: {tool}", hint="astroai agent list")
+
+
 @agent_app.command("install")
 def agent_install_cmd(
     ctx: typer.Context,
-    tool: Annotated[
-        str | None,
-        typer.Argument(help="Agent name (see `agent list`).", autocompletion=_tool_completer),
+    tools: Annotated[
+        list[str] | None,
+        typer.Argument(help="Agent name(s) (see `agent list`).", autocompletion=_tool_completer),
     ] = None,
 ) -> None:
-    """Install an AI coding CLI to $ASTROAI_LAB_BIN_DIR (scratch/team, not $HOME)."""
+    """Install AI coding CLI(s) to $ASTROAI_LAB_BIN_DIR (scratch/team, not $HOME).
+
+    Examples:
+      astroai agent install kilo
+      astroai agent install agy omp pi freebuff
+    """
     opts = get_opts(ctx)
-    if not tool:
+    names = list(tools or [])
+    if not names:
         if opts.json:
             ui.print_json(
                 {
-                    "help": "astroai-lab agent install NAME",
+                    "help": "astroai agent install NAME [NAME…]",
                     "try": ["list"],
                 }
             )
             return
         ui.print_hint("Install needs an agent name.")
-        ui.print_hint("  astroai-lab agent list")
-        ui.print_hint("  astroai-lab agent install NAME")
+        ui.print_hint("  astroai agent list")
+        ui.print_hint("  astroai agent install NAME [NAME…]")
         return
-    try:
-        from astroai_lab.agent.registry import get_registry_agent, install_registry_agent
 
-        if tool in agent_install.TOOLS:
-            agent_install.install_tool(tool, dry_run=opts.dry_run)
-        elif get_registry_agent(tool) is not None:
-            install_registry_agent(tool, dry_run=opts.dry_run)
-        else:
-            raise LabError(f"Unknown tool: {tool}", hint="astroai-lab agent list")
-    except LabError as exc:
-        if opts.json:
-            ui.print_json(
+    results: list[dict[str, Any]] = []
+    for tool in names:
+        try:
+            _install_one_agent(tool, dry_run=opts.dry_run)
+        except LabError as exc:
+            results.append(
                 {
                     "ok": False,
                     "tool": tool,
@@ -969,28 +981,43 @@ def agent_install_cmd(
                     "warnings": [],
                 }
             )
-        else:
-            ui.print_error(str(exc))
-        raise typer.Exit(1) from exc
+            if not opts.json:
+                ui.print_error(str(exc))
+            continue
+        payload = {
+            "ok": True,
+            "tool": tool,
+            "actions": [f"install:{tool}"],
+            "errors": [],
+            "warnings": [],
+            "bin_dir": str(user_bin_dir()) if not opts.dry_run else None,
+            "dry_run": opts.dry_run,
+        }
+        results.append(payload)
+        if not opts.json:
+            if opts.dry_run:
+                ui.print_ok(f"dry-run: would install {tool}")
+            else:
+                ui.print_ok(f"Installed {tool} → {user_bin_dir()}")
+                if tool in ("kilo", "goose", "cline", "opencode", "codex"):
+                    ui.print_hint("  astroai agent config " + tool)
+
+    failed = [r for r in results if not r["ok"]]
     if opts.json:
-        ui.print_json(
-            {
-                "ok": True,
-                "tool": tool,
-                "actions": [f"install:{tool}"],
-                "errors": [],
-                "warnings": [],
-                "bin_dir": str(user_bin_dir()) if not opts.dry_run else None,
-                "dry_run": opts.dry_run,
-            }
-        )
-        return
-    if opts.dry_run:
-        ui.print_ok(f"dry-run: would install {tool}")
-    else:
-        ui.print_ok(f"Installed {tool} → {user_bin_dir()}")
-        if tool in ("kilo", "goose", "cline", "opencode", "codex"):
-            ui.print_hint("  astroai-lab agent config " + tool)
+        if len(results) == 1:
+            ui.print_json(results[0])
+        else:
+            ui.print_json(
+                {
+                    "ok": not failed,
+                    "tools": names,
+                    "results": results,
+                    "errors": [e for r in failed for e in r["errors"]],
+                    "dry_run": opts.dry_run,
+                }
+            )
+    if failed:
+        raise typer.Exit(1)
 
 
 @agent_app.command("remove")
@@ -1151,7 +1178,7 @@ def agent_wipe_cmd(
     if opts.dry_run:
         ui.print_ok(f"Would remove {len(would)} item(s) — run without --dry-run to apply")
         return
-    ui.print_ok("Agent layer wiped — restart from scratch with: astroai-lab agent setup")
+    ui.print_ok("Agent layer wiped — restart from scratch with: astroai agent setup")
 
 
 # ---------------------------------------------------------------------------
@@ -1172,14 +1199,14 @@ def plugins_root(ctx: typer.Context) -> None:
         if opts.json:
             ui.print_json(
                 {
-                    "help": "astroai-lab agent plugins --help",
+                    "help": "astroai agent plugins --help",
                     "try": ["list", "install", "remove"],
                 }
             )
             return
         ui.print_hint("Plugins are extras (skills, MCP, rules, tools) applied onto agents.")
-        ui.print_hint("  astroai-lab agent plugins list")
-        ui.print_hint("  astroai-lab agent plugins --help")
+        ui.print_hint("  astroai agent plugins list")
+        ui.print_hint("  astroai agent plugins --help")
 
 
 @plugins_app.command("list")
@@ -1218,42 +1245,69 @@ def plugins_list_cmd(
 @plugins_app.command("install")
 def plugins_install_cmd(
     ctx: typer.Context,
-    plugin: Annotated[str, typer.Argument(autocompletion=_plugin_completer)],
+    plugins: Annotated[
+        list[str],
+        typer.Argument(help="Plugin id(s).", autocompletion=_plugin_completer),
+    ],
     agent: Annotated[
         str | None,
         typer.Option("--agent", "-a", help="Scope to one agent."),
     ] = None,
     force: Annotated[bool, typer.Option("--force", "-f")] = False,
 ) -> None:
-    """Install a plugin on every installed agent that supports it."""
+    """Install plugin(s) on every installed agent that supports them.
+
+    Examples:
+      astroai agent plugins install ponytail
+      astroai agent plugins install ponytail canfar-ray
+    """
     opts = get_opts(ctx)
-    try:
-        results = agent_plugins.install_plugin(
-            plugin,
-            agent=agent,
-            force=force or opts.yes,
-            dry_run=opts.dry_run,
-        )
-    except LabError as exc:
-        if opts.json:
-            ui.print_json({"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]})
-        else:
-            ui.print_error(str(exc))
-        raise typer.Exit(1) from exc
-    if opts.json:
-        ui.print_json(
+    names = list(plugins)
+    errors: list[str] = []
+    payloads: list[dict[str, Any]] = []
+    for plugin in names:
+        try:
+            results = agent_plugins.install_plugin(
+                plugin,
+                agent=agent,
+                force=force or opts.yes,
+                dry_run=opts.dry_run,
+            )
+        except LabError as exc:
+            errors.append(str(exc))
+            payloads.append({"ok": False, "plugin": plugin, "actions": [], "errors": [str(exc)]})
+            if not opts.json:
+                ui.print_error(str(exc))
+            continue
+        failed = [r.detail for r in results if r.status == "failed"]
+        payloads.append(
             {
-                "ok": not any(r.status == "failed" for r in results),
+                "ok": not failed,
                 "plugin": plugin,
                 "actions": [r.__dict__ for r in results],
-                "errors": [r.detail for r in results if r.status == "failed"],
+                "errors": failed,
                 "dry_run": opts.dry_run,
             }
         )
-        if any(r.status == "failed" for r in results):
-            raise typer.Exit(1)
-        return
-    _print_plugin_results(results, verb="install", dry_run=opts.dry_run)
+        errors.extend(failed)
+        if not opts.json:
+            _print_plugin_results(results, verb="install", dry_run=opts.dry_run)
+
+    if opts.json:
+        if len(payloads) == 1:
+            ui.print_json(payloads[0])
+        else:
+            ui.print_json(
+                {
+                    "ok": not errors,
+                    "plugins": names,
+                    "results": payloads,
+                    "errors": errors,
+                    "dry_run": opts.dry_run,
+                }
+            )
+    if errors:
+        raise typer.Exit(1)
 
 
 @plugins_app.command("update")

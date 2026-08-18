@@ -127,7 +127,7 @@ def _path_under(path: Path, root: Path) -> bool:
 
 
 def managed_bin_roots() -> list[Path]:
-    """Dirs where astroai-lab owns agent CLIs (scratch / session, never $HOME)."""
+    """Dirs where astroai owns agent CLIs (scratch / session, never $HOME)."""
     session = resolve_session_env(ensure=False)
     # Include `_bin_dir()` / `_npm_prefix()` so test monkeypatches and the
     # live session resolver always agree on "managed".
@@ -267,8 +267,8 @@ def refuse_if_home_owned(name: str, *, home: Path | None = None) -> None:
     where = info.get("home_path") or info.get("path") or f"~/.local/bin/{binary}"
     raise LabError(
         f"{name} is already installed under your home ({where}). "
-        "astroai-lab manages CLIs on $SCRATCH ($ASTROAI_LAB_BIN_DIR), not /arc/home.",
-        hint=f"astroai-lab agent remove {name} --clean-home   # then: agent install {name}",
+        "astroai manages CLIs on $SCRATCH ($ASTROAI_LAB_BIN_DIR), not /arc/home.",
+        hint=f"astroai agent remove {name} --clean-home   # then: agent install {name}",
     )
 
 
@@ -568,7 +568,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
             hint="hyperfine --version",
         )
     if name not in TOOLS:
-        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown tool: {name}", hint="astroai agent list")
     refuse_if_home_owned(name)
     if dry_run:
         return
@@ -678,7 +678,7 @@ def install_tool(name: str, *, dry_run: bool = False) -> None:
         (_bin_dir() / "ast-grep").symlink_to(_bin_dir() / "sg")
         _verify_cmd("sg")
     else:
-        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent install  (or agent list)")
+        raise LabError(f"Unknown tool: {name}", hint="astroai agent install  (or agent list)")
 
 
 # ---------------------------------------------------------------------------
@@ -753,7 +753,7 @@ def uninstall_tool(
     touching the filesystem. Returns one result per target.
     """
     if name not in TOOLS:
-        raise LabError(f"Unknown tool: {name}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown tool: {name}", hint="astroai agent list")
     home = home or Path.home()
     results: list[RemoveResult] = []
     binary = tool_binary(name)
@@ -768,7 +768,7 @@ def uninstall_tool(
         where = info.get("home_path") or info.get("path")
         raise LabError(
             f"{name} is installed under your home ({where}), not managed by astroai-lab",
-            hint=f"astroai-lab agent remove {name} --clean-home",
+            hint=f"astroai agent remove {name} --clean-home",
         )
 
     # 1. Managed binaries from the session bin dir + npm prefix bin.

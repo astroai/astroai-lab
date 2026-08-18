@@ -23,9 +23,9 @@ Environment variables override YAML:
 Inspect current settings:
 
 ```bash
-astroai-lab config show
-astroai-lab config path
-astroai-lab --json config show
+astroai config show
+astroai config path
+astroai --json config show
 ```
 
 Workbench settings stay in `~/.astroai/lab/` so published git repos remain

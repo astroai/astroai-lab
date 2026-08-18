@@ -74,8 +74,9 @@ def test_canfar_ray_skill_points_at_workload_run() -> None:
     from astroai_lab.agent.bundle_path import bundled_skill_src
 
     text = (bundled_skill_src("canfar-ray") / "SKILL.md").read_text(encoding="utf-8")
-    assert "astroai-workload run" in text
+    assert "astroai run" in text
     assert "Do not call `ray job submit`" in text
+    assert "cluster start --autoscaling" in text
 
 
 def test_load_plugins_empty_dir(tmp_path: Path) -> None:
@@ -290,7 +291,7 @@ def _mcp_plugin_dict() -> dict:
         "install": {
             "server": "ray-manager",
             "entry": {
-                "command": "astroai-workload",
+                "command": "astroai",
                 "args": ["mcp", "serve"],
                 "env": {"ASTROAI_RAY_JOBS_ADDRESS": "$ASTROAI_RAY_JOBS_ADDRESS"},
             },
@@ -304,7 +305,7 @@ def test_configure_mcp_merges_cursor_config(tmp_path: Path) -> None:
     mcp_file = tmp_path / ".cursor" / "mcp.json"
     data = json.loads(mcp_file.read_text(encoding="utf-8"))
     assert "ray-manager" in data["mcpServers"]
-    assert data["mcpServers"]["ray-manager"]["command"] == "astroai-workload"
+    assert data["mcpServers"]["ray-manager"]["command"] == "astroai"
     # Dynamic URL only — env reference, never a hardcoded manager URL.
     assert data["mcpServers"]["ray-manager"]["env"]["ASTROAI_RAY_JOBS_ADDRESS"].startswith("$")
 
@@ -612,7 +613,7 @@ def test_load_plugins_includes_ray_manager_mcp() -> None:
     assert set(plugin["agents"]) == set(mcp_hosts())
     assert plugin["install"]["server"] == "ray-manager"
     entry = plugin["install"]["entry"]
-    assert entry["command"] == "astroai-workload"
+    assert entry["command"] == "astroai"
     assert entry["args"] == ["mcp", "serve"]
     # Dynamic URL only — env reference, never a hardcoded manager URL.
     env_ref = entry["env"]["ASTROAI_RAY_JOBS_ADDRESS"]
@@ -626,5 +627,5 @@ def test_configure_ray_manager_mcp_writes_dynamic_env(tmp_path: Path) -> None:
     assert results[0].status == "installed"
     data = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
     entry = data["mcpServers"]["ray-manager"]
-    assert entry["command"] == "astroai-workload"
+    assert entry["command"] == "astroai"
     assert entry["env"]["ASTROAI_RAY_JOBS_ADDRESS"] == "$ASTROAI_RAY_JOBS_ADDRESS"

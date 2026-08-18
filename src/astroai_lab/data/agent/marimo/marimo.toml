@@ -1,7 +1,7 @@
-# Marimo AI assistant — pre-configured for OpenRouter by astroai-lab agent setup.
+# Marimo AI assistant — pre-configured for OpenRouter by astroai agent setup.
 #
 # Customize models via the AI settings panel (⚙️ in the chat sidebar) or edit this file.
-# The API key is injected by `astroai-lab agent setup` from OPENROUTER_API_KEY.
+# The API key is injected by `astroai agent setup` from OPENROUTER_API_KEY.
 
 [ai.models]
 chat_model = "openrouter/google/gemini-2.5-flash"

@@ -345,7 +345,7 @@ def registry_verify_issues(
                 continue
             issues.append(
                 f"{agent['name']} binary not found ({status['binary']}) — run: "
-                f"astroai-lab agent install {agent['id']}"
+                f"astroai agent install {agent['id']}"
             )
             continue
         if agent.get("config", {}).get("path") and not status["config_ok"]:
@@ -425,7 +425,7 @@ def _install_curl(agent: dict[str, Any]) -> str:
         raise LabError(
             f"{binary} not found after install — open a new shell",
             hint="Check the installer output; binary should land in the session bin dir "
-            "(see `astroai-lab env export` / ASTROAI_LAB_BIN_DIR)",
+            "(see `astroai env export` / ASTROAI_LAB_BIN_DIR)",
         )
     _link_into_local_bin(found, binary)
     _verify_cmd(binary, extra_paths=extra)
@@ -470,7 +470,7 @@ def install_registry_agent(agent_id: str, *, dry_run: bool = False) -> str:
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai agent list")
 
     from astroai_lab.agent.install import (
         BINARY_SOURCE_MANAGED,
@@ -491,10 +491,9 @@ def install_registry_agent(agent_id: str, *, dry_run: bool = False) -> str:
         where = info.get("home_path") or info.get("path")
         raise LabError(
             f"{agent_id} is already installed under your home ({where}). "
-            "astroai-lab manages CLIs on $SCRATCH ($ASTROAI_LAB_BIN_DIR), not /arc/home.",
+            "astroai manages CLIs on $SCRATCH ($ASTROAI_LAB_BIN_DIR), not /arc/home.",
             hint=(
-                f"astroai-lab agent remove {agent_id} --clean-home   "
-                f"# then: agent install {agent_id}"
+                f"astroai agent remove {agent_id} --clean-home   # then: agent install {agent_id}"
             ),
         )
 
@@ -529,7 +528,7 @@ def remove_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai agent list")
 
     from astroai_lab.agent.install import (
         BINARY_SOURCE_MANAGED,
@@ -549,7 +548,7 @@ def remove_registry_agent(
         where = info.get("home_path") or info.get("path")
         raise LabError(
             f"{agent_id} is installed under your home ({where}), not managed by astroai-lab",
-            hint=f"astroai-lab agent remove {agent_id} --clean-home",
+            hint=f"astroai agent remove {agent_id} --clean-home",
         )
 
     results = _remove_registry_method(agent, home=home, purge=purge, dry_run=dry_run)
@@ -685,11 +684,11 @@ def _config_scaffold(agent: dict[str, Any]) -> str:
     """
     fmt = str((agent.get("config") or {}).get("format", "json"))
     name = agent.get("name", agent["id"])
-    header = f"# {name} — scaffolded by `astroai-lab agent setup {agent['id']}`\n"
+    header = f"# {name} — scaffolded by `astroai agent setup {agent['id']}`\n"
     if fmt == "json":
         return "{}\n"
     if fmt in ("jsonc", "json5"):
-        return f"// {name} — scaffolded by `astroai-lab agent setup {agent['id']}`\n{{}}\n"
+        return f"// {name} — scaffolded by `astroai agent setup {agent['id']}`\n{{}}\n"
     if fmt == "yaml":
         return header + "{}\n"
     # toml / markdown / unknown: comment-only body stays valid.
@@ -734,7 +733,7 @@ def setup_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai agent list")
     home = home or Path.home()
     actions: list[str] = []
     errors: list[str] = []
@@ -838,7 +837,7 @@ def update_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai agent list")
     home = home or Path.home()
     actions: list[str] = []
     errors: list[str] = []
@@ -907,7 +906,7 @@ def fix_registry_agent(
     """
     agent = get_registry_agent(agent_id)
     if agent is None:
-        raise LabError(f"Unknown agent: {agent_id}", hint="astroai-lab agent list")
+        raise LabError(f"Unknown agent: {agent_id}", hint="astroai agent list")
     home = home or Path.home()
     actions: list[str] = []
     errors: list[str] = []
