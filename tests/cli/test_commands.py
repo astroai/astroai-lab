@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -70,7 +71,8 @@ def test_cluster_help_start_and_check() -> None:
 def test_cluster_ensure_alias_still_works() -> None:
     result = runner.invoke(app, ["cluster", "ensure", "--help"])
     assert result.exit_code == 0
-    assert "--autoscaling" in result.output
+    # Rich splits `--flag` with SGR codes under GITHUB_ACTIONS; strip first.
+    assert "--autoscaling" in re.sub(r"\x1b\[[0-9;]*m", "", result.output)
 
 
 def test_help_single_command() -> None:

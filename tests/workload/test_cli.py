@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -135,7 +136,7 @@ def test_cli_submit_stores_input_uris(monkeypatch) -> None:
 def test_cli_help_names_jobs_and_workers() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    out = result.stdout
+    out = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
     assert "cluster start --autoscaling" in out
     assert "cluster start --workers" in out
     assert "astroai run" in out
