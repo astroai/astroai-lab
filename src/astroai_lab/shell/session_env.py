@@ -186,6 +186,7 @@ class SessionEnv:
 
     def exports(self) -> dict[str, str]:
         out: dict[str, str] = {
+            "SRCDIR": str(self.work_dir),
             "WORK": str(self.work_dir),
             "ASTROAI_LAB_BIN_DIR": str(self.astroai_lab_bin_dir),
             "ASTROAI_LAB_NPM_PREFIX": str(self.astroai_lab_npm_prefix),

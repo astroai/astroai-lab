@@ -39,7 +39,7 @@ def overlay_work_dir(
 
     CANFAR OOM-kills recreate the container overlay (``/srcdir``) but remount
     ``/scratch``. Bind-mounted ``/srcdir`` (tests, some session types) and an
-    explicit ``WORK`` other than ``/srcdir`` are left alone. Disable with
+    explicit ``SRCDIR``/``WORK`` other than ``/srcdir`` are left alone. Disable with
     ``ASTROAI_LAB_WORK_ON_SCRATCH=0``.
     """
     flag = os.environ.get("ASTROAI_LAB_WORK_ON_SCRATCH", "").strip().lower()
@@ -86,6 +86,16 @@ def _seed_work_from_srcdir(srcdir: Path, work: Path) -> None:
                 shutil.copy2(src, dest, follow_symlinks=False)
         except OSError:
             continue
+
+
+def ensure_writable_dir(path: Path) -> bool:
+    """mkdir -p ``path`` and return whether it is writable. Never raises."""
+    try:
+        path = path.expanduser()
+        path.mkdir(parents=True, exist_ok=True)
+        return bool(os.access(path, os.W_OK))
+    except OSError:
+        return False
 
 
 def scratch_cache_root(work: Path, scratch: Path | None) -> Path:

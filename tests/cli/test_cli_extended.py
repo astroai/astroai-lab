@@ -63,6 +63,25 @@ def test_clone_success(lab_env: Path) -> None:
     mock_run.assert_called_once()
 
 
+def test_clone_two_short_names_are_both_repos(lab_env: Path) -> None:
+    """Bare names are repos, not a hidden --to (weightmask into cfhtcast/)."""
+
+    def fake_spec(spec: str) -> str:
+        return f"user/{spec}"
+
+    with (
+        patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"),
+        patch("astroai_lab.cli.init_clone_env.resolve_clone_spec", side_effect=fake_spec),
+        patch("astroai_lab.utils.subprocess.run") as mock_run,
+    ):
+        result = runner.invoke(app, ["--dry-run", "clone", "weightmask", "cfhtcast"])
+    assert result.exit_code == 0, result.output
+    mock_run.assert_not_called()
+    assert result.output.count("would clone") == 2
+    assert "user/weightmask" in result.output
+    assert "user/cfhtcast" in result.output
+
+
 def test_clone_multiple_dry_run(lab_env: Path) -> None:
     with (
         patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"),
@@ -80,6 +99,42 @@ def test_clone_to_rejects_multiple_repos(lab_env: Path) -> None:
         result = runner.invoke(app, ["clone", "org/a", "org/b", "--to", "/tmp/x"])
     assert result.exit_code == 1
     assert "--to" in result.output
+
+
+def test_clone_dir_dry_run(lab_env: Path, tmp_path: Path) -> None:
+    parent = tmp_path / "home" / "src"
+    with patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"):
+        result = runner.invoke(
+            app, ["--dry-run", "clone", "org/alpha", "org/beta", "--dir", str(parent)]
+        )
+    assert result.exit_code == 0, result.output
+    assert str(parent.resolve() / "alpha") in result.output
+    assert str(parent.resolve() / "beta") in result.output
+    assert parent.is_dir()
+
+
+def test_clone_dir_rejects_to(lab_env: Path, tmp_path: Path) -> None:
+    with patch("astroai_lab.cli.init_clone_env.shutil.which", return_value="/usr/bin/gh"):
+        result = runner.invoke(
+            app,
+            ["clone", "org/repo", "--dir", str(tmp_path / "src"), "--to", str(tmp_path / "x")],
+        )
+    assert result.exit_code == 1
+    assert "--dir" in result.output and "--to" in result.output
+
+
+def test_init_dir(lab_env: Path, tmp_path: Path) -> None:
+    from astroai_lab.models.manifest import ProjectKind
+
+    parent = tmp_path / "home" / "src"
+    with (
+        patch("astroai_lab.core.project.init_project", return_value=ProjectKind.PIXI) as init,
+        patch("astroai_lab.cli.init_clone_env.git_init_and_commit"),
+    ):
+        result = runner.invoke(app, ["init", "newlab", "--no-gh", "--dir", str(parent)])
+    assert result.exit_code == 0, result.output
+    init.assert_called_once()
+    assert init.call_args.args[0] == parent.resolve() / "newlab"
 
 
 def test_clone_with_from_env(

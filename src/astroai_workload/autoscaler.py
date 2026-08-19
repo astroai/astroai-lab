@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,28 @@ except ImportError as exc:
 
 _TERMINAL_SESSION_STATUSES = {"Failed", "Error", "Succeeded", "Completed", "Terminating"}
 _RUNNING_SESSION_STATUSES = {"Running"}
+
+# Ray autoscaler tag names (ray.autoscaler.tags). Workers start Ray themselves
+# (start-worker.sh); the head is this manager process, not a Skaha session.
+_HEAD_NODE_ID = "ray-head"
+TAG_RAY_NODE_KIND = "ray-node-type"
+TAG_RAY_USER_NODE_TYPE = "ray-user-node-type"
+TAG_RAY_NODE_STATUS = "ray-node-status"
+TAG_RAY_NODE_NAME = "ray-node-name"
+NODE_KIND_HEAD = "head"
+NODE_KIND_WORKER = "worker"
+STATUS_UP_TO_DATE = "up-to-date"
+_HEAD_TAGS = {
+    TAG_RAY_NODE_KIND: NODE_KIND_HEAD,
+    TAG_RAY_USER_NODE_TYPE: "ray.head.default",
+    TAG_RAY_NODE_STATUS: STATUS_UP_TO_DATE,
+    TAG_RAY_NODE_NAME: _HEAD_NODE_ID,
+}
+_WORKER_TAG_DEFAULTS = {
+    TAG_RAY_NODE_KIND: NODE_KIND_WORKER,
+    TAG_RAY_USER_NODE_TYPE: "ray.worker.default",
+    TAG_RAY_NODE_STATUS: STATUS_UP_TO_DATE,
+}
 
 
 def _default_worker_image() -> str:
@@ -86,6 +109,7 @@ class CanfarNodeProvider(_RayNodeProvider):  # type: ignore[misc,valid-type]
         self.cluster_name = cluster_name
         self._ops = CanfarOps()
         self._tags: dict[str, dict[str, str]] = {}
+        self._lock = threading.Lock()
 
     # -- config helpers -----------------------------------------------------
 
@@ -150,6 +174,10 @@ class CanfarNodeProvider(_RayNodeProvider):  # type: ignore[misc,valid-type]
         self, node_config: dict[str, Any], tags: dict[str, str], count: int
     ) -> dict[str, str]:
         """Launch *count* headless ray-worker sessions; return {node_id: ip}."""
+        kind = (tags or {}).get(TAG_RAY_NODE_KIND)
+        if kind == NODE_KIND_HEAD or count <= 0:
+            # Head is this manager. Ray may still ask; do not spawn a worker.
+            return {_HEAD_NODE_ID: manager_pod_ip()} if kind == NODE_KIND_HEAD else {}
         spec = self._worker_spec()
         # Distinct ``ray-as-`` prefix (autoscaler-managed) so the manager's
         # orphan GC (which owns ``ray-w-``/``ray-retry-``/``ray-preflight-``)
@@ -166,14 +194,19 @@ class CanfarNodeProvider(_RayNodeProvider):  # type: ignore[misc,valid-type]
             replicas=count,
         )
         result: dict[str, str] = {}
-        for launch in launches:
-            self._tags[launch.session_id] = dict(tags or {})
-            # Ray resolves IPs lazily via internal_ip(); session may still be Pending.
-            result[launch.session_id] = ""
+        stored = {**_WORKER_TAG_DEFAULTS, **(tags or {})}
+        with self._lock:
+            for launch in launches:
+                self._tags[launch.session_id] = dict(stored)
+                # Ray resolves IPs lazily via internal_ip(); session may still be Pending.
+                result[launch.session_id] = ""
         return result
 
     def terminate_node(self, node_id: str) -> None:
-        self._tags.pop(node_id, None)
+        if node_id == _HEAD_NODE_ID:
+            return
+        with self._lock:
+            self._tags.pop(node_id, None)
         self._ops.destroy(node_id)
 
     def terminate_nodes(self, node_ids: list[str]) -> None:
@@ -181,7 +214,7 @@ class CanfarNodeProvider(_RayNodeProvider):  # type: ignore[misc,valid-type]
             self.terminate_node(node_id)
 
     def non_terminated_nodes(self, tag_filters: dict[str, str]) -> list[str]:
-        out: list[str] = []
+        ids = [_HEAD_NODE_ID]
         for row in self._ops.list_headless_sessions(name_prefix=f"ray-as-{self.cluster_name}"):
             sid = str(row.get("id") or "")
             if not sid:
@@ -189,22 +222,39 @@ class CanfarNodeProvider(_RayNodeProvider):  # type: ignore[misc,valid-type]
             status = str(row.get("status") or "Unknown")
             if status in _TERMINAL_SESSION_STATUSES:
                 continue
-            out.append(sid)
-        return out
+            ids.append(sid)
+        if not tag_filters:
+            return ids
+        return [nid for nid in ids if _tags_match(self.node_tags(nid), tag_filters)]
 
     def is_running(self, node_id: str) -> bool:
+        if node_id == _HEAD_NODE_ID:
+            return True
         return self._ops.session_status(node_id) in _RUNNING_SESSION_STATUSES
 
     def is_terminated(self, node_id: str) -> bool:
+        if node_id == _HEAD_NODE_ID:
+            return False
         return self._ops.session_status(node_id) in _TERMINAL_SESSION_STATUSES
 
     def node_tags(self, node_id: str) -> dict[str, str]:
-        return dict(self._tags.get(node_id) or {})
+        if node_id == _HEAD_NODE_ID:
+            return dict(_HEAD_TAGS)
+        with self._lock:
+            stored = dict(self._tags.get(node_id) or {})
+        # Discovered workers (manager restart) have no in-memory tags; Ray
+        # indexes node_tags()[ray-node-type] and KeyErrors on {}.
+        return {**_WORKER_TAG_DEFAULTS, **stored}
 
     def set_node_tags(self, node_id: str, tags: dict[str, str]) -> None:
-        self._tags[node_id] = dict(tags or {})
+        if node_id == _HEAD_NODE_ID:
+            return
+        with self._lock:
+            self._tags[node_id] = dict(tags or {})
 
     def internal_ip(self, node_id: str) -> str:
+        if node_id == _HEAD_NODE_ID:
+            return manager_pod_ip()
         info = self._ops.session_info(node_id)
         status = str(info.get("status") or "Unknown")
         if status not in _RUNNING_SESSION_STATUSES:
@@ -278,6 +328,9 @@ def write_autoscaling_config(
     # ``head_node_type``/``auth``/``idle_timeout_minutes`` are mandatory reads
     # in StandardAutoscaler.reset() — omitting them crashes the monitor with
     # KeyError the moment `ray start --head --autoscaling-config` boots.
+    # disable_node_updaters: workers have no SSH; Ray setup is start-worker.sh.
+    # disable_launch_config_check: tags are not persisted across monitor restarts.
+    # foreground_node_launch: Skaha create is slow; launch in the autoscaler thread.
     yaml = f"""\
 # Generated by astroai ({__name__}); do not edit by hand.
 cluster_name: {cluster_name}
@@ -290,6 +343,9 @@ auth: {{}}
 provider:
   type: external
   module: astroai_workload.autoscaler.CanfarNodeProvider
+  disable_node_updaters: true
+  disable_launch_config_check: true
+  foreground_node_launch: true
   config: {_yaml_inline(provider_config)}
 
 available_node_types:
@@ -366,3 +422,7 @@ def _yaml_inline(data: dict[str, Any]) -> str:
     import json
 
     return json.dumps(data, sort_keys=True)
+
+
+def _tags_match(tags: dict[str, str], filters: dict[str, str]) -> bool:
+    return all(tags.get(key) == value for key, value in filters.items())

@@ -180,6 +180,7 @@ def test_export_shell_includes_astroai_lab_vars(
     assert "export ASTROAI_LAB_BIN_DIR=" in out
     assert "export ASTROAI_LAB_RUNTIME_ROOT=" in out
     assert "export WORK=" in out
+    assert "export SRCDIR=" in out
     # NOTE: no "SCRATCH absent" assertion — a writable /scratch on the host is
     # the canonical scratch default and is legitimately exported when unset.
     assert "CANFAR_LAB_" not in out

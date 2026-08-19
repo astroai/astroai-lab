@@ -32,6 +32,7 @@ _KERNEL_ENV_KEYS = (
     "TMPDIR",
     "MPLCONFIGDIR",
     "WORK",
+    "SRCDIR",
     "SCRATCH",
     "PROJECT",
     "ASTROAI_LAB_BIN_DIR",

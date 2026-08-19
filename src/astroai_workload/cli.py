@@ -600,10 +600,11 @@ def cluster_ensure_payload(
     if address:
         base = address.rstrip("/")
     else:
-        # A freshly-created manager is Pending and may not expose its connect
-        # URL yet — poll discovery briefly before giving up (agent one-click
-        # flow depends on this). Bounded by the caller's timeout when set.
-        max_polls = max(1, min(timeout // 5, 24)) if timeout else 12
+        # Fresh manager is often Pending without a connect URL until the image
+        # pull finishes. Poll for the full caller timeout (default 1800s), not
+        # a 2-minute cap — Harbor pulls commonly exceed that.
+        poll_s = 5
+        max_polls = max(1, timeout // poll_s) if timeout else 12
         base = ""
         for _ in range(max_polls):
             jobs = resolve_dashboard_url()
@@ -612,7 +613,7 @@ def cluster_ensure_payload(
             )
             if base:
                 break
-            time.sleep(5)
+            time.sleep(poll_s)
     if not base:
         raise RuntimeError(
             "No ray-manager found. Run `astroai cluster start --autoscaling` "
@@ -806,9 +807,17 @@ def cluster_scale_payload(
     headless probes can hang). Pass True to enforce the network preflight gate.
     Returns a JSON-safe result dict.
     """
+    from .state_store import TERMINAL_WORKER_PHASES
+
     client = _manager_client(address)
     status = client.status()
-    current = status.get("joined_workers", 0) or 0
+    workers_list = list(status.get("workers") or [])
+    active = [
+        w
+        for w in workers_list
+        if w.get("session_id") and w.get("phase") not in TERMINAL_WORKER_PHASES
+    ]
+    current = len(active) if active else int(status.get("joined_workers") or 0)
     target = max(0, workers)
 
     if target > current:
@@ -821,10 +830,13 @@ def cluster_scale_payload(
     elif target < current:
         extra = current - target
         destroyed = 0
-        for w in status.get("workers") or []:
+        # Drop pending/unjoined first so a shrink does not kill healthy nodes
+        # while leftover Pending sessions keep the count high.
+        shrinkable = sorted(active, key=lambda w: (bool(w.get("ray_joined")), w.get("name") or ""))
+        for w in shrinkable:
             if destroyed >= extra:
                 break
-            if w.get("ray_joined") and w.get("session_id"):
+            if w.get("session_id"):
                 client.destroy_worker(w["session_id"])
                 destroyed += 1
         result = client.wait_operation(timeout_seconds=timeout)

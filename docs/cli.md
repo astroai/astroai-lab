@@ -31,20 +31,25 @@ Create a pixi or uv project under the work directory.
 ```bash
 astroai init mylab
 astroai init mylab --uv --no-git
+astroai init mylab --dir ~/src
 ```
 
 ### `astroai clone REPO [REPO…]`
 
 Clone via `gh` and install dependencies. Several repos clone one after another
-into `$WORK/<name>`. `--to` (or a directory as the last argument) is one repo only.
-A name without `/` is tried as `$github-user/name`, then `astroai/name`.
+into `$SRCDIR/<name>`. `--dir` sets the parent source directory (any number of
+repos). `--to` is the exact destination for one repo only. A name without `/`
+is tried as `$github-user/name`, then `astroai/name`.
 
 ```bash
 astroai clone myproject
 astroai clone owner/repo
 astroai clone owner/a owner/b
 astroai clone --from-env ml-base owner/repo
-astroai clone owner/repo --to $WORK/custom
+astroai clone owner/repo --to $SRCDIR/custom
+astroai clone owner/repo --dir ~/src
+astroai clone owner/a owner/b --dir /srcdir
+astroai clone owner/repo --dir /arc/projects/mygroup
 ```
 
 ### `astroai run SCRIPT`
@@ -110,13 +115,13 @@ astroai save --list --from /arc/projects/team/env-saves
 
 ### `astroai resume NAME`
 
-Restore a saved environment into `$WORK/NAME` (or `--to`) and run install.
+Restore a saved environment into `$SRCDIR/NAME` (or `--to`) and run install.
 
 ```bash
 astroai resume mylab
 astroai resume mylab --yes
 astroai resume mylab --from /arc/projects/team/env-saves
-astroai resume mylab --to $WORK/mylab --from /arc/projects/team/env-saves/mylab
+astroai resume mylab --to $SRCDIR/mylab --from /arc/projects/team/env-saves/mylab
 ```
 
 ### `astroai status`
@@ -307,17 +312,19 @@ starters ship in the image at `/opt/astroai/notebooks/`.
 ## Environment variables
 
 `astroai` speaks the same storage vocabulary as typical HPC/Slurm clusters:
-`WORK`, `SCRATCH`, `PROJECT` are the canonical names. Session paths are applied
-in login shells via `astroai env export` (bundled in
-`/etc/astroai-lab/profile.sh` on CANFAR images). Skaha sessions provide
-`WORK`/`SCRATCH`; `PROJECT` is detected from the current dir under `/arc/projects`
-or set explicitly.
+`SRCDIR`, `SCRATCH`, and `PROJECT` are the session path names. `WORK` is the
+same path as `SRCDIR` (kept as a synonym). Session paths are applied in login
+shells via `astroai env export` (bundled in `/etc/astroai-lab/profile.sh` on
+CANFAR images). Skaha sessions provide `TMP_SRC_DIR`/`TMP_SCRATCH_DIR`, which
+the profile maps onto `SRCDIR`/`SCRATCH`. `PROJECT` is detected from the
+current dir under `/arc/projects` or set explicitly.
 
-### Session paths (Slurm-style)
+### Session paths
 
 | Variable | Purpose |
 |----------|---------|
-| `WORK` | Session work dir; code and project envs. On CANFAR: `$SCRATCH/src` (survives container OOM; still dies with the session) |
+| `SRCDIR` | Source directory for `clone` / `init` / `resume`. Default on CANFAR: `$SCRATCH/src` (survives container OOM; still dies with the session). Set to `/srcdir`, `~/src`, `/arc/projects/<group>`, … |
+| `WORK` | Alias of `SRCDIR` (same value) |
 | `SCRATCH` | Session scratch; data, caches, runtime installs (Skaha: `/scratch`) |
 | `PROJECT` | Team project dir (e.g. `/arc/projects/<group>`); used for team tools |
 
@@ -325,8 +332,8 @@ or set explicitly.
 
 | Variable | Purpose |
 |----------|---------|
-| `WORK` / `SCRATCH` / `PROJECT` | Set explicitly to override detected session paths |
-| `ASTROAI_LAB_WORK_ON_SCRATCH` | Set `0` to keep `WORK` on the container overlay instead of `$SCRATCH/src` |
+| `SRCDIR` / `WORK` / `SCRATCH` / `PROJECT` | Set explicitly to override detected session paths. `SRCDIR` wins over `WORK` |
+| `ASTROAI_LAB_WORK_ON_SCRATCH` | Set `0` to keep `SRCDIR` on the container overlay (`/srcdir`) instead of `$SCRATCH/src` |
 | `ASTROAI_LAB_SAVE_DIR` | Env saves dir (default: `~/.astroai/lab/saves`) |
 | `ASTROAI_LAB_BIN_DIR` | User CLI install dir (default: scratch `.local/bin`; last resort: work `.runtime-$USER/bin` — never `~/.local`) |
 | `ASTROAI_LAB_RUNTIME_ROOT` | Runtime uv/pixi/mamba roots (default: scratch `.runtime-$USER`) |

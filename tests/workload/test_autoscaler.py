@@ -114,8 +114,8 @@ def test_create_node_launches_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
     assert kwargs["env"]["RAY_WORKER_CPUS"] == "2"
     # Distinct `ray-as-` prefix keeps autoscaler nodes out of manager GC scope.
     assert kwargs["name"].startswith("ray-as-c1-")
-    # Tags are stored for Ray.
-    assert provider.node_tags("sid-1") == {"ray_node_type_name": "ray.worker.default"}
+    assert provider.node_tags("sid-1")["ray-node-type"] == "worker"
+    assert provider.node_tags("sid-1")["ray_node_type_name"] == "ray.worker.default"
 
 
 def test_internal_ip_resolves_after_running(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,7 +137,7 @@ def test_terminate_and_status(monkeypatch: pytest.MonkeyPatch) -> None:
     provider._tags["sid-1"] = {"ray_node_type_name": "ray.worker.default"}
     provider.terminate_node("sid-1")
     provider._ops.destroy.assert_called_once_with("sid-1")
-    assert provider.node_tags("sid-1") == {}
+    assert provider.node_tags("sid-1")["ray-node-type"] == "worker"
 
     provider._ops.session_status = MagicMock(return_value="Running")
     assert provider.is_running("sid-1") is True
@@ -145,6 +145,19 @@ def test_terminate_and_status(monkeypatch: pytest.MonkeyPatch) -> None:
 
     provider._ops.session_status = MagicMock(return_value="Failed")
     assert provider.is_terminated("sid-1") is True
+    provider._ops.destroy.reset_mock()
+    provider.terminate_node("ray-head")
+    provider._ops.destroy.assert_not_called()
+
+
+def test_create_node_head_does_not_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider()
+    provider._ops.create_headless = MagicMock()
+    result = provider.create_node(
+        node_config={}, tags={"ray-node-type": "head"}, count=1
+    )
+    assert "ray-head" in result
+    provider._ops.create_headless.assert_not_called()
 
 
 def test_non_terminated_nodes_filters_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -157,9 +170,19 @@ def test_non_terminated_nodes_filters_terminal(monkeypatch: pytest.MonkeyPatch) 
         ]
     )
     nodes = provider.non_terminated_nodes(tag_filters={})
-    assert set(nodes) == {"a", "b"}
+    assert set(nodes) == {"ray-head", "a", "b"}
+    workers = provider.non_terminated_nodes(tag_filters={"ray-node-type": "worker"})
+    assert set(workers) == {"a", "b"}
+    heads = provider.non_terminated_nodes(tag_filters={"ray-node-type": "head"})
+    assert heads == ["ray-head"]
     # Queries the autoscaler's own session namespace, not manager workers.
-    provider._ops.list_headless_sessions.assert_called_once_with(name_prefix="ray-as-c1")
+    assert provider._ops.list_headless_sessions.call_args.kwargs["name_prefix"] == "ray-as-c1"
+    # Discovered workers still have Ray's required kind tag (no in-memory create).
+    assert provider.node_tags("a")["ray-node-type"] == "worker"
+    assert provider.node_tags("ray-head")["ray-node-type"] == "head"
+    assert provider.internal_ip("ray-head")
+    assert provider.is_running("ray-head") is True
+    assert provider.is_terminated("ray-head") is False
 
 
 def test_write_autoscaling_config(tmp_path: pytest.MonkeyPatch) -> None:
@@ -191,6 +214,9 @@ def test_write_autoscaling_config(tmp_path: pytest.MonkeyPatch) -> None:
         "head_start_ray_commands: []",
         "worker_setup_commands: []",
         "worker_start_ray_commands: []",
+        "disable_node_updaters: true",
+        "disable_launch_config_check: true",
+        "foreground_node_launch: true",
     ):
         assert required in text, f"missing {required}"
     # memory is bytes (16 GiB = 16 * 1024**3), not MiB.

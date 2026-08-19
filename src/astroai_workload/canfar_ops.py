@@ -31,9 +31,6 @@ class SessionLaunch:
 
 
 class CanfarOps:
-    def __init__(self) -> None:
-        self._session = Session()
-
     def _fresh_session(self) -> Session:
         """New session client so registry/auth config reflects current env."""
         return Session()
@@ -56,7 +53,7 @@ class CanfarOps:
                 message=f"No saved credentials for IDP '{idp}'. Run: canfar auth login",
             )
         try:
-            self._session.fetch(view="all")
+            self._fresh_session().fetch(view="all")
         except Exception as exc:  # noqa: BLE001 — surface to UI
             return AuthStatus(
                 authenticated=False,
@@ -184,7 +181,7 @@ class CanfarOps:
         found: dict[str, str] = {}
         for attempt in range(1, 7):
             try:
-                rows = self._session.fetch(view="all")
+                rows = self._fresh_session().fetch(view="all")
             except Exception:  # noqa: BLE001 — catalog race; retry
                 rows = []
             for row in rows or []:
@@ -198,16 +195,16 @@ class CanfarOps:
         return [found[n] for n in expected if n in found]
 
     def list_headless_sessions(self, *, name_prefix: str) -> list[dict[str, Any]]:
-        rows = self._session.fetch(kind="headless", view="all")
+        rows = self._fresh_session().fetch(kind="headless", view="all")
         return [row for row in rows if str(row.get("name", "")).startswith(name_prefix)]
 
     def list_sessions(self) -> list[dict[str, Any]]:
         """All sessions visible to the user (any kind)."""
-        rows = self._session.fetch(view="all")
+        rows = self._fresh_session().fetch(view="all")
         return list(rows or [])
 
     def session_info(self, session_id: str) -> dict[str, Any]:
-        rows = self._session.info(session_id)
+        rows = self._fresh_session().info(session_id)
         if not rows:
             return {}
         return rows[0]
@@ -227,7 +224,7 @@ class CanfarOps:
         return None
 
     def session_logs(self, session_id: str) -> str:
-        logs = self._session.logs(session_id)
+        logs = self._fresh_session().logs(session_id)
         if not logs:
             return ""
         return logs.get(session_id, "")
@@ -253,7 +250,7 @@ class CanfarOps:
 
     def destroy(self, session_id: str) -> bool:
         try:
-            result = self._session.destroy(session_id)
+            result = self._fresh_session().destroy(session_id)
             return bool(result.get(session_id))
         except Exception:  # noqa: BLE001 — missing auth or unknown session
             return False

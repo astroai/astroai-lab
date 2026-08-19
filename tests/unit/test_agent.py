@@ -351,10 +351,12 @@ def test_find_curl_binary_prefers_sandbox(tmp_path: Path, monkeypatch: pytest.Mo
     home.mkdir()
     scratch_bin.mkdir(parents=True)
     sandbox_bin.mkdir(parents=True)
-    (sandbox_bin / "kilo").write_text("#!/bin/sh\n", encoding="utf-8")
+    (sandbox_bin / "kilo").write_text("#!/bin/sh\nnew\n", encoding="utf-8")
     leftover = home / ".local" / "bin"
     leftover.mkdir(parents=True)
-    (leftover / "kilo").write_text("#!/bin/sh\nold\n", encoding="utf-8")
+    (leftover / "kilo").write_text("#!/bin/sh\nold-home\n", encoding="utf-8")
+    # Stale managed copy must not win over the sandbox drop (reinstall).
+    (scratch_bin / "kilo").write_text("#!/bin/sh\nstale-bin\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setattr(install_mod, "_bin_dir", lambda: scratch_bin)
     found = install_mod.find_curl_binary("kilo")
@@ -379,6 +381,58 @@ def test_link_copies_kilo_tree_sitter_sibling(
     install_mod._link_into_local_bin(kilo, "kilo")
     assert (scratch_bin / "kilo").is_file()
     assert (scratch_bin / "tree-sitter" / "lib.so").is_file()
+
+
+def test_link_keeps_cursor_payload_next_to_wrapper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cursor's `agent` is a symlink into a version dir that also has `node`.
+
+    Copying only the wrapper into bin/ makes it exec `$BIN_DIR/node`.
+    """
+    from astroai_lab.agent import install as install_mod
+
+    scratch_bin = tmp_path / "scratch" / "bin"
+    payload = (
+        tmp_path
+        / "scratch"
+        / "installer-home"
+        / ".local"
+        / "share"
+        / "cursor-agent"
+        / "versions"
+        / "2026.08.11-e8db854"
+    )
+    sandbox_bin = tmp_path / "scratch" / "installer-home" / ".local" / "bin"
+    scratch_bin.mkdir(parents=True)
+    payload.mkdir(parents=True)
+    sandbox_bin.mkdir(parents=True)
+    wrapper = payload / "cursor-agent"
+    wrapper.write_text(
+        "#!/usr/bin/env bash\n"
+        'SCRIPT_DIR="$(dirname "$(realpath "$0")")"\n'
+        'exec "$SCRIPT_DIR/node" "$SCRIPT_DIR/index.js" "$@"\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    (payload / "node").write_text("#!/bin/sh\n", encoding="utf-8")
+    (payload / "node").chmod(0o755)
+    (payload / "index.js").write_text("console.log('ok')\n", encoding="utf-8")
+    agent = sandbox_bin / "agent"
+    agent.symlink_to(wrapper)
+    # Stale copied wrapper from a previous broken install.
+    (scratch_bin / "agent").write_text(
+        "#!/usr/bin/env bash\nexec /missing/node\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(install_mod, "_bin_dir", lambda: scratch_bin)
+    install_mod._link_into_local_bin(agent, "agent")
+
+    landed = scratch_bin / "agent"
+    assert landed.is_symlink()
+    real = landed.resolve()
+    assert (real.parent / "node").is_file()
+    assert (real.parent / "index.js").is_file()
+    assert not (scratch_bin / "node").exists()
 
 
 def test_classify_binary_managed_vs_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

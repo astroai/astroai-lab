@@ -91,6 +91,9 @@ Clone (needs `gh auth login` once):
 astroai clone owner/repo
 astroai clone owner/a owner/b
 astroai clone --from-env mylab owner/repo
+astroai clone owner/repo --dir ~/src          # persist on /arc/home
+astroai clone owner/repo --dir /srcdir        # container overlay (OOM-fragile)
+astroai clone owner/repo --dir /arc/projects/mygroup
 ```
 
 `save` writes lockfiles to `~/.astroai/lab/saves/` on `/arc/home`. The next
@@ -102,7 +105,7 @@ session `resume`s that snapshot.
 
 | Tier | Env / path | Lifetime | Use for |
 |------|------------|----------|---------|
-| Work | `WORK` (`$SCRATCH/src` on CANFAR) | Session (survives container OOM) | Source, pixi/uv projects |
+| Source | `SRCDIR` (`$SCRATCH/src` on CANFAR; `WORK` is the same path) | Session (survives container OOM) | Code, pixi/uv projects |
 | Scratch | `SCRATCH` (`/scratch`) | Session | Datasets, caches |
 | Home | `/arc/home/<you>` | Persistent | Config, saves, certs |
 | Projects | `/arc/projects/<group>` | Persistent | Shared data and team saves |

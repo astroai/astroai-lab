@@ -20,6 +20,7 @@ def lab_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("WORK", raising=False)
+    monkeypatch.delenv("SRCDIR", raising=False)
     monkeypatch.delenv("SCRATCH", raising=False)
     monkeypatch.delenv("ASTROAI_LAB_SAVE_DIR", raising=False)
     return home
@@ -36,6 +37,36 @@ def test_work_dir_from_env(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("WORK", str(work))
     settings = LabSettings()
     assert settings.resolve_work_dir() == work
+
+
+def test_srcdir_wins_over_work(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    src = lab_home / "src"
+    work = lab_home / "work"
+    monkeypatch.setenv("SRCDIR", str(src))
+    monkeypatch.setenv("WORK", str(work))
+    settings = LabSettings()
+    assert settings.resolve_work_dir() == src
+    assert src.is_dir()
+
+
+def test_work_dir_creates_missing_explicit_path(
+    lab_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = lab_home / "src"
+    monkeypatch.setenv("WORK", str(work))
+    settings = LabSettings()
+    assert settings.resolve_work_dir() == work
+    assert work.is_dir()
+
+
+def test_yaml_work_dir(lab_home: Path) -> None:
+    work = lab_home / "src"
+    cfg = lab_home / ".astroai" / "lab"
+    cfg.mkdir(parents=True)
+    (cfg / "config.yaml").write_text(f'work_dir: "{work}"\n')
+    get_settings.cache_clear()
+    assert get_settings().resolve_work_dir() == work
+    assert work.is_dir()
 
 
 def test_work_dir_falls_back_to_srcdir(lab_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:

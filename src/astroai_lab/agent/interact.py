@@ -106,5 +106,25 @@ def _check_port(host: str, port: int) -> bool:
 
 
 def _detect_installed_agent_clis() -> list[str]:
-    clis = ["kilo", "goose", "cline", "opencode", "codex", "qodercli", "orx", "openworker-server"]
-    return [c for c in clis if shutil.which(c) is not None]
+    clis = [
+        "agent",
+        "kilo",
+        "goose",
+        "cline",
+        "opencode",
+        "codex",
+        "qodercli",
+        "orx",
+        "openworker-server",
+    ]
+    found = [c for c in clis if shutil.which(c) is not None]
+    # Cursor's binary is `agent` on scratch, which is often not on this process PATH.
+    if "agent" not in found:
+        try:
+            from astroai_lab.agent.registry import resolve_agent_binary
+
+            if resolve_agent_binary("agent"):
+                found.insert(0, "agent")
+        except Exception:  # noqa: BLE001 — listing must not fail inspect
+            pass
+    return found

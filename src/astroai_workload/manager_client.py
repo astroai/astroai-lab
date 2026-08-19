@@ -5,7 +5,7 @@ orx/hermes) drive cluster lifecycle over the manager's public connect URL
 without running inside the manager pod. Uses the same auth path as the
 ``canfar`` CLI (client cert or bearer token) for HTTPS requests.
 
-Requires the the canfar client (no Ray).
+Requires the canfar client (no Ray).
 """
 
 from __future__ import annotations

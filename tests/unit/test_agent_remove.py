@@ -132,6 +132,25 @@ def test_uninstall_tool_not_installed_reports_empty(
     assert uninstall_tool("copilot", home=tmp_path / "home") == []
 
 
+def test_uninstall_tool_removes_cursor_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir, _ = _fake_session_paths(monkeypatch, tmp_path)
+    home = tmp_path / "home"
+    payload = bin_dir.parent / "share" / "cursor-agent" / "2026.08.11-e8db854"
+    payload.mkdir(parents=True)
+    wrapper = payload / "cursor-agent"
+    wrapper.write_text("#!/bin/sh\n", encoding="utf-8")
+    wrapper.chmod(0o755)
+    (payload / "node").write_text("#!/bin/sh\n", encoding="utf-8")
+    (bin_dir / "agent").symlink_to(wrapper)
+
+    results = uninstall_tool("cursor", home=home)
+    assert not (bin_dir / "agent").exists()
+    assert not payload.exists()
+    assert any(r.target.startswith("payload:") for r in results)
+
+
 def test_uninstall_tool_npm_run_is_quiet(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`npm uninstall` runs with quiet=True so `--json` stdout stays pure.
 

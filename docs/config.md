@@ -1,20 +1,22 @@
 # Optional configuration
 
-Paths resolve from Slurm-style session environment variables (`WORK`, `SCRATCH`,
-`PROJECT`) and standard CANFAR mount points. Optional preferences live at
-**`~/.astroai/lab/config.yaml`**. Every key is optional.
+Paths resolve from session environment variables (`SRCDIR`, `SCRATCH`,
+`PROJECT`) and standard CANFAR mount points. `WORK` is an alias of `SRCDIR`.
+Optional preferences live at **`~/.astroai/lab/config.yaml`**. Every key is optional.
 
 ```yaml
 # example
 default_pm: pixi          # pixi | uv
 clone_from_env: ml-base   # default --from-env name
+srcdir: ~/src             # default source dir (else $SRCDIR / $SCRATCH/src)
 ```
 
 Environment variables override YAML:
 
 | Variable | YAML key |
 |----------|----------|
-| `WORK` | `work_dir` |
+| `SRCDIR` | `srcdir` / `work_dir` |
+| `WORK` | `srcdir` / `work_dir` (same path; `SRCDIR` wins if both are set) |
 | `SCRATCH` | `scratch_dir` |
 | `ASTROAI_LAB_SAVE_DIR` | `save_dir` |
 | `ASTROAI_LAB_DEFAULT_PM` | `default_pm` |

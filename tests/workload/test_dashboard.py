@@ -87,8 +87,38 @@ def test_resolve_dashboard_url_from_persisted(
     monkeypatch.delenv("ASTROAI_RAY_JOBS_ADDRESS", raising=False)
     monkeypatch.delenv("RAY_DASHBOARD_URL", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "astroai_workload.dashboard._live_manager_connect", lambda: (None, False)
+    )
     persist_connect_url("c9", "https://canfar.net/session/contrib/xyz")
     assert resolve_dashboard_url() == "https://canfar.net/session/contrib/xyz/dashboard"
+
+
+def test_resolve_dashboard_url_live_beats_persist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ASTROAI_RAY_JOBS_ADDRESS", raising=False)
+    monkeypatch.delenv("RAY_DASHBOARD_URL", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    persist_connect_url("old", "https://canfar.net/session/contrib/dead")
+    monkeypatch.setattr(
+        "astroai_workload.dashboard._live_manager_connect",
+        lambda: ("https://canfar.net/session/contrib/live", True),
+    )
+    assert resolve_dashboard_url() == "https://canfar.net/session/contrib/live/dashboard"
+
+
+def test_resolve_dashboard_url_pending_manager_not_stale_persist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ASTROAI_RAY_JOBS_ADDRESS", raising=False)
+    monkeypatch.delenv("RAY_DASHBOARD_URL", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    persist_connect_url("old", "https://canfar.net/session/contrib/dead")
+    monkeypatch.setattr(
+        "astroai_workload.dashboard._live_manager_connect", lambda: (None, True)
+    )
+    assert resolve_dashboard_url() is None
 
 
 def test_iframe_html() -> None:

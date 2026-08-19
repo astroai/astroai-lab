@@ -342,17 +342,21 @@ def curl_installer_environ(extra: dict[str, str] | None = None) -> dict[str, str
 
 
 def find_curl_binary(binary: str, extra: list[Path] | None = None) -> Path | None:
-    """Locate a CLI just dropped by a curl installer (sandbox, scratch, or leftover home)."""
+    """Locate a CLI just dropped by a curl installer (sandbox, scratch, or leftover home).
+
+    Sandbox wins over ``ASTROAI_LAB_BIN_DIR`` so a reinstall picks up the new
+    drop, not a stale wrapper already sitting in the managed bin dir.
+    """
     sandbox = installer_sandbox_home()
     home = Path.home()
     candidates = [
-        _bin_dir() / binary,
         sandbox / ".local" / "bin" / binary,
         sandbox / f".{binary}" / "bin" / binary,
         sandbox / ".kilo" / "bin" / binary,
         sandbox / ".opencode" / "bin" / binary,
         sandbox / ".hermes" / "bin" / binary,
         sandbox / ".agy" / "bin" / binary,
+        _bin_dir() / binary,
         *(extra or []),
         home / ".local" / "bin" / binary,
         home / f".{binary}" / "bin" / binary,
@@ -447,19 +451,69 @@ def _curl_pipe_bash(
         )
 
 
+def _managed_share_dir() -> Path:
+    """Scratch ``share/`` next to the managed bin dir (Cursor payload, …)."""
+    return _bin_dir().parent / "share"
+
+
+def _land_symlink_payload(src: Path, dst: Path) -> bool:
+    """Keep a versioned CLI payload (bundled node + index.js) together.
+
+    Cursor's installer symlinks ``~/.local/bin/agent`` into
+    ``~/.local/share/cursor-agent/versions/<ver>/cursor-agent``. That wrapper
+    uses ``realpath $0`` to find bundled ``node``. Copying only the wrapper
+    into the bin dir makes it exec ``$BIN_DIR/node``, which is missing.
+    Returns True when ``dst`` now points at the landed payload.
+    """
+    if not src.is_symlink():
+        return False
+    try:
+        target = src.resolve(strict=True)
+    except OSError:
+        return False
+    if not target.is_file() or target.parent == src.parent:
+        return False
+    payload = target.parent
+    dest_payload = _managed_share_dir() / target.name / payload.name
+    if dest_payload.resolve() != payload.resolve():
+        if dest_payload.exists() or dest_payload.is_symlink():
+            if dest_payload.is_dir() and not dest_payload.is_symlink():
+                shutil.rmtree(dest_payload)
+            else:
+                dest_payload.unlink()
+        dest_payload.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.move(str(payload), str(dest_payload))
+        except OSError:
+            shutil.copytree(payload, dest_payload, symlinks=True)
+    dest_exe = dest_payload / target.name
+    if dst.exists() or dst.is_symlink():
+        dst.unlink()
+    dst.symlink_to(dest_exe)
+    with contextlib.suppress(OSError):
+        dest_exe.chmod(dest_exe.stat().st_mode | 0o111)
+    return True
+
+
 def _link_into_local_bin(src: Path, name: str) -> None:
-    """Land ``src`` as a real file under the managed scratch bin dir.
+    """Land ``src`` under the managed scratch bin dir.
 
     Upstream installers often drop into ``~/.local/bin``. We copy into
     ``ASTROAI_LAB_BIN_DIR`` (scratch) and remove that home dropping so the
     CLI is not left on /arc/home. Pre-existing user home installs are gated
     earlier by ``refuse_if_home_owned``.
+
+    When ``src`` is a symlink into a payload directory (Cursor: wrapper +
+    bundled node), keep that tree together under scratch ``share/`` and
+    point the bin name at the real executable.
     """
     if not src.is_file():
         return
     with contextlib.suppress(OSError):
         src.chmod(src.stat().st_mode | 0o111)
     dst = _bin_dir() / name
+    if _land_symlink_payload(src, dst):
+        return
     try:
         if src.resolve() == dst.resolve():
             return
@@ -772,10 +826,21 @@ def uninstall_tool(
         )
 
     # 1. Managed binaries from the session bin dir + npm prefix bin.
+    share_root = _managed_share_dir()
     for bin_path in (_bin_dir() / binary, _npm_prefix() / "bin" / binary):
+        payload = None
+        if bin_path.is_symlink():
+            with contextlib.suppress(OSError):
+                landed = bin_path.resolve().parent
+                if _path_under(landed, share_root):
+                    payload = landed
         result = _remove_file(bin_path, f"binary:{binary}", dry_run=dry_run)
         if result:
             results.append(result)
+        if payload is not None:
+            result = _remove_tree(payload, f"payload:{payload}", dry_run=dry_run)
+            if result:
+                results.append(result)
 
     # Convenience aliases created at install time (id name ≠ binary name).
     if name == "qoder":

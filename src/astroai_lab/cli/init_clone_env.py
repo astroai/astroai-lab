@@ -13,6 +13,7 @@ from astroai_lab.config.settings import get_settings
 from astroai_lab.core.git import git_init_and_commit
 from astroai_lab.core.paths import resolve_paths
 from astroai_lab.core.project import format_dir_size, require_project, save_env, save_rows
+from astroai_lab.core.session_common import ensure_writable_dir
 from astroai_lab.errors import LabError
 from astroai_lab.utils.subprocess import run_capture
 
@@ -65,12 +66,24 @@ def _print_save_list(*, json_output: bool, root: Path) -> None:
         ui.env_list_table(rows)
 
 
+def _src_dir(path: Path) -> Path:
+    """Expand ``~``, mkdir, and refuse a non-writable source directory."""
+    path = path.expanduser()
+    if not ensure_writable_dir(path):
+        raise LabError(
+            f"Source directory is not writable: {path}",
+            hint="Pick a path you can write: $HOME/src, /srcdir, or /arc/projects/<group>",
+        )
+    return path.resolve()
+
+
 def _init_impl(
     ctx: typer.Context,
     name: str,
     uv_project: bool,
     no_git: bool,
     no_gh: bool,
+    src_dir: Path | None,
 ) -> None:
     from astroai_lab.core.project import init_project
 
@@ -79,7 +92,12 @@ def _init_impl(
     if not uv_project and settings.default_pm == "uv":
         uv_project = True
     paths = resolve_paths()
-    target = paths.work_dir / name
+    try:
+        parent = _src_dir(src_dir) if src_dir is not None else paths.work_dir
+    except LabError as exc:
+        ui.print_error(str(exc))
+        raise typer.Exit(1) from exc
+    target = parent / name
     if target.exists() and any(target.iterdir()):
         ui.print_error(f"Directory exists and is not empty: {target}")
         raise typer.Exit(1)
@@ -106,14 +124,22 @@ def register(app: typer.Typer) -> None:
         uv_project: Annotated[bool, typer.Option("--uv")] = False,
         no_git: Annotated[bool, typer.Option("--no-git")] = False,
         no_gh: Annotated[bool, typer.Option("--no-gh")] = False,
+        src_dir: Annotated[
+            Path | None,
+            typer.Option(
+                "--dir",
+                help="Source directory (default: $SRCDIR).",
+            ),
+        ] = None,
     ) -> None:
         """Create a new pixi or uv project under the work directory.
 
         Examples:
             astroai init mylab
             astroai init mylab --uv
+            astroai init mylab --dir ~/src
         """
-        _init_impl(ctx, name, uv_project, no_git, no_gh)
+        _init_impl(ctx, name, uv_project, no_git, no_gh, src_dir)
 
     @app.command()
     def clone(
@@ -126,6 +152,13 @@ def register(app: typer.Typer) -> None:
             Path | None,
             typer.Option("--to", help="Destination directory (one repo only)."),
         ] = None,
+        src_dir: Annotated[
+            Path | None,
+            typer.Option(
+                "--dir",
+                help="Source directory (parent for clones; default: $SRCDIR).",
+            ),
+        ] = None,
         from_env: Annotated[str | None, typer.Option("--from-env")] = None,
         from_path: Annotated[Path | None, typer.Option("--from")] = None,
     ) -> None:
@@ -136,7 +169,9 @@ def register(app: typer.Typer) -> None:
             astroai clone myorg/myproject
             astroai clone owner/a owner/b
             astroai clone --from-env ml-base myorg/myproject
-            astroai clone owner/repo --to $WORK/custom
+            astroai clone owner/repo --to $SRCDIR/custom
+            astroai clone owner/repo --dir ~/src
+            astroai clone owner/a owner/b --dir /srcdir
         """
         from astroai_lab.core.project import (
             bootstrap_lock,
@@ -151,15 +186,17 @@ def register(app: typer.Typer) -> None:
         settings = get_settings()
         from_env = from_env or settings.clone_from_env
         names = list(repos or [])
-        if to is None and len(names) >= 2 and "/" not in names[-1]:
-            to = Path(names.pop())
         if not names:
             ui.print_error("clone needs a repo name")
             ui.print_hint("  astroai clone myproject")
             ui.print_hint("  astroai clone owner/repo")
             raise typer.Exit(1)
+        if to is not None and src_dir is not None:
+            ui.print_error("--dir and --to cannot be combined")
+            ui.print_hint("  --dir is the parent; --to is the exact destination for one repo")
+            raise typer.Exit(1)
         if to is not None and len(names) != 1:
-            ui.print_error("--to (or a target directory) only works with one repo")
+            ui.print_error("--to only works with one repo")
             raise typer.Exit(1)
         if from_path and not from_env:
             ui.print_error("--from requires --from-env <name>")
@@ -168,6 +205,11 @@ def register(app: typer.Typer) -> None:
             ui.print_error("gh required.\n  `gh auth login`")
             raise typer.Exit(1)
         paths = resolve_paths()
+        try:
+            parent = _src_dir(src_dir) if src_dir is not None else paths.work_dir
+        except LabError as exc:
+            ui.print_error(str(exc))
+            raise typer.Exit(1) from exc
         jobs: list[tuple[str, Path]] = []
         for raw in names:
             try:
@@ -175,7 +217,7 @@ def register(app: typer.Typer) -> None:
             except LabError as exc:
                 ui.print_error(str(exc))
                 raise typer.Exit(1) from exc
-            dest = to if to is not None else paths.work_dir / repo.rsplit("/", 1)[-1]
+            dest = to.expanduser() if to is not None else parent / repo.rsplit("/", 1)[-1]
             jobs.append((repo, dest))
 
         failed = 0
@@ -299,7 +341,7 @@ def register(app: typer.Typer) -> None:
         name: Annotated[str, typer.Argument(help="Snapshot name.")],
         to: Annotated[
             Path | None,
-            typer.Option("--to", help="Directory to restore into (default: $WORK/NAME)."),
+            typer.Option("--to", help="Directory to restore into (default: $SRCDIR/NAME)."),
         ] = None,
         from_path: Annotated[
             Path | None,
@@ -318,7 +360,7 @@ def register(app: typer.Typer) -> None:
             astroai resume mylab
             astroai resume mylab --yes
             astroai resume mylab --from /arc/projects/group/env-saves
-            astroai resume mylab --to $WORK/mylab --from /arc/projects/group/env-saves/mylab
+            astroai resume mylab --to $SRCDIR/mylab --from /arc/projects/group/env-saves/mylab
         """
         from astroai_lab.core.project import resolve_save_dir, restore_env
 

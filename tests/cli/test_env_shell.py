@@ -15,6 +15,7 @@ def test_env_export(tmp_path: Path, monkeypatch) -> None:
     assert result.exit_code == 0
     assert "ASTROAI_LAB_BIN_DIR" in result.stdout
     assert "export WORK=" in result.stdout
+    assert "export SRCDIR=" in result.stdout
 
 
 def test_env_export_json(tmp_path: Path, monkeypatch) -> None:
@@ -24,8 +25,8 @@ def test_env_export_json(tmp_path: Path, monkeypatch) -> None:
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert isinstance(data, dict)
-    # JSON output carries the same resolved values as the shell export.
     assert data["WORK"] == str(tmp_path)
+    assert data["SRCDIR"] == str(tmp_path)
     assert data["ASTROAI_LAB_BIN_DIR"]
 
 
@@ -65,7 +66,13 @@ def test_env_export_json_matches_shell_values(tmp_path: Path, monkeypatch) -> No
             shell_env[key] = val.strip("'\"")
     # Same key set in both modes, and identical values for the resolved paths.
     assert set(data) == set(shell_env)
-    for key in ("WORK", "ASTROAI_LAB_BIN_DIR", "ASTROAI_LAB_RUNTIME_ROOT", "XDG_CACHE_HOME"):
+    for key in (
+        "SRCDIR",
+        "WORK",
+        "ASTROAI_LAB_BIN_DIR",
+        "ASTROAI_LAB_RUNTIME_ROOT",
+        "XDG_CACHE_HOME",
+    ):
         assert data[key] == shell_env[key], f"{key} differs between JSON and shell export"
 
 

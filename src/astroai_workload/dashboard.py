@@ -13,15 +13,12 @@ Two surfaces:
    browser hits the proxy on the session's own port, the proxy fetches the
    public dashboard URL, and strips frame-busting headers so an iframe works.
 
-Requires the the canfar client (no Ray).
+Requires the canfar client (no Ray).
 """
 
 from __future__ import annotations
 
-import json
 import os
-import shutil
-import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -60,9 +57,10 @@ def resolve_dashboard_url(address: str | None = None) -> str | None:
     Priority:
       1. Explicit ``address`` or ``ASTROAI_RAY_JOBS_ADDRESS`` /
          ``RAY_DASHBOARD_URL`` (set inside a ray-manager session).
-      2. Persisted connect URL under ``~/.astroai/ray/clusters/*/connect-url``
-         (written by ``astroai cluster start``).
-      3. Live ``canfar ps`` discovery of a Running/Pending ray-manager session.
+      2. Live Running/Pending ray-manager with a connect URL.
+      3. Live manager still Pending (no connect URL yet) → ``None`` so callers
+         poll instead of using a stale persisted URL from a previous manager.
+      4. Persisted connect URL under ``~/.astroai/ray/clusters/*/connect-url``.
 
     Returns ``None`` when nothing is resolvable.
     """
@@ -72,34 +70,33 @@ def resolve_dashboard_url(address: str | None = None) -> str | None:
     if explicit:
         return explicit.strip()
 
+    live_url, manager_visible = _live_manager_connect()
+    if live_url:
+        return jobs_url_from_connect(live_url)
+    if manager_visible:
+        return None
+
     persisted = read_persisted_connect_url()
     if persisted:
         return jobs_url_from_connect(persisted)
+    return None
 
-    from astroai_workload.canfar_ops import CanfarOps
 
+def _live_manager_connect() -> tuple[str | None, bool]:
+    """Return ``(connect_url, manager_visible)`` from CANFAR session listing."""
     try:
+        from astroai_workload.canfar_ops import CanfarOps
+
         ops = CanfarOps()
         if not ops.auth_status().authenticated:
-            return None
-        for row in ops.list_sessions():
-            status = str(row.get("status") or "")
-            if status not in {"Running", "Pending"}:
-                continue
-            image = str(row.get("image") or row.get("imageName") or "").lower()
-            name = str(row.get("name") or "").lower()
-            if "ray-manager" in image or name in {
-                "raymgr",
-                "orx-ray-stg",
-                "ray-manager",
-                "astroai-compute",
-            }:
-                connect = str(row.get("connectURL") or row.get("connectUrl") or "").strip()
-                if connect:
-                    return jobs_url_from_connect(connect)
+            return None, False
+        row = ops.find_manager()
+        if not row:
+            return None, False
+        connect = str(row.get("connectURL") or row.get("connectUrl") or "").strip()
+        return (connect or None), True
     except Exception:  # noqa: BLE001 — discovery must never raise to callers
-        return None
-    return None
+        return None, False
 
 
 def read_persisted_connect_url() -> str | None:
@@ -135,40 +132,6 @@ def persist_connect_url(cluster_id: str, connect_url: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(connect_url.rstrip("/") + "/", encoding="utf-8")
     return path
-
-
-def _canfar_ps_json() -> list[dict[str, Any]]:
-    if shutil.which("canfar") is None:
-        return []
-    try:
-        proc = subprocess.run(
-            ["canfar", "ps", "--json"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if proc.returncode != 0:
-        return []
-    raw = (proc.stdout or "").strip()
-    if not raw:
-        return []
-    for marker in ("[", "{"):
-        idx = raw.find(marker)
-        if idx >= 0:
-            raw = raw[idx:]
-            break
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    if isinstance(data, dict):
-        return [data]
-    if isinstance(data, list):
-        return [r for r in data if isinstance(r, dict)]
-    return []
 
 
 def dashboard_iframe_html(url: str, *, height: int = 900) -> str:

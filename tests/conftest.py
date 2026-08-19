@@ -19,6 +19,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
             "RATTLER_CACHE_DIR",
             "MAMBA_PKGS_DIRS",
             "WORK",
+            "SRCDIR",
             "SCRATCH",
             "PROJECT",
             "XDG_CACHE_HOME",

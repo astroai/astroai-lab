@@ -116,7 +116,9 @@ done
 
 echo "=== Documented subcommand flags ==="
 check_flag_in_help "init" "--uv" init
+check_flag_in_help "init" "--dir" init
 check_flag_in_help "clone" "--from-env" clone
+check_flag_in_help "clone" "--dir" clone
 check_flag_in_help "save" "--full" save
 check_flag_in_help "save" "--list" save
 check_flag_in_help "save" "--to" save

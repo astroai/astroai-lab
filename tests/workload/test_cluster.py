@@ -730,3 +730,87 @@ class TestClusterEnsureAutoscaling:
         result = cluster_ensure_payload(autoscaling=True)
         assert result["restart_manager"] is True
         assert result["autoscaling"] is True
+
+
+class TestClusterScaleCountsPending:
+    def test_does_not_launch_when_pending_already_at_target(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from astroai_workload.cli import cluster_scale_payload
+
+        class _Client:
+            launches = 0
+            destroyed: list[str] = []
+
+            def status(self) -> dict:
+                return {
+                    "cluster": {"phase": "Creating"},
+                    "joined_workers": 0,
+                    "workers": [
+                        {
+                            "session_id": "p1",
+                            "phase": "CANFAR Pending",
+                            "ray_joined": False,
+                            "name": "a",
+                        },
+                        {
+                            "session_id": "p2",
+                            "phase": "CANFAR Pending",
+                            "ray_joined": False,
+                            "name": "b",
+                        },
+                    ],
+                }
+
+            def launch_worker(self, **kwargs: object) -> dict:
+                type(self).launches += 1
+                return {}
+
+            def destroy_worker(self, sid: str) -> dict:
+                type(self).destroyed.append(sid)
+                return {}
+
+            def wait_operation(self, timeout_seconds: int = 0) -> dict:
+                return self.status()
+
+        monkeypatch.setattr("astroai_workload.cli._manager_client", lambda addr: _Client())
+        result = cluster_scale_payload(2)
+        assert result["previous"] == 2
+        assert _Client.launches == 0
+
+    def test_shrink_destroys_pending(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from astroai_workload.cli import cluster_scale_payload
+
+        destroyed: list[str] = []
+
+        class _Client:
+            def status(self) -> dict:
+                return {
+                    "cluster": {"phase": "Creating"},
+                    "joined_workers": 0,
+                    "workers": [
+                        {
+                            "session_id": "p1",
+                            "phase": "CANFAR Pending",
+                            "ray_joined": False,
+                            "name": "a",
+                        },
+                        {
+                            "session_id": "p2",
+                            "phase": "Ray Healthy",
+                            "ray_joined": True,
+                            "name": "b",
+                        },
+                    ],
+                }
+
+            def destroy_worker(self, sid: str) -> dict:
+                destroyed.append(sid)
+                return {}
+
+            def wait_operation(self, timeout_seconds: int = 0) -> dict:
+                return self.status()
+
+        monkeypatch.setattr("astroai_workload.cli._manager_client", lambda addr: _Client())
+        cluster_scale_payload(1)
+        assert destroyed == ["p1"]

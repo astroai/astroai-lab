@@ -5,11 +5,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from astroai_lab import config_dir, saves_dir
-from astroai_lab.core.session_common import overlay_work_dir
+from astroai_lab.core.session_common import ensure_writable_dir, overlay_work_dir
 
 
 class LabSettings(BaseSettings):
@@ -22,24 +22,31 @@ class LabSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Slurm-style canonical names (WORK / SCRATCH) map onto the YAML keys via
-    # validation_alias; the legacy ASTROAI_LAB_WORK_DIR/SCRATCH_DIR names are
-    # intentionally gone — users set WORK and SCRATCH.
-    work_dir: Path | None = Field(default=None, validation_alias="WORK")
-    scratch_dir: Path | None = Field(default=None, validation_alias="SCRATCH")
+    # SRCDIR is the source directory (clones, init). WORK is the same path,
+    # kept as a synonym. Skaha TMP_SRC_DIR is mapped onto SRCDIR in the image
+    # profile. Overlay /srcdir relocates to $SCRATCH/src unless the user set
+    # something else.
+    work_dir: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SRCDIR", "srcdir", "WORK", "work_dir"),
+    )
+    scratch_dir: Path | None = Field(
+        default=None, validation_alias=AliasChoices("SCRATCH", "scratch_dir")
+    )
     save_dir: Path | None = Field(default=None)
     default_pm: Literal["pixi", "uv"] = "pixi"
     clone_from_env: str | None = None
 
     def resolve_work_dir(self) -> Path:
         scratch = self.resolve_scratch_dir()
-        for raw in (self.work_dir, _env_path("WORK")):
+        for raw in (_env_path("SRCDIR"), _env_path("WORK"), self.work_dir):
             if raw is None:
                 continue
+            raw = raw.expanduser()
             relocated = overlay_work_dir(raw, scratch)
             if relocated is not None:
                 return relocated
-            if raw.is_dir() and os.access(raw, os.W_OK):
+            if ensure_writable_dir(raw):
                 return raw
         relocated = overlay_work_dir(Path("/srcdir"), scratch)
         if relocated is not None:
