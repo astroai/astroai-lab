@@ -63,9 +63,9 @@ Help: `astroai help` · one command: `astroai help -c cluster` · cheat sheet:
 Session images already put `astroai` on PATH.
 
 ```bash
-uv tool install git+https://github.com/astroai/lab.git
+pipx install git+https://github.com/astroai/lab.git
 # or: pip install "git+https://github.com/astroai/lab.git"
-uv sync --all-extras && uv run astroai --help   # checkout
+pixi install && pixi run astroai --help   # checkout
 ```
 
 ## Docs
@@ -83,7 +83,7 @@ Data movement is not this CLI. Use **`canfar data`** and `vcp` / `vls`.
 
 ```bash
 ./scripts/ci.sh
-uv run pytest -q
+pixi run test
 ```
 
 [MIT](LICENSE). `canfar` keeps its own license.

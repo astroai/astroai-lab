@@ -5,23 +5,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 
-if ! command -v uv >/dev/null 2>&1; then
-    echo "error: uv is required (https://docs.astral.sh/uv/)" >&2
+if ! command -v pixi >/dev/null 2>&1; then
+    echo "error: pixi is required (https://pixi.sh)" >&2
     exit 1
 fi
 
-uv sync --all-extras --quiet
-uv lock --check
+pixi install --frozen
 
 echo "==> ruff check"
-uv run ruff check .
+pixi run lint
 
 echo "==> ruff format"
-uv run ruff format --check .
+pixi run format-check
 
 echo "==> ty check"
 # CONDA_PREFIX can point ty at a conda site-packages on some dev machines.
-env -u CONDA_PREFIX uv run ty check src/astroai_lab
+env -u CONDA_PREFIX pixi run typecheck
 
 echo "==> CLI audit"
 # GITHUB_ACTIONS=true makes typer/rich emit ANSI SGR codes in --help output,
@@ -30,6 +29,6 @@ echo "==> CLI audit"
 GITHUB_ACTIONS=true bash scripts/audit-cli-help.sh
 
 echo "==> pytest"
-uv run pytest -q
+pixi run test
 
 echo "ok: all local CI checks passed"

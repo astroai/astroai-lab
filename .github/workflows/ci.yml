@@ -19,57 +19,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: prefix-dev/setup-pixi@v0
         with:
-          enable-cache: false
+          cache: true
 
-      - name: Probe lockfile drift gate
-        # Regression test for the gate directly below. Appends a malformed
-        # TOML anchor to uv.lock and asserts `uv lock --check` returns
-        # non-zero. Self-restoring via an EXIT trap so the working tree ends
-        # up clean even if the runner is killed mid-script. If this step ever
-        # passes-with-drift, uv's graph gate has been weakened or the YAML
-        # step has been reworded away from `uv lock --check`, and MUST be
-        # re-hardened.
-        run: |
-          # Defensive cleanup: a prior SIGKILL'd run can leave a stale
-          # uv.lock.bak behind. Force-remove so this run starts clean.
-          rm -f uv.lock.bak
-          cp uv.lock uv.lock.bak
-          trap 'mv -f uv.lock.bak uv.lock 2>/dev/null || true; rm -f uv.lock.bak' EXIT INT TERM
-          printf '\n[[[deliberate-drift-probe\n' >> uv.lock
-          if uv lock --check >/dev/null 2>&1; then
-            echo "ERROR: uv lock --check passed on malformed uv.lock" >&2
-            echo "The hard-fail gate is wedged open. Refactor regression." >&2
-            exit 1
-          fi
-          echo "OK: uv lock --check tripped on TOML-mangled uv.lock"
-
-      - name: Lockfile integrity — DO NOT add continue-on-error — uv lock --check
-        # Hard-fail on lockfile drift. uv lock --check is a graph-equality
-        # check (resolver output matches locked graph), not byte-equality:
-        # it catches unresolved pyproject.toml changes silently sneaking past
-        # CI, but tolerates cosmetic edits uv itself would normalise away.
-        # Do not manually edit uv.lock. The no-`==` / no-`<=` reproducibility
-        # model this project is built on depends on this gate staying hard.
-        run: uv lock --check
-
-      - name: Sync
-        run: uv sync --all-extras --quiet
+      - name: Lockfile integrity — pixi install --frozen
+        # Hard-fail on lockfile drift: --frozen refuses to touch pixi.lock
+        # and errors if the manifest changed without re-locking.
+        run: pixi install --frozen
 
       - name: Ruff check
-        run: uv run ruff check .
+        run: pixi run lint
 
       - name: Ruff format
-        run: uv run ruff format --check .
+        run: pixi run format-check
 
       - name: ty typecheck
-        # env -u CONDA_PREFIX is a no-op on runners but keeps this identical
-        # to scripts/ci.sh, where a local conda env can confuse ty.
-        run: env -u CONDA_PREFIX uv run ty check src/astroai_lab
+        run: pixi run typecheck
 
       - name: CLI audit
-        run: bash scripts/audit-cli-help.sh
+        run: pixi run cli-audit
 
       - name: Pytest
-        run: uv run pytest -q
+        run: pixi run test
