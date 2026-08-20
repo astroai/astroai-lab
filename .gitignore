@@ -11,3 +11,4 @@ htmlcov/
 # Local MNIST example artifacts
 examples/workload/mnist_cnn/data/
 examples/workload/mnist_cnn/*.pt
+uv.lock
