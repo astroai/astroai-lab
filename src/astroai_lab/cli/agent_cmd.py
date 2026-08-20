@@ -970,6 +970,11 @@ def agent_install_cmd(
     results: list[dict[str, Any]] = []
     for tool in names:
         try:
+            if not opts.json and not opts.quiet and tool == "hermes" and not opts.dry_run:
+                ui.print_hint(
+                    "Hermes bootstraps uv, Python, Node, and clones the agent repo — "
+                    "often 5–15 minutes on CANFAR. Installer output streams below."
+                )
             _install_one_agent(tool, dry_run=opts.dry_run)
         except LabError as exc:
             results.append(

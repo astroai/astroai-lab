@@ -226,6 +226,49 @@ def test_install_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         inst._curl_pipe_bash("https://example.invalid/install")
 
 
+def test_curl_pipe_bash_streams_installer_lines(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from astroai_lab.agent import install as inst
+
+    class _FakeStdin:
+        def write(self, data: bytes) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    class _FakeStdout:
+        def readline(self) -> bytes:
+            if not getattr(self, "_done", False):
+                self._done = True
+                return b"Installing deps...\n"
+            return b""
+
+    class _FakeProc:
+        returncode = 0
+        stdin = _FakeStdin()
+        stdout = _FakeStdout()
+
+        def wait(self, timeout: float | None = None) -> int:
+            return 0
+
+    monkeypatch.setattr(inst, "_require", lambda cmd: None)
+    monkeypatch.setattr(inst, "curl_installer_environ", lambda env=None: {})
+    monkeypatch.setattr(
+        inst.subprocess,
+        "run",
+        lambda *a, **k: type("_R", (), {"stdout": b"#!/bin/bash\necho ok\n"})(),
+    )
+    monkeypatch.setattr(inst.subprocess, "Popen", lambda *a, **k: _FakeProc())
+
+    inst._curl_pipe_bash("https://example.test/install.sh", stream=True)
+    err = capsys.readouterr().err
+    assert "Downloading installer" in err
+    assert "Running installer" in err
+    assert "Installing deps" in err
+
+
 def test_cgroup_and_gpu_parsers(monkeypatch: pytest.MonkeyPatch) -> None:
     from astroai_lab.core import session_resources as sr
 

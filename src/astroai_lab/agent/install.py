@@ -5,6 +5,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 import zipfile
 from dataclasses import dataclass
@@ -383,18 +384,30 @@ def _installer_noise(line: str) -> bool:
     return text.startswith("Run '") and " to start" in lower
 
 
+def _raise_curl_install_failure(url: str, text: str) -> None:
+    useful = "\n".join(line for line in text.splitlines() if not _installer_noise(line))
+    raise LabError(
+        f"Install failed for {url}" + (f":\n{useful}" if useful else ""),
+        hint="Check network / auth, then retry",
+    )
+
+
 def _curl_pipe_bash(
     url: str,
     *,
     env: dict[str, str] | None = None,
     args: list[str] | None = None,
+    stream: bool | None = None,
 ) -> None:
-    """Fetch an install script and run it, capturing chatter.
+    """Fetch an install script and run it.
 
-    Upstream scripts (cursor, kilo, opencode, claude, …) hardcode ``$HOME/.local``
-    or ``$HOME/.<name>/bin``. The subprocess HOME is a scratch sandbox so those
-    writes never land on /arc/home. ``XDG_CONFIG_HOME`` still points at the
-    real ``~/.config``.
+    Upstream scripts (cursor, kilo, opencode, claude, hermes, …) hardcode
+    ``$HOME/.local`` or ``$HOME/.<name>/bin``. The subprocess HOME is a scratch
+    sandbox so those writes never land on /arc/home. ``XDG_CONFIG_HOME`` still
+    points at the real ``~/.config``.
+
+    When ``stderr`` is a TTY, installer stdout is streamed live so long
+    bootstraps (Hermes: uv + Python + Node + git clone) do not look hung.
     """
     from astroai_lab.agent.setup_state import INSTALL_TIMEOUT_SEC
 
@@ -404,7 +417,12 @@ def _curl_pipe_bash(
     total = max(60, INSTALL_TIMEOUT_SEC)
     curl_budget = max(20, (total - 5) // 3)
     bash_budget = max(30, total - curl_budget - 5)
+    if stream is None:
+        stream = sys.stderr.isatty()
+    cmd = ["bash", "-s", "--", *(args or [])]
     try:
+        if stream:
+            print(f"Downloading installer from {url}…", file=sys.stderr, flush=True)
         script = subprocess.run(
             ["curl", "-fsSL", "--max-time", str(curl_budget), url],
             capture_output=True,
@@ -412,15 +430,6 @@ def _curl_pipe_bash(
             env=merged,
             timeout=curl_budget + 5,
         ).stdout
-        cmd = ["bash", "-s", "--", *(args or [])]
-        proc = subprocess.run(
-            cmd,
-            input=script,
-            capture_output=True,
-            check=False,
-            env=merged,
-            timeout=bash_budget,
-        )
     except subprocess.TimeoutExpired as exc:
         raise LabError(
             f"Install timed out after {total}s fetching {url}",
@@ -437,6 +446,55 @@ def _curl_pipe_bash(
             hint="Check network / auth, then retry",
         ) from exc
 
+    if stream:
+        print(
+            "Running installer (self-bootstrapping agents can take 5–15 minutes)…",
+            file=sys.stderr,
+            flush=True,
+        )
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=merged,
+        )
+        assert proc.stdin is not None
+        proc.stdin.write(script)
+        proc.stdin.close()
+        assert proc.stdout is not None
+        chunks: list[bytes] = []
+        for raw in iter(proc.stdout.readline, b""):
+            chunks.append(raw)
+            line = raw.decode(errors="replace").rstrip("\r\n")
+            if line and not _installer_noise(line):
+                sys.stderr.buffer.write(raw)
+                if not raw.endswith(b"\n"):
+                    sys.stderr.buffer.write(b"\n")
+                sys.stderr.buffer.flush()
+        try:
+            proc.wait(timeout=bash_budget)
+        except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+                proc.wait(timeout=5)
+            raise LabError(
+                f"Install timed out after {total}s running installer from {url}",
+                hint="Retry later or raise ASTROAI_LAB_AGENT_INSTALL_TIMEOUT",
+            ) from exc
+        text = b"".join(chunks).decode(errors="replace").strip()
+        if proc.returncode != 0:
+            _raise_curl_install_failure(url, text)
+        return
+
+    proc = subprocess.run(
+        cmd,
+        input=script,
+        capture_output=True,
+        check=False,
+        env=merged,
+        timeout=bash_budget,
+    )
     out = b""
     if isinstance(proc.stdout, bytes):
         out += proc.stdout
@@ -444,11 +502,7 @@ def _curl_pipe_bash(
         out += proc.stderr
     text = out.decode(errors="replace").strip()
     if proc.returncode != 0:
-        useful = "\n".join(line for line in text.splitlines() if not _installer_noise(line))
-        raise LabError(
-            f"Install failed for {url}" + (f":\n{useful}" if useful else ""),
-            hint="Check network / auth, then retry",
-        )
+        _raise_curl_install_failure(url, text)
 
 
 def _managed_share_dir() -> Path:
